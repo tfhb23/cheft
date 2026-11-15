@@ -294,6 +294,45 @@ describe('Bereit-Phase und Ablage nach dem Rauskommen', () => {
   });
 });
 
+describe('Ablagekarte nehmen, wenn man schon draußen ist', () => {
+  it('Drilling auslegen und den Joker abwerfen (verbrennen) zählt als sofortiges Verwenden', () => {
+    const g = testGame(3, 33);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    // b ist draußen; auf der Ablage liegt eine 7, b hat zwei weitere 7er und einen Joker
+    g.round.players[b].opened = true;
+    g.round.melds.push({ id: 50, owner: b, type: 'run', cards: p.takeAll('H8', 'H9', 'H10'), suit: 'H', startRank: 8 });
+    g.round.discard = [p.take('C7')];
+    g.round.lastDiscarderMode = 'romme';
+    freshTurn(g, b);
+    g.round.turn.phase = 'draw';
+    setHand(g, b, p.takeAll('S7', 'D7', 'J'));
+    expect(checkDraw(g, b, 'discard').ok).toBe(true);
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    const hand = g.round.players[b].hand;
+    const sevens = hand.filter((c) => c.rank === 7).map((c) => c.id);
+    expect(doLay(g, b, [sevens]).ok).toBe(true);
+    const joker = g.round.players[b].hand.find((c) => isJoker(c))!;
+    expect(doDiscard(g, b, joker.id).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+    expect(g.round.result!.jokerBurned).toBe(true);
+  });
+
+  it('eine Karte, die sich nirgends verwenden lässt, bleibt gesperrt', () => {
+    const g = testGame(3, 34);
+    const p = new CardPool();
+    const b = g.round.starter;
+    g.round.players[b].opened = true;
+    g.round.discard = [p.take('C7')];
+    g.round.lastDiscarderMode = 'romme';
+    freshTurn(g, b);
+    g.round.turn.phase = 'draw';
+    setHand(g, b, p.takeAll('S2', 'D9', 'J'));
+    expect(checkDraw(g, b, 'discard').ok).toBe(false);
+  });
+});
+
 describe('Zurücklegen', () => {
   it('Ablagekarte zurücklegen, solange nichts liegt', () => {
     const g = testGame(3, 21);

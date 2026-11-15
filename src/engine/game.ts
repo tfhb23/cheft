@@ -348,8 +348,15 @@ export function canUseImmediately(state: GameState, pid: number, card: Card): bo
   const p = state.round.players[pid];
   for (const m of state.round.melds) if (addOptions(m, card).length > 0) return true;
   const hand = [...p.hand, card];
-  const part = findPartition(hand, { types: ROMME_TYPES, allowSkip: true, mustInclude: [card.id] });
-  return !!part && part.used > 0 && part.used < hand.length;
+  // Eine Karte muss zum Abwerfen bleiben. Die beste Aufteilung nutzt oft alle Karten (z. B. Vierersatz mit Joker),
+  // deshalb jede andere Karte einmal als "bleibt" probieren (so kann man etwa den Joker abwerfen und verbrennen).
+  for (let k = 0; k < hand.length; k++) {
+    if (hand[k].id === card.id) continue;
+    const rest = hand.filter((_, i) => i !== k);
+    const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [card.id] });
+    if (part && part.used > 0) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------- Ziehen
