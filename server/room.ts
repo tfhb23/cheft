@@ -278,7 +278,9 @@ export class Room {
   updateSettings(patch: Partial<LobbySettings>): Result {
     if (this.started) return fail('net.alreadyStarted');
     if (patch.rounds !== undefined && patch.rounds !== 7 && patch.rounds !== 11) return fail('net.badSettings');
-    this.settings = { ...this.settings, ...patch };
+    // Nur gesetzte Werte übernehmen: Ein fehlender Wert darf die bestehende Einstellung nicht überschreiben.
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    this.settings = { ...this.settings, ...defined };
     this.touch();
     return ok;
   }

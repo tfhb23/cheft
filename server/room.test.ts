@@ -234,4 +234,15 @@ describe('Räume', () => {
     restored.setConnected(1, true);
     expect(restored.paused).toBeNull();
   });
+
+  it('eine Einstellung ändern lässt die anderen unberührt', () => {
+    const room = new Rooms(18).create();
+    room.addHuman('A');
+    expect(room.updateSettings({ rounds: 11, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
+    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: true, speed: 'normal' });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: false, speed: undefined });
+    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: false, speed: 'normal' });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast' });
+    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: false, speed: 'fast' });
+  });
 });
