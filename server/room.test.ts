@@ -6,7 +6,7 @@ describe('Räume', () => {
   it('erstellen, beitreten, Bots auffüllen, starten', () => {
     const rooms = new Rooms(5);
     const room = rooms.create();
-    expect(room.code).toMatch(/^[A-Z2-9]{4}$/);
+    expect(room.code).toMatch(/^[1-9]\d{2}$/);
     const a = room.addHuman('Tobias');
     expect('pid' in a && a.pid).toBe(0);
     const b = room.addHuman('Tobias');

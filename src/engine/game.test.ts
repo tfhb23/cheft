@@ -333,6 +333,120 @@ describe('Ablagekarte nehmen, wenn man schon draußen ist', () => {
   });
 });
 
+describe('Joker eintauschen', () => {
+  /** b ist draußen; die Folge Pik 6-7-8 mit Joker (vertritt Pik 9) liegt am Tisch. */
+  function setup(seed: number) {
+    const g = testGame(3, seed);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    g.round.players[b].opened = true;
+    g.round.melds.push({ id: 60, owner: b, type: 'run', cards: p.takeAll('S6', 'S7', 'S8', 'J'), suit: 'S', startRank: 6 });
+    return { g, p, a, b };
+  }
+
+  it('eine Karte, gegen die der nächste Spieler einen Joker tauschen könnte, darf nicht abgeworfen werden', () => {
+    const { g, p, a } = setup(41);
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('S9', 'C2', 'D12'));
+    const swap = checkDiscard(g, a, g.round.players[a].hand[0].id);
+    expect(swap.ok).toBe(false);
+    if (!swap.ok) expect(swap.error).toBe('err.discardJokerSwap');
+    expect(checkDiscard(g, a, g.round.players[a].hand[1].id).ok).toBe(true);
+  });
+
+  it('Sackgasse: sind alle Karten tauschbar oder anlegbar, darf trotzdem abgeworfen werden', () => {
+    const { g, p, a } = setup(42);
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('S9', 'S5'));
+    expect(checkDiscard(g, a, g.round.players[a].hand[0].id).ok).toBe(true);
+  });
+
+  it('ist der nächste Spieler nicht draußen, gibt es keine Sperre', () => {
+    const { g, p, a, b } = setup(43);
+    g.round.players[b].opened = false;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('S9', 'C2', 'D12'));
+    expect(checkDiscard(g, a, g.round.players[a].hand[0].id).ok).toBe(true);
+  });
+
+  it('wer draußen ist, darf die Ablagekarte nehmen, um damit einen Joker zu tauschen', () => {
+    const { g, p, b } = setup(44);
+    g.round.discard = [p.take('S9')];
+    g.round.lastDiscarderMode = 'romme';
+    freshTurn(g, b);
+    g.round.turn.phase = 'draw';
+    setHand(g, b, p.takeAll('C2', 'D12'));
+    expect(checkDraw(g, b, 'discard').ok).toBe(true);
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    const nine = g.round.players[b].hand.find((c) => c.suit === 'S' && c.rank === 9)!;
+    expect(doStealJoker(g, b, 60, 3, nine.id).ok).toBe(true);
+    const joker = g.round.players[b].hand.find((c) => isJoker(c))!;
+    expect(doLayOff(g, b, joker.id, 60).ok).toBe(true);
+    expect(doDiscard(g, b, g.round.players[b].hand[0].id).ok).toBe(true);
+  });
+
+  it('ohne passenden Joker auf dem Tisch bleibt dieselbe Karte gesperrt', () => {
+    const { g, p, b } = setup(45);
+    g.round.discard = [p.take('H9')];
+    g.round.lastDiscarderMode = 'romme';
+    freshTurn(g, b);
+    g.round.turn.phase = 'draw';
+    setHand(g, b, p.takeAll('C2', 'D12'));
+    expect(checkDraw(g, b, 'discard').ok).toBe(false);
+  });
+});
+
+describe('Stapel leer: Teppichkarte im letzten Zug', () => {
+  function nearlyEmpty(seed: number, carpet: boolean) {
+    const g = testGame(3, seed);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    g.round.stock = [];
+    if (!carpet) g.round.carpet = null;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('C2', 'D12', 'H5'));
+    return { g, p, a, b };
+  }
+
+  it('der nächste Spieler darf die Teppichkarte wie vom Stapel nehmen, danach endet die Runde', () => {
+    const { g, a, b } = nearlyEmpty(51, true);
+    const carpet = g.round.carpet!;
+    expect(doDiscard(g, a, g.round.players[a].hand[0].id).ok).toBe(true);
+    expect(g.round.ended).toBe(false);
+    expect(g.round.finalTurn).toBe(true);
+    expect(g.round.turn.player).toBe(b);
+    expect(g.round.turn.phase).toBe('draw');
+    // Ohne Paar, ohne Bedingungen, kein Cheft, kein Rauskommen-Zwang
+    expect(checkDraw(g, b, 'carpet').ok).toBe(true);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    expect(g.round.carpet).toBeNull();
+    expect(g.round.players[b].mode).toBe('romme');
+    expect(g.round.turn.mustPairWithId).toBeNull();
+    expect(g.round.players[b].hand.some((c) => c.id === carpet.id)).toBe(true);
+    expect(checkUndoDraw(g, b).ok).toBe(false); // wie eine Stapelkarte
+    expect(doDiscard(g, b, g.round.players[b].hand[0].id).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+    expect(g.round.result!.reason).toBe('stock');
+  });
+
+  it('der letzte Zug darf auch mit der Ablagekarte bestritten werden; danach ist trotzdem Schluss', () => {
+    const { g, a, b } = nearlyEmpty(52, true);
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, [...g.round.players[b].hand.slice(0, 3)]);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    doDiscard(g, b, g.round.players[b].hand[0].id);
+    expect(g.round.ended).toBe(true);
+  });
+
+  it('ohne Teppichkarte endet die Runde sofort wie bisher', () => {
+    const { g, a } = nearlyEmpty(53, false);
+    expect(doDiscard(g, a, g.round.players[a].hand[0].id).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+  });
+});
+
 describe('Zurücklegen', () => {
   it('Ablagekarte zurücklegen, solange nichts liegt', () => {
     const g = testGame(3, 21);

@@ -3,7 +3,7 @@
 Cheft als Web-App im Pixel-Look (angelehnt an Windows-3.1-Solitaire, Farbwelt im Cheft-Orange).
 Läuft im Browser auf Android, iOS und PC und lässt sich als PWA auf den Homescreen legen.
 
-Solo gegen 2–3 Computergegner (offline) oder online mit Freunden: Raum eröffnen, 4-stelligen Code
+Solo gegen 2–3 Computergegner (offline) oder online mit Freunden: Raum eröffnen, 3-stelligen Zahlencode
 weitergeben, leere Plätze mit Bots auffüllen. Auch in ein laufendes Spiel lässt sich einsteigen, indem man den
 Platz eines Bots oder eines länger Abwesenden übernimmt (siehe Mehrspieler-Server).
 

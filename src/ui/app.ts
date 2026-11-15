@@ -902,7 +902,7 @@ export class App {
     } else if (!myTurn) {
       const last = r.log[r.log.length - 1];
       msg = last && last.player !== undefined ? this.logText(last) : t('turn.bot', { name: s.players[current(s)].name });
-    } else if (drawPhase) msg = t('turn.you.draw');
+    } else if (drawPhase) msg = r.finalTurn ? t('turn.you.final') : t('turn.you.draw');
     else if (r.turn.pendingJokerId !== null) msg = t('turn.you.joker');
     else if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.mustOpen');
     else if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.carpet');
@@ -1539,7 +1539,7 @@ export class App {
 
   private joinRoom(): void {
     const code = this.joinCode.trim().toUpperCase();
-    if (code.length !== 4) {
+    if (!/^\d{3,4}$/.test(code)) {
       this.toast(t('net.noRoom'), true);
       return;
     }
@@ -1643,11 +1643,14 @@ export class App {
       class: 'text code',
       type: 'text',
       maxlength: '4',
+      inputmode: 'numeric',
+      pattern: '[0-9]*',
       value: this.joinCode,
-      placeholder: 'ABCD',
-      autocapitalize: 'characters',
+      placeholder: '123',
       oninput: (e: Event) => {
-        this.joinCode = (e.target as HTMLInputElement).value.toUpperCase();
+        const el = e.target as HTMLInputElement;
+        el.value = el.value.replace(/\D/g, '');
+        this.joinCode = el.value;
       },
     });
     const serverInput = h('input', {

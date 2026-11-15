@@ -121,6 +121,8 @@ export interface RoundState {
   ended: boolean;
   /** Nach Rundenende: Wer die Auswertung bestätigt hat. Erst wenn alle bestätigt haben, beginnt die nächste Runde (Mehrspieler). */
   nextReady?: boolean[];
+  /** Stapel leer, nur die Teppichkarte liegt noch: Der nächste Spieler darf sie wie vom Stapel nehmen, danach endet die Runde. */
+  finalTurn?: boolean;
   result: RoundResult | null;
   log: LogEntry[];
 }
@@ -343,7 +345,48 @@ export function doReady(state: GameState, pid: number): Result {
   return OK;
 }
 
-/** Kann die Karte sofort verwendet werden (anlegen oder neue Kombination)? Eine Karte muss zum Abwerfen bleiben. */
+/**
+ * Kann ein Joker mit diesen Handkarten (Joker inklusive) sofort verwendet werden, also angelegt oder in einer
+ * neuen Kombination ausgelegt werden? Eine andere Karte muss zum Abwerfen bleiben. Jede Karte wird einmal als
+ * "bleibt" probiert, denn die beste Aufteilung nutzt oft alle Karten (z. B. Vierersatz mit Joker).
+ */
+function jokerUsableWith(melds: Meld[], hand: Card[], joker: Card): boolean {
+  if (melds.some((m) => addOptions(m, joker).length > 0)) return true;
+  for (let k = 0; k < hand.length; k++) {
+    if (hand[k].id === joker.id) continue;
+    const rest = hand.filter((_, i) => i !== k);
+    const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [joker.id] });
+    if (part && part.used > 0) return true;
+  }
+  return false;
+}
+
+/** Vertritt ein ausgelegter Joker genau diese Karte? (Dann ließe sich der Joker gegen sie eintauschen.) */
+export function jokerSwapTargets(state: GameState, card: Card): { meld: Meld; index: number }[] {
+  if (isJoker(card)) return [];
+  const out: { meld: Meld; index: number }[] = [];
+  for (const meld of state.round.melds) {
+    meld.cards.forEach((c, index) => {
+      if (!isJoker(c)) return;
+      const rep = jokerRepresents(meld, index);
+      if (rep && rep.suit === card.suit && rep.rank === card.rank) out.push({ meld, index });
+    });
+  }
+  return out;
+}
+
+/** Kann der Spieler mit dieser Karte (in dieser Hand) einen ausgelegten Joker klauen und ihn sofort verwenden? */
+function stealPossibleWith(state: GameState, card: Card, hand: Card[]): boolean {
+  if (hand.length < 2) return false;
+  for (const { meld, index } of jokerSwapTargets(state, card)) {
+    const joker = meld.cards[index];
+    const melds = state.round.melds.map((m) => (m.id === meld.id ? replaceJoker(meld, index, card) : m));
+    if (jokerUsableWith(melds, [...hand.filter((x) => x.id !== card.id), joker], joker)) return true;
+  }
+  return false;
+}
+
+/** Kann die Karte sofort verwendet werden (anlegen, neue Kombination oder Joker eintauschen)? Eine Karte muss zum Abwerfen bleiben. */
 export function canUseImmediately(state: GameState, pid: number, card: Card): boolean {
   const p = state.round.players[pid];
   for (const m of state.round.melds) if (addOptions(m, card).length > 0) return true;
@@ -356,7 +399,7 @@ export function canUseImmediately(state: GameState, pid: number, card: Card): bo
     const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [card.id] });
     if (part && part.used > 0) return true;
   }
-  return false;
+  return stealPossibleWith(state, card, hand);
 }
 
 // ---------------------------------------------------------------- Ziehen
@@ -384,6 +427,7 @@ export function checkDraw(state: GameState, pid: number, source: DrawSource): Re
   }
   // Teppichkarte
   if (!r.carpet) return fail('err.carpetGone');
+  if (r.stock.length === 0) return OK; // Stapel leer: Teppichkarte wie vom Stapel, ohne Bedingungen
   if (p.opened) return fail('err.carpetOnlyCheft');
   if (firstTurnBlocked(state, pid)) return fail('err.firstTurn');
   const mate = p.hand.some((c) => isJoker(c) || sameCard(c, r.carpet!));
@@ -404,6 +448,10 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
     if (p.mode === 'romme' && !p.opened) r.turn.mustOpenWithId = card.id;
     if (p.mode === 'romme' && p.opened) r.turn.mustUseId = card.id;
     r.taken.push({ player: pid, card });
+  } else if (r.stock.length === 0) {
+    // Letzter Zug bei leerem Stapel: Teppichkarte wie eine Stapelkarte, kein Cheft, kein Zwang zum Rauskommen.
+    card = r.carpet!;
+    r.carpet = null;
   } else {
     card = r.carpet!;
     r.carpet = null;
@@ -437,7 +485,8 @@ export function checkUndoDraw(state: GameState, pid: number): Result {
   const t = requireTurn(state, pid, 'play');
   if (!t.ok) return t;
   const turn = state.round.turn;
-  const eligible = (turn.drawSource === 'discard' && (turn.mustOpenWithId !== null || turn.mustUseId !== null)) || turn.drawSource === 'carpet';
+  // Die Teppichkarte im letzten Zug (Stapel leer) ist wie eine Stapelkarte und lässt sich nicht zurücklegen.
+  const eligible = (turn.drawSource === 'discard' && (turn.mustOpenWithId !== null || turn.mustUseId !== null)) || (turn.drawSource === 'carpet' && !state.round.finalTurn);
   if (!eligible) return fail('err.noUndo');
   if (turn.openedThisTurn || turn.actions > 0 || turn.pendingJokerId !== null) return fail('err.noUndoAfterLay');
   return OK;
@@ -654,12 +703,7 @@ export function checkStealJoker(state: GameState, pid: number, meldId: number, j
   const joker = meld.cards[jokerIndex];
   const newMeld = replaceJoker(meld, jokerIndex, card);
   const melds = r.melds.map((m) => (m.id === meldId ? newMeld : m));
-  const canLayOff = melds.some((m) => addOptions(m, joker).length > 0);
-  if (!canLayOff) {
-    const rest = [...p.hand.filter((x) => x.id !== cardId), joker];
-    const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [joker.id] });
-    if (!part || part.used === 0 || part.used >= rest.length) return fail('err.jokerUnusable');
-  }
+  if (!jokerUsableWith(melds, [...p.hand.filter((x) => x.id !== cardId), joker], joker)) return fail('err.jokerUnusable');
   return OK;
 }
 
@@ -696,9 +740,10 @@ export function checkDiscard(state: GameState, pid: number, cardId: number): Res
   if (p.hand.length > 1) {
     const next = nextIndex(state, pid);
     const layoffable = (c: Card) => r.melds.some((m) => addOptions(m, c).length > 0);
-    if (r.players[next].opened && layoffable(card)) {
-      // Sackgasse vermeiden: Wenn jede Handkarte anlegbar wäre, darf trotzdem abgeworfen werden.
-      if (p.hand.some((c) => !layoffable(c))) return fail('err.discardLayoffable');
+    const swappable = (c: Card) => jokerSwapTargets(state, c).length > 0;
+    if (r.players[next].opened && (layoffable(card) || swappable(card))) {
+      // Sackgasse vermeiden: Wenn jede Handkarte anlegbar oder gegen einen Joker tauschbar wäre, darf trotzdem abgeworfen werden.
+      if (p.hand.some((c) => !layoffable(c) && !swappable(c))) return fail(layoffable(card) ? 'err.discardLayoffable' : 'err.discardJokerSwap');
     }
   }
   return OK;
@@ -721,8 +766,13 @@ export function doDiscard(state: GameState, pid: number, cardId: number): Result
     return OK;
   }
   if (r.stock.length === 0) {
-    endRound(state, null, false);
-    return OK;
+    // Liegt nur noch die Teppichkarte da, hat der nächste Spieler noch einen Zug und darf sie wie vom Stapel nehmen.
+    if (r.carpet === null || r.finalTurn) {
+      endRound(state, null, false);
+      return OK;
+    }
+    r.finalTurn = true;
+    r.log.push({ key: 'log.finalTurn' });
   }
   r.turn = newTurn(nextIndex(state, pid), 'draw', null, null);
   return OK;

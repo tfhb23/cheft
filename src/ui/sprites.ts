@@ -181,6 +181,21 @@ function text(ctx: Ctx, s: string, x: number, y: number, color: string): number 
   return cx - 1;
 }
 
+/** Um 180 Grad gedrehte Pixelzeilen (für die untere Eckmarke, die auf dem Kopf steht). */
+function rot180(rows: string[]): string[] {
+  return rows.map((r) => [...r].reverse().join('')).reverse();
+}
+
+/** Text um 180 Grad gedreht, rechtsbündig bei xRight (Zeichenreihenfolge ebenfalls umgekehrt). */
+function textRot(ctx: Ctx, s: string, xRight: number, y: number, color: string): void {
+  const w = s.length * 6 - 1;
+  let cx = xRight - w;
+  for (const ch of [...s].reverse()) {
+    shape(ctx, rot180(GLYPHS[ch]), cx, y, color);
+    cx += 6;
+  }
+}
+
 function cardBase(ctx: Ctx, x: number, y: number, fill: string): void {
   ctx.fillStyle = PALETTE.ink;
   ctx.fillRect(x, y, CARD_W, CARD_H);
@@ -203,10 +218,9 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
   const rt = rankText(rank);
   text(ctx, rt, x + 3, y + 3, color);
   shape(ctx, SUIT_SHAPES[suit], x + 3, y + 11, color);
-  // unten rechts gespiegelt (gleiche Ausrichtung, wie bei Pixel-Solitaire)
-  const w = rt.length * 6 - 1;
-  text(ctx, rt, x + CARD_W - 3 - w, y + CARD_H - 10, color);
-  shape(ctx, SUIT_SHAPES[suit], x + CARD_W - 10, y + CARD_H - 18, color);
+  // unten rechts: Zahl und Farbe stehen auf dem Kopf (um 180 Grad gedreht wie bei echten Karten)
+  textRot(ctx, rt, x + CARD_W - 3, y + CARD_H - 10, color);
+  shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, color);
   if (rank >= 11) {
     // Bildkarte: heller Rahmen, Figur in Kartenfarbe
     const light = color === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
@@ -237,7 +251,7 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
 function drawJoker(ctx: Ctx, x: number, y: number): void {
   cardBase(ctx, x, y, PALETTE.cream);
   text(ctx, 'J', x + 3, y + 3, PALETTE.orange);
-  text(ctx, 'J', x + CARD_W - 8, y + CARD_H - 10, PALETTE.orange);
+  textRot(ctx, 'J', x + CARD_W - 3, y + CARD_H - 10, PALETTE.orange);
   shape(ctx, STAR, x + 9, y + 15, PALETTE.orangeDark);
   shape(ctx, STAR, x + 9, y + 14, PALETTE.gold);
   px(ctx, x + 15, y + 19, PALETTE.cream);

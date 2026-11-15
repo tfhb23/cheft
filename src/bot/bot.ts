@@ -11,6 +11,7 @@ import {
   checkDiscard,
   checkDraw,
   checkLay,
+  canUseImmediately,
   checkStealJoker,
   layOffTargets,
   nextIndex,
@@ -147,10 +148,13 @@ export function decideAction(state: GameState, pid: number): Action {
     if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(state, pid, top)) {
       return { kind: 'draw', source: 'discard' };
     }
-    if (r.carpet && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
+    const stockEmpty = r.stock.length === 0;
+    if (r.carpet && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
     if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard').ok) {
       if (!(k.handHunter && holdForHand(state, pid, k))) return { kind: 'draw', source: 'discard' };
     }
+    // Stapel leer: letzter Zug, die Teppichkarte zählt wie eine Stapelkarte.
+    if (stockEmpty && r.carpet) return { kind: 'draw', source: 'carpet' };
     return { kind: 'draw', source: 'stock' };
   }
 
@@ -191,6 +195,8 @@ export function decideAction(state: GameState, pid: number): Action {
 
 function usableAfterOpening(state: GameState, pid: number, card: Card): boolean {
   const p = state.round.players[pid];
+  // Anlegen, neue Kombination oder einen ausgelegten Joker gegen die Karte eintauschen
+  if (canUseImmediately(state, pid, card)) return true;
   if (layOffTargets(state, pid, card.id).length > 0) return true;
   const hand = [...p.hand, card];
   if (p.mode === 'cheft' && hand.length === 5 && maxPairs(hand) >= 2) {

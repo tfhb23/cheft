@@ -66,9 +66,10 @@ const fail = (error: string, params?: Record<string, string | number>): Result =
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-export function makeCode(rng: () => number = Math.random): string {
-  let s = '';
-  for (let i = 0; i < 4; i++) s += CODE_ALPHABET[Math.floor(rng() * CODE_ALPHABET.length)];
+/** Raumcode: nur Ziffern, ohne führende Null, standardmäßig dreistellig (z. B. 232). */
+export function makeCode(rng: () => number = Math.random, digits = 3): string {
+  let s = String(1 + Math.floor(rng() * 9));
+  for (let i = 1; i < digits; i++) s += String(Math.floor(rng() * 10));
   return s;
 }
 
@@ -417,8 +418,9 @@ export class Rooms {
   }
 
   create(): Room {
+    // Dreistellig, solange Platz ist; sind viele Räume offen, weichen wir auf vier Stellen aus.
     let code = makeCode(this.rng);
-    while (this.rooms.has(code)) code = makeCode(this.rng);
+    for (let tries = 0; this.rooms.has(code); tries++) code = makeCode(this.rng, tries < 40 ? 3 : 4);
     const room = new Room(code, this.rng);
     this.rooms.set(code, room);
     return room;
