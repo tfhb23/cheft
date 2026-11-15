@@ -119,6 +119,8 @@ export interface RoundState {
   waiting: boolean;
   ready: boolean[];
   ended: boolean;
+  /** Nach Rundenende: Wer die Auswertung bestätigt hat. Erst wenn alle bestätigt haben, beginnt die nächste Runde (Mehrspieler). */
+  nextReady?: boolean[];
   result: RoundResult | null;
   log: LogEntry[];
 }
@@ -216,6 +218,7 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     waiting: true,
     ready: state.players.map(() => false),
     ended: false,
+    nextReady: state.players.map(() => false),
     result: null,
     log: [{ key: 'log.roundStart', params: { round: no } }],
   };
@@ -323,6 +326,14 @@ function requireTurn(state: GameState, pid: number, phase: 'draw' | 'play'): Res
 
 export function doReady(state: GameState, pid: number): Result {
   const r = state.round;
+  if (r.ended) {
+    // Rundenende bestätigen; sobald alle bestätigt haben, wird die nächste Runde ausgeteilt.
+    if (state.finished) return OK;
+    const flags = (r.nextReady ??= state.players.map(() => false));
+    flags[pid] = true;
+    if (flags.every(Boolean)) startNextRound(state);
+    return OK;
+  }
   if (!r.waiting) return OK;
   r.ready[pid] = true;
   if (r.ready.every(Boolean)) {

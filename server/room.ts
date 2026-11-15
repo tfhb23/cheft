@@ -4,7 +4,7 @@
  */
 import { makeRng } from '../src/engine/cards';
 import { Action, applyAction } from '../src/engine/actions';
-import { BotProfile, GameState, PlayerInfo, Settings, current, newGame, startNextRound } from '../src/engine/game';
+import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '../src/engine/game';
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots } from '../src/bot/names';
@@ -29,12 +29,35 @@ export interface Seat {
   disconnectedAt?: number;
 }
 
+export type PauseKind = 'manual' | 'auto';
+
 export interface LobbyView {
   code: string;
   hostPid: number;
   started: boolean;
+  /** Pause: 'manual' durch einen Spieler, 'auto' wenn niemand verbunden ist oder der Raum wiederhergestellt wurde. */
+  paused: PauseKind | null;
   settings: LobbySettings;
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
+}
+
+/** Platz, den ein neu hinzukommender Spieler übernehmen kann. */
+export interface ClaimableSeat {
+  pid: number;
+  name: string;
+  kind: 'bot' | 'away';
+}
+
+/** Alles, was zum Wiederherstellen eines Raums nötig ist (wird verschlüsselt an die Clients gegeben). */
+export interface RoomSnapshot {
+  v: 1;
+  code: string;
+  rev: number;
+  hostPid: number;
+  settings: LobbySettings;
+  seats: Seat[];
+  state: GameState | null;
+  paused: PauseKind | null;
 }
 
 export type Result = { ok: true } | { ok: false; error: string; params?: Record<string, string | number> };
@@ -66,6 +89,11 @@ export class Room {
   hostPid = 0;
   settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal' };
   state: GameState | null = null;
+  paused: PauseKind | null = null;
+  /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
+  rev = 0;
+  /** Zeitpunkt, an dem der Raum aus einer Kopie wiederhergestellt wurde. */
+  restoredAt: number | null = null;
   readonly createdAt = Date.now();
   lastActivity = Date.now();
   private rng: () => number;
@@ -130,7 +158,121 @@ export class Room {
     if (!seat) return;
     seat.connected = connected;
     seat.disconnectedAt = connected ? undefined : Date.now();
+    if (this.state && !this.state.finished) {
+      // Ist niemand mehr da, wartet das Spiel, statt dass Bots allein weiterspielen.
+      if (!connected && !this.paused && !this.humans().some((s) => s.connected)) this.paused = 'auto';
+      // Eine automatische Pause endet, sobald alle Menschen wieder da sind.
+      if (connected && this.paused === 'auto' && this.humans().every((s) => s.connected)) this.resume();
+    }
     this.touch();
+  }
+
+  humans(): Seat[] {
+    return this.seats.filter((s) => !s.isBot);
+  }
+
+  /** Spielleiter: der Einlader, solange er verbunden ist; sonst der erste verbundene Mensch. */
+  effectiveHost(): number {
+    const host = this.seats[this.hostPid];
+    if (host && !host.isBot && host.connected) return this.hostPid;
+    const other = this.humans().find((s) => s.connected);
+    return other ? other.pid : this.hostPid;
+  }
+
+  // ------------------------------------------------------------ Pause
+  pause(): Result {
+    if (!this.state) return fail('net.notStarted');
+    if (this.state.finished) return fail('net.notEnded');
+    this.paused = 'manual';
+    this.touch();
+    return ok;
+  }
+
+  resume(): Result {
+    if (!this.paused) return ok;
+    this.paused = null;
+    // Wer währenddessen weg war, bekommt die volle Wartezeit noch einmal.
+    const now = Date.now();
+    for (const s of this.seats) if (!s.isBot && !s.connected) s.disconnectedAt = now;
+    this.touch();
+    return ok;
+  }
+
+  // ------------------------------------------------------------ Platz übernehmen
+  private isClaimable(seat: Seat, now = Date.now()): 'bot' | 'away' | null {
+    if (seat.isBot) return 'bot';
+    if (seat.connected) return null;
+    if (this.paused || now - (seat.disconnectedAt ?? 0) > AUTOPILOT_AFTER_MS) return 'away';
+    return null;
+  }
+
+  claimable(now = Date.now()): ClaimableSeat[] {
+    if (!this.state || this.state.finished) return [];
+    const out: ClaimableSeat[] = [];
+    for (const seat of this.seats) {
+      const kind = this.isClaimable(seat, now);
+      if (kind) out.push({ pid: seat.pid, name: seat.name, kind });
+    }
+    return out;
+  }
+
+  /** Ein neuer Spieler übernimmt einen Bot-Platz oder den Platz eines länger abwesenden Spielers. */
+  claim(pid: number, name: string, now = Date.now()): { pid: number; token: string } | Result {
+    if (!this.state) return fail('net.notStarted');
+    if (this.state.finished) return fail('net.alreadyStarted');
+    const seat = this.seats[pid];
+    if (!seat) return fail('net.noSuchSeat');
+    if (!this.isClaimable(seat, now)) return fail('net.seatTaken');
+    const clean = sanitizeName(name) || `Spieler ${pid + 1}`;
+    const taken = (n: string) => this.seats.some((o) => o.pid !== pid && o.name === n);
+    const unique = taken(clean) ? `${clean} ${pid + 1}` : clean;
+    const token = makeToken(this.rng);
+    seat.isBot = false;
+    delete seat.bot;
+    delete seat.botChoice;
+    seat.token = token;
+    seat.name = unique;
+    seat.connected = true;
+    seat.disconnectedAt = undefined;
+    const info = this.state.players[pid];
+    info.isBot = false;
+    info.name = unique;
+    delete info.bot;
+    this.touch();
+    return { pid, token };
+  }
+
+  // ------------------------------------------------------------ Kopie
+  toSnapshot(): RoomSnapshot {
+    return {
+      v: 1,
+      code: this.code,
+      rev: this.rev,
+      hostPid: this.hostPid,
+      settings: this.settings,
+      seats: this.seats,
+      state: this.state,
+      paused: this.paused,
+    };
+  }
+
+  /** Übernimmt eine Kopie. Verbindungszustände bleiben erhalten, wenn `keepConnections` gesetzt ist. */
+  applySnapshot(snap: RoomSnapshot, keepConnections: boolean): void {
+    const old = this.seats;
+    this.seats = snap.seats.map((s) => {
+      const prev = keepConnections ? old.find((o) => o.pid === s.pid && o.token === s.token) : undefined;
+      if (prev) return { ...s, connected: prev.connected, disconnectedAt: prev.disconnectedAt };
+      return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now() };
+    });
+    this.hostPid = snap.hostPid;
+    this.settings = snap.settings;
+    this.state = snap.state;
+    this.rev = snap.rev;
+    // Nach dem Wiederherstellen warten alle, bis die Menschen wieder verbunden sind.
+    this.paused = this.state && !this.state.finished ? (this.paused ?? snap.paused ?? 'auto') : null;
+    if (this.paused === 'auto' && this.humans().every((s) => s.connected)) this.paused = null;
+    this.restoredAt = Date.now();
+    this.lastActivity = Date.now();
   }
 
   updateSettings(patch: Partial<LobbySettings>): Result {
@@ -171,24 +313,26 @@ export class Room {
   // ------------------------------------------------------------ Spiel
   act(pid: number, action: Action): Result {
     if (!this.state) return fail('net.notStarted');
+    if (this.paused) return fail('net.paused');
     const res = applyAction(this.state, pid, action);
     if (res.ok) this.touch();
     return res;
   }
 
+  /** Bestätigt die Rundenauswertung; sobald alle bestätigt haben, beginnt die nächste Runde. */
   nextRound(pid: number): Result {
     if (!this.state) return fail('net.notStarted');
-    if (pid !== this.hostPid) return fail('net.hostOnly');
+    if (this.paused) return fail('net.paused');
     if (!this.state.round.ended || this.state.finished) return fail('net.notEnded');
-    startNextRound(this.state);
-    this.touch();
-    return ok;
+    const res = applyAction(this.state, pid, { kind: 'ready' });
+    if (res.ok) this.touch();
+    return res;
   }
 
   /** Welcher Sitz soll jetzt automatisch spielen? Bots immer, getrennte Menschen nach Wartezeit. */
   autoSeat(now = Date.now()): number | null {
     const s = this.state;
-    if (!s || s.round.ended) return null;
+    if (!s || this.paused || s.finished) return null;
     const r = s.round;
     const auto = (pid: number) => {
       const seat = this.seats[pid];
@@ -196,6 +340,11 @@ export class Room {
       if (seat.isBot) return true;
       return !seat.connected && seat.disconnectedAt !== undefined && now - seat.disconnectedAt > AUTOPILOT_AFTER_MS;
     };
+    if (r.ended) {
+      const flags = r.nextReady ?? [];
+      const pending = this.seats.find((seat) => !flags[seat.pid] && auto(seat.pid));
+      return pending ? pending.pid : null;
+    }
     if (r.waiting) {
       const pending = this.seats.find((seat) => !r.ready[seat.pid] && auto(seat.pid));
       return pending ? pending.pid : null;
@@ -208,9 +357,10 @@ export class Room {
   autoStep(pid: number): Action | null {
     const s = this.state;
     if (!s) return null;
-    const action: Action = s.round.waiting ? { kind: 'ready' } : decideAction(s, pid);
+    const confirm = s.round.waiting || s.round.ended;
+    const action: Action = confirm ? { kind: 'ready' } : decideAction(s, pid);
     const res = applyAction(s, pid, action);
-    if (!res.ok) {
+    if (!res.ok && !confirm) {
       const hand = s.round.players[pid].hand;
       if (hand.length) applyAction(s, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });
     }
@@ -220,17 +370,19 @@ export class Room {
 
   // ------------------------------------------------------------ Sichten
   lobbyView(): LobbyView {
+    const host = this.effectiveHost();
     return {
       code: this.code,
-      hostPid: this.hostPid,
+      hostPid: host,
       started: this.started,
+      paused: this.paused,
       settings: this.settings,
       seats: this.seats.map((s) => ({
         pid: s.pid,
         name: s.name,
         isBot: s.isBot,
         connected: s.connected,
-        isHost: s.pid === this.hostPid,
+        isHost: s.pid === host,
         botLabel: s.isBot && s.botChoice ? `${s.botChoice.level}/${s.botChoice.style}` : undefined,
       })),
     };
@@ -242,6 +394,7 @@ export class Room {
 
   private touch(): void {
     this.lastActivity = Date.now();
+    this.rev++;
   }
 }
 
@@ -271,6 +424,14 @@ export class Rooms {
 
   get(code: string): Room | undefined {
     return this.rooms.get(String(code ?? '').toUpperCase());
+  }
+
+  /** Stellt einen Raum aus einer (bereits entschlüsselten) Kopie wieder her, falls der Code frei ist. */
+  restore(snap: RoomSnapshot): Room {
+    const room = new Room(snap.code, this.rng);
+    room.applySnapshot(snap, false);
+    this.rooms.set(snap.code, room);
+    return room;
   }
 
   remove(code: string): void {

@@ -6,7 +6,8 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room, Rooms, Speed, Result } from './room';
+import { Room, Rooms, Speed, Result, RoomSnapshot } from './room';
+import { seal, open as openSnapshot } from './snapshot';
 import { Action } from '../src/engine/actions';
 import { BotChoice } from '../src/bot/names';
 
@@ -68,7 +69,9 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse): Promise<v
 type ClientMsg =
   | { type: 'create'; name: string }
   | { type: 'join'; room: string; name: string }
-  | { type: 'rejoin'; room: string; token: string }
+  | { type: 'rejoin'; room: string; token: string; snap?: string }
+  | { type: 'claim'; room: string; pid: number; name: string }
+  | { type: 'pause'; on: boolean }
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
   | { type: 'lobby'; op: 'removeSeat'; pid: number }
@@ -96,10 +99,14 @@ function send(c: Conn, msg: unknown): void {
 }
 
 function broadcast(room: Room, lastAction?: { pid: number; action: Action }): void {
+  const lobby = room.lobbyView();
+  let snap: string | undefined;
   for (const c of conns) {
     if (c.room !== room) continue;
+    // Verschlüsselte Kopie des Raums: damit kann ein Client den Raum nach dem Einschlafen des Servers wiederherstellen.
+    snap ??= seal(room.toSnapshot());
     const state = room.viewFor(c.pid);
-    send(c, { type: 'state', lobby: room.lobbyView(), state, last: lastAction ?? null });
+    send(c, { type: 'state', lobby, state, last: lastAction ?? null, snap });
   }
 }
 
@@ -131,7 +138,7 @@ function leave(c: Conn): void {
 
 function delayFor(room: Room, action: Action | null): number {
   const fast = room.settings.speed === 'fast';
-  if (room.state?.round.waiting) return 900 + Math.floor(Math.random() * 1200);
+  if (room.state?.round.waiting || room.state?.round.ended) return 900 + Math.floor(Math.random() * 1200);
   if (action?.kind === 'discard') return fast ? 900 : 2000;
   return fast ? 650 : 1300;
 }
@@ -140,7 +147,7 @@ function delayFor(room: Room, action: Action | null): number {
 function scheduleBots(room: Room, afterAction: Action | null = null): void {
   const existing = botTimers.get(room.code);
   if (existing) clearTimeout(existing);
-  if (!room.state || room.state.round.ended) return;
+  if (!room.state || room.state.finished) return;
   const pid = room.autoSeat();
   const delay = pid === null ? AUTOPILOT_CHECK_MS : delayFor(room, afterAction);
   const timer = setTimeout(() => {
@@ -176,6 +183,12 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'join': {
       const room = rooms.get(msg.room);
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      if (room.started) {
+        // Laufendes Spiel: einen Bot-Platz oder den Platz eines länger Abwesenden übernehmen.
+        const free = room.claimable();
+        if (!free.length) return send(c, { type: 'error', error: 'net.noFreeSeat' });
+        return send(c, { type: 'claimable', room: room.code, seats: free });
+      }
       leave(c);
       const r = room.addHuman(msg.name);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
@@ -183,12 +196,36 @@ function handle(c: Conn, msg: ClientMsg): void {
       return;
     }
     case 'rejoin': {
-      const room = rooms.get(msg.room);
+      let room = rooms.get(msg.room);
+      const snap = msg.snap ? (openSnapshot(msg.snap) as RoomSnapshot | null) : null;
+      const valid = snap && snap.v === 1 && snap.code === String(msg.room).toUpperCase() && snap.seats.some((s) => !s.isBot && s.token === msg.token);
+      if (!room && valid) room = rooms.restore(snap);
+      // Wurde der Raum eben erst aus einer älteren Kopie hergestellt, gewinnt die neuere.
+      else if (room && valid && room.restoredAt !== null && Date.now() - room.restoredAt < 5 * 60 * 1000 && snap.rev > room.rev) room.applySnapshot(snap, true);
       const seat = room?.findByToken(msg.token);
       if (!room || !seat) return send(c, { type: 'error', error: 'net.noRoom' });
       // Alte Verbindung desselben Sitzes ablösen
       for (const o of conns) if (o !== c && o.room === room && o.pid === seat.pid) o.room = null;
       joined(c, room, seat.pid, seat.token!);
+      return;
+    }
+    case 'claim': {
+      const room = rooms.get(msg.room);
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const r = room.claim(Number(msg.pid), msg.name);
+      if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
+      for (const o of conns) if (o !== c && o.room === room && o.pid === r.pid) o.room = null;
+      leave(c);
+      joined(c, room, r.pid, r.token);
+      return;
+    }
+    case 'pause': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const r = msg.on ? room.pause() : room.resume();
+      if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
+      broadcast(room);
+      scheduleBots(room);
       return;
     }
     case 'leave':
@@ -198,11 +235,12 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'lobby': {
       const room = c.room;
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      if (c.pid !== room.hostPid) return send(c, { type: 'error', error: 'net.hostOnly' });
+      // Zurück in die Lobby darf jeder Mensch; alles andere der Spielleiter.
+      if (msg.op !== 'backToLobby' && c.pid !== room.effectiveHost()) return send(c, { type: 'error', error: 'net.hostOnly' });
       let r: Result;
       if (msg.op === 'addBot') r = room.addBot(msg.choice);
       else if (msg.op === 'removeSeat') {
-        if (msg.pid === room.hostPid) return send(c, { type: 'error', error: 'net.hostOnly' });
+        if (msg.pid === room.effectiveHost()) return send(c, { type: 'error', error: 'net.hostOnly' });
         for (const o of conns) if (o.room === room && o.pid === msg.pid) o.room = null;
         r = room.removeSeat(msg.pid);
         for (const o of conns) if (o.room === room && o.pid > msg.pid) o.pid--;
@@ -238,7 +276,7 @@ function handle(c: Conn, msg: ClientMsg): void {
 // ---------------------------------------------------------------- Start
 
 const server = createServer((req, res) => void serveStatic(req, res));
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 512 * 1024 });
 
 wss.on('connection', (ws) => {
   const c: Conn = { ws, room: null, pid: -1, alive: true };

@@ -28,7 +28,7 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
-import { NetClient, LobbyInfo, ServerUpdate, defaultServerUrl } from '../net/client';
+import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } from '../net/client';
 import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
 
@@ -47,6 +47,8 @@ interface Prefs {
   sound: boolean;
   botChoices: BotChoice[];
   serverUrl: string;
+  /** Bildschirm während des Spiels nicht ausgehen lassen. */
+  keepAwake: boolean;
 }
 
 interface SaveFile {
@@ -117,11 +119,15 @@ export class App {
       { level: 'random', style: 'random' },
     ],
     serverUrl: '',
+    keepAwake: true,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
   private online: { room: string; pid: number; token: string; lobby: LobbyInfo | null; status: 'connecting' | 'open' | 'closed' } | null = null;
   private joinCode = '';
+  /** Laufendes Spiel: Plätze, die der Beitretende übernehmen kann. */
+  private claimChoice: { room: string; seats: ClaimableSeat[] } | null = null;
+  private wakeLock: WakeLockSentinel | null = null;
   private pendingBefore: RectMap | null = null;
   private lastRoundNo = 0;
 
@@ -160,7 +166,46 @@ export class App {
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
+    document.addEventListener('visibilitychange', () => void this.syncWakeLock());
+    this.prewarm();
     this.render();
+  }
+
+  /** Weckt einen schlafenden Gratis-Server schon beim Start der App, damit er beim Beitreten bereit ist. */
+  private prewarm(): void {
+    const url = this.serverUrl();
+    if (!url) return;
+    try {
+      const u = new URL(url);
+      if (u.host === location.host) return; // gleiche Herkunft: Die Seite selbst hat den Server schon geweckt
+      void fetch(`${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}/healthz`, { mode: 'no-cors', cache: 'no-store' }).catch(() => undefined);
+    } catch {
+      /* ungültige Adresse ignorieren */
+    }
+  }
+
+  /** Hält den Bildschirm an, solange ein Spiel oder eine Lobby offen ist (sonst trennt das gesperrte Handy die Verbindung). */
+  private async syncWakeLock(): Promise<void> {
+    const want = this.prefs.keepAwake && (this.screen === 'game' || this.screen === 'lobby') && document.visibilityState === 'visible';
+    try {
+      if (!want) {
+        if (this.wakeLock) {
+          const l = this.wakeLock;
+          this.wakeLock = null;
+          await l.release();
+        }
+        return;
+      }
+      if (this.wakeLock && !this.wakeLock.released) return;
+      if (!('wakeLock' in navigator)) return;
+      const lock = await navigator.wakeLock.request('screen');
+      this.wakeLock = lock;
+      lock.addEventListener('release', () => {
+        if (this.wakeLock === lock) this.wakeLock = null;
+      });
+    } catch {
+      /* nicht unterstützt oder verweigert (z. B. Energiesparmodus) */
+    }
   }
 
   // ------------------------------------------------------------ Persistenz
@@ -261,6 +306,7 @@ export class App {
         if (nt) nt.scrollTop = scroll;
         break;
     }
+    void this.syncWakeLock();
   }
 
   private cardEl(
@@ -905,6 +951,7 @@ export class App {
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
     else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
+    if (this.online?.lobby?.paused) game.appendChild(this.renderPause(this.online.lobby));
     return game;
   }
 
@@ -1299,6 +1346,22 @@ export class App {
   }
 
   // ------------------------------------------------------------ Dialoge
+  private renderPause(lobby: LobbyInfo): HTMLElement {
+    const away = lobby.seats.filter((s) => !s.isBot && !s.connected).map((s) => s.name);
+    const waiting = lobby.paused === 'auto' && away.length > 0;
+    return h(
+      'div',
+      { class: 'overlay' },
+      h(
+        'div',
+        { class: 'panel dialog' },
+        h('h2', null, t('pause.title')),
+        h('p', null, waiting ? t('pause.waiting', { names: away.join(', ') }) : t('pause.text')),
+        h('button', { class: 'btn primary', onclick: () => this.net?.pause(false) }, waiting ? t('pause.resumeAnyway') : t('pause.resume')),
+      ),
+    );
+  }
+
   private renderSettings(): HTMLElement {
     return h(
       'div',
@@ -1342,7 +1405,33 @@ export class App {
           () => this.prefs.sound,
           (v) => (this.prefs.sound = v as boolean),
         ),
+        this.choice(
+          t('settings.keepAwake'),
+          [
+            { v: true, label: t('settings.on') },
+            { v: false, label: t('settings.off') },
+          ],
+          () => this.prefs.keepAwake,
+          (v) => {
+            this.prefs.keepAwake = v as boolean;
+            void this.syncWakeLock();
+          },
+        ),
         h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')),
+        this.online && this.state && !this.state.finished
+          ? h(
+              'button',
+              {
+                class: 'btn',
+                onclick: () => {
+                  this.showSettings = false;
+                  this.net?.pause(true);
+                  this.render();
+                },
+              },
+              t('btn.pause'),
+            )
+          : null,
         this.online ? null : h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')),
         this.online ? null : h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')),
         this.online
@@ -1364,16 +1453,16 @@ export class App {
   }
 
   // ------------------------------------------------------------ Online
-  private storedOnline(): { url: string; room: string; token: string } | null {
+  private storedOnline(): { url: string; room: string; token: string; snap?: string } | null {
     try {
       const raw = localStorage.getItem(ONLINE_KEY);
-      return raw ? (JSON.parse(raw) as { url: string; room: string; token: string }) : null;
+      return raw ? (JSON.parse(raw) as { url: string; room: string; token: string; snap?: string }) : null;
     } catch {
       return null;
     }
   }
 
-  private storeOnline(v: { url: string; room: string; token: string } | null): void {
+  private storeOnline(v: { url: string; room: string; token: string; snap?: string } | null): void {
     try {
       if (v) localStorage.setItem(ONLINE_KEY, JSON.stringify(v));
       else localStorage.removeItem(ONLINE_KEY);
@@ -1391,11 +1480,20 @@ export class App {
     this.net = new NetClient({
       onJoined: (info) => {
         this.online = { room: info.room, pid: info.pid, token: info.token, lobby: this.online?.lobby ?? null, status: 'open' };
-        this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token });
+        this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token, snap: this.storedOnline()?.snap });
+        this.claimChoice = null;
+      },
+      onClaimable: (room, seats) => {
+        this.claimChoice = { room, seats };
+        this.render();
       },
       onUpdate: (u) => this.onServerUpdate(u),
       onError: (error, params) => {
         this.toast(t(error, params), true);
+        if (error === 'net.seatTaken' || error === 'net.noFreeSeat') {
+          this.claimChoice = null;
+          this.render();
+        }
         if (error === 'net.noRoom' && (this.screen === 'lobby' || this.screen === 'game' || !this.online)) {
           this.storeOnline(null);
           if (this.online) this.leaveOnline(false);
@@ -1444,6 +1542,7 @@ export class App {
       return;
     }
     const name = this.prefs.name.trim() || t('you');
+    this.claimChoice = null;
     this.connectOnline(() => this.net!.join(code, name));
   }
 
@@ -1453,7 +1552,7 @@ export class App {
     this.prefs.serverUrl = this.prefs.serverUrl || stored.url;
     const net = this.ensureNet();
     this.online = { room: stored.room, pid: 0, token: stored.token, lobby: null, status: 'connecting' };
-    net.connect(stored.url, { room: stored.room, token: stored.token });
+    net.connect(stored.url, { room: stored.room, token: stored.token, snap: stored.snap });
     this.screen = 'lobby';
     this.render();
   }
@@ -1474,6 +1573,8 @@ export class App {
   private onServerUpdate(u: ServerUpdate): void {
     if (!this.online) return;
     this.online.lobby = u.lobby;
+    const stored = this.storedOnline();
+    if (u.snap && stored && stored.room === this.online.room) this.storeOnline({ ...stored, snap: u.snap });
     if (!u.state) {
       this.state = null;
       this.lastRoundNo = 0;
@@ -1557,6 +1658,7 @@ export class App {
         this.savePrefs();
       },
     });
+    if (this.claimChoice) return this.renderClaim(this.claimChoice);
     return h(
       'div',
       { class: 'menu' },
@@ -1569,6 +1671,39 @@ export class App {
         h('div', { class: 'option' }, h('div', { class: 'muted' }, t('online.code')), h('div', { class: 'row' }, codeInput, h('button', { class: 'btn', onclick: () => this.joinRoom() }, t('online.join')))),
         h('details', null, h('summary', { class: 'muted small-text' }, t('online.server')), h('div', { class: 'muted small-text' }, t('online.serverHint')), serverInput),
         h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
+      ),
+    );
+  }
+
+  /** Spiel läuft schon: einen Bot-Platz oder den Platz eines länger Abwesenden übernehmen. */
+  private renderClaim(c: { room: string; seats: ClaimableSeat[] }): HTMLElement {
+    const name = this.prefs.name.trim() || t('you');
+    return h(
+      'div',
+      { class: 'menu' },
+      h('h2', null, t('claim.title', { code: c.room })),
+      h(
+        'div',
+        { class: 'panel' },
+        h('p', { class: 'muted small-text' }, t('claim.hint')),
+        ...c.seats.map((seat) =>
+          h(
+            'button',
+            { class: 'btn', onclick: () => this.net?.claim(c.room, seat.pid, name) },
+            `${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`,
+          ),
+        ),
+        h(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              this.claimChoice = null;
+              this.render();
+            },
+          },
+          t('btn.back'),
+        ),
       ),
     );
   }
@@ -1697,8 +1832,17 @@ export class App {
 
   private nextRoundButton(): HTMLElement {
     const s = this.state!;
-    if (this.online && this.online.lobby && this.online.lobby.hostPid !== this.me) {
-      return h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('lobby.hostNext'));
+    if (this.online && !s.finished) {
+      // Jeder Mensch bestätigt die Auswertung; erst wenn alle bestätigt haben, geht es weiter.
+      const flags = s.round.nextReady ?? [];
+      const mine = !!flags[this.me];
+      const waiting = s.players.filter((p) => !flags[p.id] && p.id !== this.me && !p.isBot).map((p) => p.name);
+      return h(
+        'div',
+        { class: 'next-round' },
+        h('button', { class: 'btn primary', disabled: mine, onclick: () => this.nextRound() }, t('btn.nextRound')),
+        mine && waiting.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: waiting.join(', ') })) : null,
+      );
     }
     const label = this.online ? t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound') : t(s.finished ? 'btn.endGame' : 'btn.nextRound');
     return h('button', { class: 'btn primary', onclick: () => this.nextRound() }, label);

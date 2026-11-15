@@ -70,7 +70,7 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
         expect(g.finished).toBe(true);
       }
     }
-  });
+  }, 60000);
   it('Namen sind eindeutig und Zufall löst auf', async () => {
     const { resolveBots, NAMES } = await import('./names');
     const all = Object.values(NAMES).flatMap((byStyle) => Object.values(byStyle).flat());

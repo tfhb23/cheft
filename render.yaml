@@ -6,3 +6,7 @@ services:
     plan: free
     healthCheckPath: /healthz
     autoDeploy: true
+    envVars:
+      # Schlüssel für die verschlüsselten Spielstand-Kopien (wird beim ersten Deployment erzeugt und bleibt gleich).
+      - key: CHEFT_SECRET
+        generateValue: true

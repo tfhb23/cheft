@@ -4,7 +4,8 @@ Cheft als Web-App im Pixel-Look (angelehnt an Windows-3.1-Solitaire, Farbwelt im
 Läuft im Browser auf Android, iOS und PC und lässt sich als PWA auf den Homescreen legen.
 
 Solo gegen 2–3 Computergegner (offline) oder online mit Freunden: Raum eröffnen, 4-stelligen Code
-weitergeben, leere Plätze mit Bots auffüllen. Während eines laufenden Spiels kann niemand einsteigen.
+weitergeben, leere Plätze mit Bots auffüllen. Auch in ein laufendes Spiel lässt sich einsteigen, indem man den
+Platz eines Bots oder eines länger Abwesenden übernimmt (siehe Mehrspieler-Server).
 
 ## Starten
 
@@ -41,13 +42,27 @@ liefert zusätzlich die gebaute App aus. Die Clients sehen nur ihre eigene Hand;
 der Nachziehstapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
 „Zurück in den Raum“ wieder einsteigen; nach 45 Sekunden ohne Verbindung spielt ein Bot für ihn weiter.
 
+- **Neue Runde nur mit allen:** Nach der Rundenauswertung muss jeder Mensch „Nächste Runde“ bestätigen, nach dem Austeilen
+  jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die länger als 45 Sekunden weg sind.
+- **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt oder
+  deren Spieler länger als 45 Sekunden weg ist, und spielt mit der aktuellen Hand weiter. Das gilt für alle, auch für den Gastgeber.
+  Ist der Gastgeber weg, übernimmt der nächste verbundene Spieler die Gastgeber-Rechte, bis er zurück ist.
+- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten, jeder kann es wieder fortsetzen. Sind alle Menschen getrennt, pausiert das Spiel
+  von selbst und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
+- **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
+  auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
+  mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
+- **Bildschirm anlassen:** Im Zahnrad-Menü (Standard: an) hält die App den Bildschirm während des Spiels wach, sofern der Browser das
+  unterstützt. Ein gesperrtes Handy trennt die Verbindung; die 45 Sekunden laufen ab dem Moment der Trennung.
+- **Vorwärmen:** Beim Start der App wird ein schlafender Server im Hintergrund geweckt, wenn er auf einer anderen Adresse liegt.
+
 ```bash
 npm run build && npm run server   # http://localhost:8080 (App + WebSocket unter /ws)
 ```
 
 Betrieb im Internet: Das Repo enthält ein `Dockerfile` und eine `render.yaml`. Auf Render.com
 genügt „New → Blueprint“ mit diesem Repo; der kostenlose Plan reicht zum Testen (er schläft nach
-15 Minuten ohne Besuch ein und braucht beim ersten Aufruf etwa eine Minute). Die App auf GitHub
+15 Minuten ohne Verkehr ein und braucht beim ersten Aufruf etwa eine Minute; offene Spiele bleiben dank Kopie erhalten). Die App auf GitHub
 Pages verbindet sich mit dem Server, dessen Adresse als Repository-Variable `CHEFT_SERVER_URL`
 (z. B. `wss://cheft.onrender.com/ws`) hinterlegt oder in der App unter „Server-Adresse“ eingetragen wird.
 Läuft die App direkt vom Server (eigene Domain), ist keine Einstellung nötig.
