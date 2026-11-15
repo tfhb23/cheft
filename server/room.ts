@@ -96,7 +96,7 @@ export class Room {
   readonly code: string;
   seats: Seat[] = [];
   hostPid = 0;
-  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true };
+  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
@@ -275,7 +275,7 @@ export class Room {
     });
     this.hostPid = snap.hostPid;
     // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
-    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true };
+    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
     this.rev = snap.rev;

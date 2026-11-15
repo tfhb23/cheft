@@ -26,20 +26,20 @@ https://tfhb23.github.io/cheft/ . Dort im Handy-Browser öffnen und
 
 - Karten in der Hand per Drag & Drop sortieren, auf die Ablage ziehen (abwerfen), auf eine Kombination ziehen (anlegen oder Joker klauen) oder markiert in die eigene Auslage ziehen (auslegen). Alles geht auch per Antippen und Knopf.
 - Die gezogene Karte erscheint rechts in der Hand und ist grün markiert.
-- Gegner sitzen links, oben und rechts; ihre Auslagen liegen aus ihrer Blickrichtung. Am PC sind zusätzlich ihre verdeckten Handkarten zu sehen.
+- Bots und Mitspieler sitzen links, oben und rechts; ihre Auslagen liegen aus ihrer Blickrichtung. Am PC sind zusätzlich ihre verdeckten Handkarten zu sehen.
 - Der Spielstand wird nach jedem Zug im Browserspeicher des Geräts gesichert (localStorage, ohne Login). „Weiterspielen“ im Menü nimmt ihn wieder auf. Über das Zahnrad lässt sich ein Spielstand-Code kopieren, der im Menü eines anderen Geräts eingefügt werden kann.
 - Die Hand wird zu Rundenbeginn nach Farbe sortiert ausgeteilt, gezogene Karten kommen rechts dazu; umsortieren per Drag & Drop.
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
-- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Gegner wählbar oder „Überraschung“; Rollen werden am Spielende aufgedeckt.
+- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Mehrspieler-Server
 
 Der Server (`server/`) hält den Spielzustand je Raum, führt die Regeln aus, spielt die Bots und
 liefert zusätzlich die gebaute App aus. Die Clients sehen nur ihre eigene Hand; fremde Hände und
-der Nachziehstapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
+der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
 „Zurück in den Raum“ wieder einsteigen; nach 45 Sekunden ohne Verbindung spielt ein Bot für ihn weiter.
 
 - **Neue Runde nur mit allen:** Nach der Rundenauswertung muss jeder Mensch „Nächste Runde“ bestätigen, nach dem Austeilen
@@ -52,7 +52,7 @@ der Nachziehstapel werden maskiert übertragen. Verliert ein Spieler die Verbind
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
-- **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein. Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
+- **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzordnung: zufällig“ ein. Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
 - **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
 - **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
 - **Bildschirm anlassen:** Im Zahnrad-Menü (Standard: an) hält die App den Bildschirm während des Spiels wach, sofern der Browser das
@@ -90,12 +90,12 @@ scripts/      Icon-Generator
 ## Umgesetzte Regeln (Regelwerk V6 + Vereinbarungen)
 
 - Spielrichtung gegen den Uhrzeigersinn.
-- Rauskommen im ersten Zug: vor jedem Spiel wählbar (Standard: erlaubt).
+- Rauskommen im ersten Zug: vor jedem Spiel wählbar (Standard: gesperrt). Wer die erste Runde beginnt, wird ausgelost. Runden: 3, 5, 7 oder 9.
 - Joker als Teppichkarte: Der Startspieler bekommt den Joker (ersetzt eine seiner 14 Karten), die nächste Karte wird Teppichkarte.
-- Abwurf-Sperre nur gegenüber dem nächsten Spieler, wenn dieser draußen ist. Wäre jede Handkarte anlegbar, darf trotzdem abgeworfen werden (sonst Sackgasse).
-- Ablagestapel: Ein Rommé-Spieler darf die Karte nur nehmen, wenn er damit sofort rauskommt, und nie, wenn ein Cheft-Spieler sie abgeworfen hat. Ein Cheft-Spieler darf sie immer nehmen. Wer die Teppichkarte nimmt, wird dadurch Cheft-Spieler.
+- Abwurf-Sperre nur gegenüber dem nächsten Spieler, wenn dieser draußen ist: Verboten ist jede Karte, die er anlegen oder mit der er einen ausgelegten Joker klauen könnte. Wäre jede Handkarte betroffen, darf trotzdem abgeworfen werden (sonst Sackgasse).
+- Ablage: Ein Rommé-Spieler, der noch drin ist, darf die Karte nur nehmen, wenn er damit sofort rauskommt. Wer schon draußen ist, darf sie nehmen, wenn er sie sofort anlegen, auslegen oder damit einen Joker klauen kann (es muss eine Karte zum Abwerfen bleiben). Nie, wenn ein Cheft-Spieler sie abgeworfen hat. Ein Cheft-Spieler darf sie immer nehmen. Wer die Teppichkarte nimmt, wird dadurch Cheft-Spieler.
 - Cheft-Paare: Joker + Karte und Joker + Joker sind Paare. Joker dürfen auch aus Cheft-Paaren geklaut werden, nicht aus Joker-Joker-Paaren.
 - Nach 5 Paaren: Die restlichen Karten als 2 Paare auf einmal (= 7) oder als Rommé-Kombinationen/Anlegen. Ein einzelnes 6. Paar ist nicht erlaubt.
-- Nachziehstapel leer: Der Spieler, der die letzte Karte zieht, beendet seinen Zug normal; danach endet die Runde ohne Gewinner.
+- Stapel leer: Der Spieler, der die letzte Karte zieht, beendet seinen Zug normal. Liegt nur noch die Teppichkarte da, darf der nächste Spieler sie wie eine Stapelkarte nehmen (ohne Paar, ohne Cheft, ohne Zwang zum Rauskommen); nach seinem Zug endet die Runde ohne Gewinner. Ohne Teppichkarte endet sie sofort.
 - Weitere Kombinationen im Zug des Rauskommens zählen zur Erstmeldung, solange dazwischen nicht bei anderen angelegt wurde.
 - Strafpunkte und Verdopplungen wie im Regelwerk (Extrembeispiel 1.600 ist als Test hinterlegt).

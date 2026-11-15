@@ -113,7 +113,7 @@ export class App {
     name: '',
     bots: 3,
     rounds: 7,
-    firstTurn: true,
+    firstTurn: false,
     speed: 'normal',
     vibration: true,
     sound: false,
@@ -217,7 +217,12 @@ export class App {
   private loadPrefs(): void {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
-      if (raw) this.prefs = { ...this.prefs, ...JSON.parse(raw) };
+      if (raw) {
+        const stored = JSON.parse(raw) as Partial<Prefs> & { v?: number };
+        this.prefs = { ...this.prefs, ...stored };
+        // Neuer Standard: Rauskommen im ersten Zug gesperrt (einmalig auch für gespeicherte Einstellungen).
+        if ((stored.v ?? 0) < 3) this.prefs.firstTurn = false;
+      }
       if (!ROUND_CHOICES.includes(this.prefs.rounds)) this.prefs.rounds = 7;
     } catch {
       /* ignorieren */
@@ -225,7 +230,7 @@ export class App {
   }
   private savePrefs(): void {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify(this.prefs));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ ...this.prefs, v: 3 }));
     } catch {
       /* ignorieren */
     }
@@ -353,7 +358,6 @@ export class App {
         h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
         h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
       ),
-      h('div', { class: 'muted small-text' }, t('setup.online')),
     );
   }
 
@@ -430,61 +434,50 @@ export class App {
         this.choice(
           t('setup.peek'),
           [
-            { v: true, label: t('setup.allowed') },
-            { v: false, label: t('setup.off') },
+            { v: true, label: t('setup.yes') },
+            { v: false, label: t('setup.no') },
           ],
           () => this.prefs.peekDiscards,
           (v) => (this.prefs.peekDiscards = v as boolean),
         ),
-        h('div', { class: 'muted small-text' }, `${t('setup.direction')}: ${t('setup.ccw')}`),
+        h('div', { class: 'muted small-text' }, t('setup.directionCcw')),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
         h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
       ),
     );
   }
 
-  /** Eine Zeile je Gegner: Stufe und Spielweise durchschalten, "Überraschung" verbirgt die Rolle. */
-  private botRow(c: BotChoice, i: number): HTMLElement {
+  /** Eine Zeile je Bot: Stufe und Spielweise durchschalten, "Zufall" verbirgt die Rolle. */
+  /** Zwei gleich breite Knöpfe nebeneinander (Stufe und Spielweise), Überschrift darüber. Bricht nie um. */
+  private botPicker(c: BotChoice, onChange: (next: BotChoice) => void): HTMLElement {
     const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
       const all: (T | 'random')[] = ['random', ...list];
       return all[(all.indexOf(cur) + 1) % all.length];
     };
-    const levelLabel = c.level === 'random' ? t('setup.randomShort') : t(`level.${c.level}`);
-    const styleLabel = c.style === 'random' ? t('setup.randomShort') : t(`style.${c.style}`);
+    const col = (caption: string, value: string, active: boolean, onclick: () => void) =>
+      h('div', { class: 'bot-col' }, h('div', { class: 'muted small-text' }, caption), h('button', { class: `btn${active ? ' primary' : ''}`, onclick }, value));
+    return h(
+      'div',
+      { class: 'bot-pick' },
+      col(t('setup.level'), c.level === 'random' ? t('setup.random') : t(`level.${c.level}`), c.level !== 'random', () => onChange({ level: cycle(LEVELS, c.level), style: c.style })),
+      col(t('setup.style'), c.style === 'random' ? t('setup.random') : t(`style.${c.style}`), c.style !== 'random', () => onChange({ level: c.level, style: cycle(STYLES, c.style) })),
+    );
+  }
+
+  private botRow(c: BotChoice, i: number): HTMLElement {
     return h(
       'div',
       { class: 'option' },
       h('div', { class: 'muted' }, t(this.prefs.bots === 3 ? ['seat.right', 'seat.top', 'seat.left'][i] : ['seat.right', 'seat.left'][i])),
-      h(
-        'div',
-        { class: 'choices' },
-        h(
-          'button',
-          {
-            class: `btn${c.level === 'random' ? '' : ' primary'}`,
-            onclick: () => {
-              c.level = cycle(LEVELS, c.level);
-              this.savePrefs();
-              this.render();
-            },
-          },
-          `${t('setup.level')}: ${levelLabel}`,
-        ),
-        h(
-          'button',
-          {
-            class: `btn${c.style === 'random' ? '' : ' primary'}`,
-            onclick: () => {
-              c.style = cycle(STYLES, c.style);
-              this.savePrefs();
-              this.render();
-            },
-          },
-          `${t('setup.style')}: ${styleLabel}`,
-        ),
-      ),
+      this.botPicker(c, (next) => {
+        c.level = next.level;
+        c.style = next.style;
+        this.savePrefs();
+        this.render();
+      }),
     );
   }
+
 
   private renderRules(): HTMLElement {
     return h(
@@ -653,10 +646,11 @@ export class App {
     });
     document.body.appendChild(layer);
     this.peekLayer = layer;
+    // Kurz stehen lassen, damit der Daumen nicht im Weg ist, wenn man alle Spieler sehen will.
     const end = () => {
       document.removeEventListener('pointerup', end);
       document.removeEventListener('pointercancel', end);
-      this.hidePeek();
+      window.setTimeout(() => this.hidePeek(), 700);
     };
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', end);
@@ -1092,7 +1086,7 @@ export class App {
     return game;
   }
 
-  /** Nachziehstapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
+  /** Stapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
   private stockEl(glow: boolean, clickable: boolean): HTMLElement {
     const r = this.state!.round;
     const n = r.stock.length;
@@ -1932,8 +1926,8 @@ export class App {
           this.choice(
             t('setup.peek'),
             [
-              { v: true, label: t('setup.allowed') },
-              { v: false, label: t('setup.off') },
+              { v: true, label: t('setup.yes') },
+              { v: false, label: t('setup.no') },
             ],
             () => lobby.settings.peekDiscards,
             (v) => this.net?.settings({ peekDiscards: v as boolean }),
@@ -1952,7 +1946,7 @@ export class App {
           h(
             'div',
             { class: 'muted small-text' },
-            `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')} · ${t('setup.seating')}: ${t(`setup.seating.${lobby.settings.seating}`)} · ${t('setup.peek')}: ${t(lobby.settings.peekDiscards ? 'setup.allowed' : 'setup.off')}`,
+            `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')} · ${t('setup.seating')}: ${t(`setup.seating.${lobby.settings.seating}`)} · ${t('setup.peek')}: ${t(lobby.settings.peekDiscards ? 'setup.yes' : 'setup.no')}`,
           ),
         ];
     return h(
@@ -1963,11 +1957,10 @@ export class App {
         'div',
         { class: 'panel' },
         h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t('lobby.copy'))),
-        h('div', { class: 'muted small-text' }, t('lobby.share')),
-        h('div', { class: 'muted small-text' }, isHost && lobby.seats.length > 1 ? t('lobby.orderHint') : t('lobby.order')),
         list,
         isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
         ...settings,
+        h('div', { class: 'muted small-text' }, t('setup.directionCcw')),
         isHost
           ? h('button', { class: 'btn primary', disabled: lobby.seats.length < 3, onclick: () => this.net?.start() }, lobby.seats.length < 3 ? t('lobby.need', { min: 3 }) : t('lobby.start'))
           : h('div', { class: 'muted' }, t('lobby.waitHost')),
@@ -2020,22 +2013,10 @@ export class App {
   }
 
   private lobbyBotButtons(seat: LobbyInfo['seats'][number]): HTMLElement {
-    const [lv, st] = (seat.botLabel ?? 'random/random').split('/') as [BotChoice['level'], BotChoice['style']];
-    const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
-      const all: (T | 'random')[] = ['random', ...list];
-      return all[(all.indexOf(cur) + 1) % all.length];
-    };
-    return h(
-      'div',
-      { class: 'option' },
-      h(
-        'div',
-        { class: 'choices' },
-        h('button', { class: `btn${lv === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: cycle(LEVELS, lv), style: st } }) }, `${t('setup.level')}: ${lv === 'random' ? t('setup.randomShort') : t(`level.${lv}`)}`),
-        h('button', { class: `btn${st === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: lv, style: cycle(STYLES, st) } }) }, `${t('setup.style')}: ${st === 'random' ? t('setup.randomShort') : t(`style.${st}`)}`),
-      ),
-    );
+    const [level, style] = (seat.botLabel ?? 'random/random').split('/') as [BotChoice['level'], BotChoice['style']];
+    return this.botPicker({ level, style }, (choice) => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice }));
   }
+
 
   private copyCode(code: string): void {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(() => this.toast(t('lobby.copied')), () => prompt(t('lobby.copy'), code));
