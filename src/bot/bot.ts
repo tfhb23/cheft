@@ -46,8 +46,12 @@ interface Knobs {
   gamble: number;
   /** Joker möglichst als letzte Karte abwerfen (verbrennen) und dafür aufheben. */
   burn: boolean;
-  /** Mastermind: zählt alle gespielten Karten und rechnet mit Wahrscheinlichkeiten. */
+  /** Zählt alle gespielten Karten und wirft nach Wahrscheinlichkeiten ab (Gerissen und Mastermind). */
+  counting: boolean;
+  /** Mastermind: zusätzlich Joker schonen, Erstmeldung ohne Joker bevorzugen und Spielende vorausahnen. */
   master: boolean;
+  /** Mit Jokern nicht überstürzt rauskommen: Ist die Teppichkarte nächste Runde ein echtes Paar, lieber warten. */
+  patient: boolean;
 }
 
 const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'balanced' };
@@ -67,7 +71,9 @@ export function knobsFor(profile: BotProfile): Knobs {
     smartDiscard: true,
     gamble: 0,
     burn: false,
+    counting: false,
     master: false,
+    patient: false,
   };
   switch (profile.level) {
     case 'easy':
@@ -81,13 +87,17 @@ export function knobsFor(profile: BotProfile): Knobs {
       k.counter = true;
       k.jokerHunter = true;
       k.burn = true;
+      k.patient = true;
+      k.counting = true;
       break;
     case 'master':
       k.blocker = true;
       k.counter = true;
       k.jokerHunter = true;
       k.burn = true;
+      k.counting = true;
       k.master = true;
+      k.patient = true;
       break;
   }
   switch (profile.style) {
@@ -254,13 +264,30 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
 
   const wantCheft = p.mode === 'cheft' || maxPairs(hand) >= 5;
   if (wantCheft && r.turn.mustOpenWithId === null) {
-    for (let kk = 0; kk < n; kk++) {
-      if (hand[kk].id === must) continue;
-      const rest = hand.filter((_, i) => i !== kk);
-      const part = findPartition(rest, { types: ALL_TYPES, pairCounts: [5, 7], allowSkip: true, mustInclude: must === null ? [] : [must] });
-      if (part && part.used > 0) consider(groupsOf(part.melds), part.used, part.augen);
+    // Beste Paar-Erstmeldung, wahlweise ohne Joker (die bleiben dann auf der Hand)
+    const pairOpening = (allowJokers: boolean): Best | null => {
+      let found: Best | null = null;
+      for (let kk = 0; kk < n; kk++) {
+        if (hand[kk].id === must) continue;
+        const rest = hand.filter((c, i) => i !== kk && (allowJokers || !isJoker(c)));
+        const part = findPartition(rest, { types: ALL_TYPES, pairCounts: [5, 7], allowSkip: true, mustInclude: must === null ? [] : [must] });
+        if (!part || part.used === 0) continue;
+        const groups = groupsOf(part.melds);
+        if (!checkLay(state, pid, groups).ok) continue;
+        if (!found || part.used > found.used || (part.used === found.used && part.augen > found.augen)) found = { groups, used: part.used, augen: part.augen };
+      }
+      return found;
+    };
+    const withJokers = pairOpening(true);
+    // Joker sind wertvoll (Klauen, Verbrennen, 25 Strafpunkte): Reicht es ohne sie, werden sie nicht in Paare gesteckt.
+    // Nur für die Hand (7 Paare, alle Karten) lohnt sich der Einsatz.
+    const natural = k.smartDiscard && hand.some(isJoker) ? pairOpening(false) : null;
+    const chosen: Best | null = natural && !(withJokers && withJokers.used === n - 1 && natural.used < withJokers.used) ? natural : withJokers;
+    if (chosen) {
+      const usesJoker = chosen.groups.flat().some((id) => isJoker(hand.find((c) => c.id === id)!));
+      if (usesJoker && waitForCarpet(state, pid, k)) return null;
+      return chosen.groups;
     }
-    if (best) return (best as Best).groups;
   }
   if (p.mode === 'cheft') return null;
 
@@ -375,6 +402,27 @@ function findSteal(state: GameState, pid: number, k: Knobs): Action | null {
   return best;
 }
 
+/**
+ * Geduld: Würde das Rauskommen Joker in Paare stecken, liegt aber die Teppichkarte noch da und ich halte genau eine echte
+ * Kopie von ihr, dann wird sie im nächsten Zug zum echten Paar. Solange noch niemand draußen ist, lohnt sich das Warten.
+ */
+function waitForCarpet(state: GameState, pid: number, k: Knobs): boolean {
+  if (!k.patient) return false;
+  const r = state.round;
+  const carpet = r.carpet;
+  if (!carpet || r.stock.length === 0 || r.turn.mustPairWithId !== null) return false;
+  if (r.players.some((q) => q.opened)) return false;
+  return carpetMate(state, pid) !== null;
+}
+
+/** Die Handkarte, die mit der Teppichkarte ein echtes Paar bilden würde (genau eine Kopie auf der Hand). */
+function carpetMate(state: GameState, pid: number): Card | null {
+  const carpet = state.round.carpet;
+  if (!carpet || isJoker(carpet)) return null;
+  const same = state.round.players[pid].hand.filter((c) => sameCard(c, carpet));
+  return same.length === 1 ? same[0] : null;
+}
+
 /** Ende der Runde droht: Ein anderer Spieler ist draußen und hat nur noch wenige Karten. */
 function endIsNear(state: GameState, pid: number): boolean {
   return state.round.players.some((q, i) => i !== pid && q.opened && q.hand.length <= 2);
@@ -411,14 +459,17 @@ interface Unseen {
  * Welche Karten kann der Bot noch nicht verorten? Gesehen sind die eigene Hand, alle Auslagen, die ganze Ablage,
  * die Teppichkarte und die Karten, die Mitspieler offen genommen haben. Der Rest steckt im Stapel oder in fremden Händen.
  */
-function unseenCards(state: GameState, pid: number): Unseen {
+function unseenCards(state: GameState, pid: number, precise: boolean): Unseen {
   const r = state.round;
   const seen = new Set<number>();
   for (const c of r.players[pid].hand) seen.add(c.id);
   for (const m of r.melds) for (const c of m.cards) seen.add(c.id);
   for (const c of r.discard) seen.add(c.id);
-  if (r.carpet) seen.add(r.carpet.id);
-  for (const x of r.taken) seen.add(x.card.id);
+  // Gerissen zählt nur, was offen liegt; der Mastermind merkt sich auch Teppichkarte und die offen genommenen Karten der anderen
+  if (precise) {
+    if (r.carpet) seen.add(r.carpet.id);
+    for (const x of r.taken) seen.add(x.card.id);
+  }
   const copies = new Map<string, number>();
   let total = 0;
   for (const c of makeDeck()) {
@@ -437,11 +488,11 @@ const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Mat
  * Wie wertvoll ist die Karte für die Hand? Erwartete Augen der besten Kombinationen, an denen sie beteiligt sein kann
  * (fertige Kombination, oder Wahrscheinlichkeit, die fehlenden Karten noch zu bekommen).
  */
-function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean): number {
+function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean, precise: boolean): number {
   if (isJoker(c)) return 60;
-  const draws = 3;
+  const draws = precise ? 3 : 2;
   const U = Math.max(8, un.total);
-  const J = un.copies.get('J') ?? 0;
+  const J = precise ? (un.copies.get('J') ?? 0) : 0; // der Mastermind rechnet auch mit den noch ungesehenen Jokern
   const jokersInHand = hand.filter(isJoker).length;
   const have = (suit: string, rank: number) => hand.some((o) => !isJoker(o) && o.suit === suit && o.rank === rank);
   const chance = (suit: string, rank: number) => outsChance((un.copies.get(`${suit}${rank}`) ?? 0) + J * 0.5, U, draws);
@@ -492,17 +543,17 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
       }
     }
   }
-  return best + 0.35 * second;
+  return best + (precise ? 0.35 : 0.15) * second;
 }
 
 /** Mastermind wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt. */
-function masterDiscard(state: GameState, pid: number, pool: Card[]): number {
+function masterDiscard(state: GameState, pid: number, k: Knobs, pool: Card[]): number {
   const r = state.round;
   const p = r.players[pid];
-  const un = unseenCards(state, pid);
+  const un = unseenCards(state, pid, k.master);
   const next = r.players[nextIndex(state, pid)];
   const nextTaken = r.taken.filter((x) => x.player === nextIndex(state, pid)).map((x) => x.card);
-  const danger = endIsNear(state, pid);
+  const danger = k.master && endIsNear(state, pid); // das Spielende vorausahnen kann nur der Mastermind
   // Ausgelegte Joker: Die passenden Karten sind zum Klauen wertvoll
   const jokerTargets: { suit: string; rank: number }[] = [];
   if (p.opened) {
@@ -516,7 +567,7 @@ function masterDiscard(state: GameState, pid: number, pool: Card[]): number {
   let bestCard = pool[0];
   let bestScore = -Infinity;
   for (const c of pool) {
-    const keep = keepValue(c, p.hand, un, p.mode, p.opened);
+    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.master);
     let score = -keep;
     if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
     else score += p.opened ? penaltyValue(c) * 0.9 : penaltyValue(c) * 0.12;
@@ -553,8 +604,11 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs): number {
   const p = r.players[pid];
   const hand = p.hand;
   const legal = hand.filter((c) => checkDiscard(state, pid, c.id).ok);
-  const pool = legal.length > 0 ? legal : hand;
-  if (k.master) return masterDiscard(state, pid, pool);
+  let pool = legal.length > 0 ? legal : hand;
+  // Wer auf die Teppichkarte wartet, wirft deren Partner nicht weg
+  const mate = k.patient && !p.opened && waitForCarpet(state, pid, k) ? carpetMate(state, pid) : null;
+  if (mate && pool.length > 1) pool = pool.filter((c) => c.id !== mate.id);
+  if (k.counting) return masterDiscard(state, pid, k, pool);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);
