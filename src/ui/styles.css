@@ -248,6 +248,9 @@ table.scores tr.winner td { color: var(--orange-dark); font-weight: bold; }
 .factors { font-size: calc(7px * var(--s)); color: var(--ink-soft); font-weight: normal; }
 .rest { display: flex; flex-wrap: wrap; gap: var(--px); margin-top: var(--px); }
 .card.mini { width: 32px; height: 44px; background-size: 256px 308px; }
+.rest.backs { flex-wrap: nowrap; }
+.rest.backs .card { margin-left: -22px; }
+.rest.backs .card:first-child { margin-left: 0; }
 
 .toast { position: fixed; left: 50%; bottom: calc(90px * var(--s)); transform: translateX(-50%); background: var(--panel); color: var(--ink); padding: calc(3px * var(--s)) calc(5px * var(--s)); max-width: 90vw; border: var(--px) solid var(--ink); box-shadow: calc(2px * var(--s)) calc(2px * var(--s)) 0 var(--sand-dark); z-index: 20; font-size: calc(9px * var(--s)); text-align: center; }
 .toast.error { border-color: var(--red); color: var(--red); }
@@ -261,3 +264,10 @@ table.scores tr.winner td { color: var(--orange-dark); font-weight: bold; }
 .choose-meld .card:first-child { margin-left: 0; }
 .endbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: calc(3px * var(--s)); padding: calc(3px * var(--s)) calc(4px * var(--s)); padding-bottom: max(calc(3px * var(--s)), env(safe-area-inset-bottom)); background: var(--panel); border-top: var(--px) solid var(--ink); z-index: 60; }
 .endbar .btn { flex: 1; text-align: center; }
+
+/* ---------- Punkteverlauf */
+table.rounds td.cell { position: relative; }
+table.rounds .bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--orange-pale); z-index: 0; }
+table.rounds td.cell.win .bar { background: #d9ecd2; }
+table.rounds .sum, table.rounds .delta { position: relative; z-index: 1; }
+table.rounds .delta { display: block; font-size: calc(7px * var(--s)); color: var(--ink-soft); }

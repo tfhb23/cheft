@@ -8,6 +8,7 @@ import {
   doDeclareCheft,
   doStealJoker,
   doUndoDraw,
+  doReady,
   checkUndoDraw,
   checkDraw,
   checkLay,
@@ -230,6 +231,53 @@ describe('Cheft', () => {
     const res = doLay(g, b, [[mate.id, carpet.id], [id(1), id(2)], [id(3), id(4)], [id(5), id(6)], [id(7), id(8)]]);
     expect(res.ok).toBe(true);
     expect(doDiscard(g, b, id(9)).ok).toBe(true);
+  });
+});
+
+describe('Bereit-Phase und Ablage nach dem Rauskommen', () => {
+  it('vor dem Start sind keine Züge möglich', () => {
+    const g = testGame(3, 31);
+    g.round.waiting = true;
+    g.round.ready = [false, false, false];
+    const pid = g.round.starter;
+    const res = checkDiscard(g, pid, g.round.players[pid].hand[0].id);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe('err.notStarted');
+    doReady(g, 0);
+    doReady(g, 1);
+    expect(g.round.waiting).toBe(true);
+    doReady(g, 2);
+    expect(g.round.waiting).toBe(false);
+  });
+  it('rausgekommener Rommé-Spieler nimmt die Ablagekarte nur zum sofortigen Verwenden', () => {
+    const g = testGame(3, 32);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    // b ist draußen mit Herz 4-5-6
+    g.round.players[b].opened = true;
+    g.round.melds.push({ id: 50, owner: b, type: 'run', cards: p.takeAll('H4', 'H5', 'H6'), suit: 'H', startRank: 4 });
+    freshTurn(g, a);
+    // a hat nur anlegbare Karten, darf also Herz 7 trotz Sperre abwerfen
+    setHand(g, a, p.takeAll('H7', 'H3'));
+    expect(doDiscard(g, a, g.round.players[a].hand[0].id).ok).toBe(true); // Herz 7 liegt, passt an die Folge
+    setHand(g, b, p.takeAll('S2', 'C9', 'D10'));
+    expect(checkDraw(g, b, 'discard').ok).toBe(true);
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    const hb = g.round.players[b].hand;
+    const h7 = hb.find((c) => c.suit === 'H' && c.rank === 7)!;
+    const d = checkDiscard(g, b, hb[0].id);
+    expect(d.ok).toBe(false);
+    if (!d.ok) expect(d.error).toBe('err.mustUseTaken');
+    expect(checkUndoDraw(g, b).ok).toBe(true);
+    expect(doLayOff(g, b, h7.id, 50).ok).toBe(true);
+    expect(checkUndoDraw(g, b).ok).toBe(false);
+    expect(doDiscard(g, b, hb[0].id).ok).toBe(true);
+    // Unbrauchbare Karte darf nicht genommen werden
+    const c = (b + 1) % 3;
+    g.round.players[c].opened = true;
+    setHand(g, c, p.takeAll('S3', 'C10'));
+    expect(checkDraw(g, c, 'discard').ok).toBe(false);
   });
 });
 

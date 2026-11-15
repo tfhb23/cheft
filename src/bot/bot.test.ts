@@ -13,6 +13,7 @@ describe('Bots spielen komplette Spiele regelkonform', () => {
       while (!g.finished && guard++ < 20000) {
         if (g.round.ended) {
           startNextRound(g);
+          g.round.waiting = false;
           continue;
         }
         const pid = g.round.turn.player;
@@ -58,6 +59,7 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
         while (!g.finished && guard++ < 20000) {
           if (g.round.ended) {
             startNextRound(g);
+            g.round.waiting = false;
             continue;
           }
           const pid = g.round.turn.player;
@@ -72,8 +74,8 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
   it('Namen sind eindeutig und Zufall löst auf', async () => {
     const { resolveBots, NAMES } = await import('./names');
     const all = Object.values(NAMES).flatMap((byStyle) => Object.values(byStyle).flat());
-    expect(all.length).toBe(72);
-    expect(new Set(all).size).toBe(72);
+    expect(all.length).toBe(96);
+    expect(new Set(all).size).toBe(96);
     const { makeRng } = await import('../engine/cards');
     const bots = resolveBots([{ level: 'random', style: 'random' }, { level: 'easy', style: 'cheft' }, { level: 'easy', style: 'cheft' }], makeRng(3));
     expect(new Set(bots.map((b) => b.name)).size).toBe(3);

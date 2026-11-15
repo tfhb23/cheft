@@ -36,7 +36,10 @@ export function testPlayers(n = 4): PlayerInfo[] {
 }
 
 export function testGame(n = 4, seed = 42, settings: Partial<Settings> = {}): GameState {
-  return newGame(testPlayers(n), { ...DEFAULT_SETTINGS, ...settings }, seed);
+  const g = newGame(testPlayers(n), { ...DEFAULT_SETTINGS, ...settings }, seed);
+  g.round.waiting = false;
+  g.round.ready = g.round.ready.map(() => true);
+  return g;
 }
 
 /** Setzt eine Hand direkt (für Regel-Tests). */

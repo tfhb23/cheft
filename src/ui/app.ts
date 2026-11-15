@@ -380,7 +380,7 @@ export class App {
     return h(
       'div',
       { class: 'option' },
-      h('div', { class: 'muted' }, t('setup.bot', { n: i + 1 })),
+      h('div', { class: 'muted' }, t(this.prefs.bots === 3 ? ['seat.right', 'seat.top', 'seat.left'][i] : ['seat.right', 'seat.left'][i])),
       h(
         'div',
         { class: 'choices' },
@@ -552,6 +552,18 @@ export class App {
     const gen = this.botGen;
     try {
       while (this.state && gen === this.botGen && this.screen === 'game' && !this.state.round.ended && !this.dealing) {
+        if (this.state.round.waiting) {
+          const r = this.state.round;
+          const pending = this.state.players.filter((p) => p.isBot && !r.ready[p.id]);
+          if (pending.length === 0) break; // auf den Menschen warten
+          await sleep(900 + Math.floor(Math.random() * 1200));
+          if (gen !== this.botGen || !this.state) break;
+          applyAction(this.state, pending[0].id, { kind: 'ready' });
+          this.save();
+          if (!this.drag) this.render();
+          if (!this.state.round.waiting) play('card');
+          continue;
+        }
         const pid = current(this.state);
         if (!this.state.players[pid].isBot) break;
         await sleep(this.botDelay());
@@ -637,8 +649,9 @@ export class App {
     const n = s.players.length;
     const others: number[] = [];
     for (let i = 1; i < n; i++) others.push((HUMAN + i) % n);
-    if (n === 4) return [{ pid: others[0], pos: 'left' }, { pid: others[1], pos: 'top' }, { pid: others[2], pos: 'right' }];
-    if (n === 3) return [{ pid: others[0], pos: 'left' }, { pid: others[1], pos: 'right' }];
+    // Gegen den Uhrzeigersinn: nach dem Menschen (unten) kommt rechts, dann gegenüber, dann links.
+    if (n === 4) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'top' }, { pid: others[2], pos: 'left' }];
+    if (n === 3) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'left' }];
     return [{ pid: others[0], pos: 'top' }];
   }
 
@@ -660,7 +673,11 @@ export class App {
       if (this.order.length === 0) this.order = sortBySuit(me.hand).map((c) => c.id);
       else for (const id of added) this.insertSorted(id, me.hand);
     } else this.order.push(...added);
-    if (myTurn) for (const id of added) this.fresh.add(id);
+    if (myTurn) {
+      for (const id of added) {
+        if (id === r.turn.drawnCardId || id === r.turn.pendingJokerId) this.fresh.add(id);
+      }
+    }
     for (const id of [...this.fresh]) if (!have.has(id)) this.fresh.delete(id);
 
     const header = h(
@@ -691,8 +708,9 @@ export class App {
     const opponents = h(
       'div',
       { class: 'opponents' },
-      ...s.players
-        .filter((p) => p.id !== HUMAN)
+      ...[...this.seats()]
+        .sort((a, b) => ['left', 'top', 'right'].indexOf(a.pos) - ['left', 'top', 'right'].indexOf(b.pos))
+        .map((seat) => s.players[seat.pid])
         .map((p) => {
           const pr = r.players[p.id];
           return h(
@@ -741,8 +759,8 @@ export class App {
       r.carpet
         ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet, dim: drawPhase && !canCarpet, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'carpet' }) : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
-      this.cardEl(r.stock.length ? backOf(r.stock[r.stock.length - 1]) : 'slot', { glow: canStock, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'stock' }) : undefined }),
-      h('div', { class: 'count' }, String(r.stock.length)),
+      this.stockEl(canStock, drawPhase),
+      r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count' }, String(r.stock.length)) : null,
     );
     const discardCards = r.discard.slice(-6);
     const discard = h(
@@ -764,10 +782,14 @@ export class App {
         return el;
       }),
     );
+    const starterCard = r.waiting ? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId) : undefined;
+    const openCard = starterCard
+      ? h('div', { class: 'pile' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === HUMAN ? t('you') : s.players[r.starter].name })))
+      : null;
     const center = h(
       'div',
       { class: 'center' },
-      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard')))),
+      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard'))), openCard),
     );
     table.appendChild(center);
 
@@ -784,13 +806,17 @@ export class App {
     // Status
     let msg = '';
     if (r.ended) msg = '';
-    else if (!myTurn) {
+    else if (r.waiting) {
+      const waitingFor = s.players.filter((p) => !r.ready[p.id] && p.id !== HUMAN).map((p) => p.name);
+      msg = r.ready[HUMAN] ? t('wait.others', { names: waitingFor.join(', ') }) : t('wait.sorting');
+    } else if (!myTurn) {
       const last = r.log[r.log.length - 1];
       msg = last && last.player !== undefined ? this.logText(last) : t('turn.bot', { name: s.players[current(s)].name });
     } else if (drawPhase) msg = t('turn.you.draw');
     else if (r.turn.pendingJokerId !== null) msg = t('turn.you.joker');
     else if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.mustOpen');
     else if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.carpet');
+    else if (r.turn.mustUseId !== null && me.hand.some((c) => c.id === r.turn.mustUseId)) msg = t('turn.you.mustUse');
     else if (this.targetMode) msg = t('target.pick');
     else msg = t('turn.you.play');
     let info = '';
@@ -810,7 +836,7 @@ export class App {
       { class: `hand${this.dealing ? ' dealing' : ''}` },
       ...this.order.map((id) => {
         const c = byId.get(id)!;
-        const mustId = myTurn ? (r.turn.mustOpenWithId ?? r.turn.mustPairWithId) : null;
+        const mustId = myTurn ? (r.turn.mustOpenWithId ?? r.turn.mustPairWithId ?? r.turn.mustUseId) : null;
         const el = this.cardEl(c, { selected: this.selected.has(id), fresh: this.fresh.has(id) && id !== mustId, cls: id === mustId ? 'must' : undefined });
         el.classList.add('clickable');
         el.addEventListener('pointerdown', (e) => this.onPointerDown(e, id, el));
@@ -823,7 +849,9 @@ export class App {
 
     const btn = (label: string, onclick: () => void, opts: { disabled?: boolean; cls?: string } = {}) => h('button', { class: `btn ${opts.cls ?? ''}`, disabled: opts.disabled, onclick }, label);
     const canCheft = myTurn && !me.opened && me.mode === 'romme' && r.turn.mustOpenWithId === null;
-    const actions = h(
+    const actions = r.waiting
+      ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[HUMAN], cls: 'primary' }))
+      : h(
       'div',
       { class: 'actions' },
       btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, cls: 'primary' }),
@@ -860,6 +888,23 @@ export class App {
     if (insertAt >= 0) this.order.splice(insertAt, 0, id);
     else if (lastSame >= 0) this.order.splice(lastSame + 1, 0, id);
     else this.order.push(id);
+  }
+
+  /** Nachziehstapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
+  private stockEl(glow: boolean, clickable: boolean): HTMLElement {
+    const r = this.state!.round;
+    const n = r.stock.length;
+    const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { glow, onClick: clickable ? () => this.act({ kind: 'draw', source: 'stock' }) : undefined });
+    if (n > 0) {
+      const s = this.scale();
+      const layers = Math.min(7, Math.ceil(n / 8));
+      const shadows: string[] = [];
+      for (let i = 1; i <= layers; i++) shadows.push(`${i * s}px ${i * s}px 0 0 var(--cream)`, `${i * s}px ${i * s}px 0 1px var(--sand-dark)`);
+      el.style.boxShadow = shadows.reverse().join(', ');
+      el.style.marginBottom = `${layers * s}px`;
+      el.style.marginRight = `${layers * s}px`;
+    }
+    return el;
   }
 
   private meldEl(m: Meld, isTarget: boolean, isStealable: boolean, small: boolean): HTMLElement {
@@ -1024,7 +1069,7 @@ export class App {
     const wrapRect = (handEl.parentElement as HTMLElement).getBoundingClientRect();
     const inHand = e.clientY >= wrapRect.top - 10 && e.clientY <= wrapRect.bottom + 10;
     this.setOver(null);
-    if (inHand && !this.state?.settings.autoSort) {
+    if (inHand) {
       const g = this.handGeometry();
       if (!g) return;
       const x = e.clientX - hr.left;
@@ -1043,8 +1088,6 @@ export class App {
         this.order.splice(idx, 0, d.id);
         this.layoutHand();
       }
-    } else if (inHand) {
-      /* automatische Sortierung: nur Ablegen auf Ziele */
     } else {
       const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const zone = target ? (target.closest('.discard, .meld, .own') as HTMLElement | null) : null;
@@ -1359,6 +1402,33 @@ export class App {
     );
   }
 
+  /** Punkteverlauf: Spieler als Spalten, Runden als Zeilen mit aufsummierten Strafpunkten. */
+  private renderRoundsTable(order: number[]): HTMLElement {
+    const s = this.state!;
+    const name = (pid: number) => (pid === HUMAN ? t('you') : s.players[pid].name);
+    const sums = order.map(() => 0);
+    const max = Math.max(1, ...s.totals);
+    const body = s.history.map((res) =>
+      h(
+        'tr',
+        null,
+        h('td', { class: 'muted' }, t('round.short', { n: res.roundNo })),
+        ...order.map((pid, i) => {
+          const pts = res.scores[pid].total;
+          sums[i] += pts;
+          const bar = h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } });
+          return h('td', { class: `num cell${res.winner === pid ? ' win' : ''}` }, bar, h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, pts ? `+${pts}` : '·'));
+        }),
+      ),
+    );
+    return h(
+      'div',
+      null,
+      h('h3', null, t('gameEnd.rounds')),
+      h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, h('th', null, ''), ...order.map((pid) => h('th', { class: 'num' }, name(pid))))), h('tbody', null, ...body)),
+    );
+  }
+
   private renderRoundEnd(): HTMLElement {
     const s = this.state!;
     const r = s.round;
@@ -1368,7 +1438,8 @@ export class App {
     if (res.winnerMode === 'cheft') extras.push(t('roundEnd.cheft'));
     if (res.hand) extras.push(t('roundEnd.hand'));
     if (res.jokerBurned) extras.push(t('roundEnd.joker'));
-    const rows = s.players.map((p) => {
+    const ordered = [...s.players].sort((a, b) => s.totals[a.id] - s.totals[b.id] || res.scores[a.id].total - res.scores[b.id].total);
+    const rows = ordered.map((p) => {
       const sc = res.scores[p.id];
       const pr = r.players[p.id];
       return h(
@@ -1380,7 +1451,7 @@ export class App {
           name(p.id),
           h('div', { class: 'factors' }, `${t(`mode.${pr.mode}`)} · ${pr.opened ? t('status.opened') : t('status.notOpened')}`),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
-          !pr.opened && pr.hand.length ? h('div', { class: 'factors' }, t('cards.count', { n: pr.hand.length })) : null,
+          !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true }))) : null,
           s.finished && p.bot ? h('div', { class: 'factors accent' }, `${t(`level.${p.bot.level}`)} · ${t(`style.${p.bot.style}`)}`) : null,
         ),
         h('td', { class: 'num' }, String(sc.base), sc.factors.length ? h('div', { class: 'factors' }, sc.factors.map((f) => t(`factor.${f}`)).join(', ')) : null),
@@ -1410,6 +1481,7 @@ export class App {
           h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
           h('tbody', null, ...rows),
         ),
+        s.finished ? this.renderRoundsTable(ordered.map((p) => p.id)) : null,
         h(
           'button',
           {

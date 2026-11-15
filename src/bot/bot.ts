@@ -144,7 +144,7 @@ export function decideAction(state: GameState, pid: number): Action {
         if (checkDraw(state, pid, 'discard').ok) return { kind: 'draw', source: 'discard' };
       }
     }
-    if (top && p.mode === 'cheft' && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(state, pid, top)) {
+    if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(state, pid, top)) {
       return { kind: 'draw', source: 'discard' };
     }
     if (r.carpet && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
@@ -158,6 +158,11 @@ export function decideAction(state: GameState, pid: number): Action {
   const pendingJoker = r.turn.pendingJokerId;
   if (pendingJoker !== null) {
     const use = useJoker(state, pid, pendingJoker);
+    if (use) return use;
+  }
+  const mustUse = r.turn.mustUseId;
+  if (mustUse !== null && hand.some((c) => c.id === mustUse)) {
+    const use = useJoker(state, pid, mustUse);
     if (use) return use;
   }
 

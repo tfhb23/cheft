@@ -1,5 +1,5 @@
 /**
- * Bot-Rollen und Namen: 3 Stufen × 8 Spielweisen = 24 Rollen, je 3 Namen.
+ * Bot-Rollen und Namen: 3 Stufen × 8 Spielweisen = 24 Rollen, je 4 Namen.
  * Namen sind literarischen und volkstümlichen Figuren aus dem deutschen,
  * türkischen und fernöstlichen Raum entlehnt.
  */
@@ -8,36 +8,36 @@ import { BotLevel, BotStyle } from '../engine/game';
 export const LEVELS: BotLevel[] = ['easy', 'normal', 'hard'];
 export const STYLES: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
 
-export const NAMES: Record<BotLevel, Record<BotStyle, [string, string, string]>> = {
+export const NAMES: Record<BotLevel, Record<BotStyle, [string, string, string, string]>> = {
   easy: {
-    balanced: ['Tünnes', 'Dursun', 'Bajie'],
-    sprinter: ['Hans', 'Temel', 'Momotaro'],
-    cheft: ['Moritz', 'Hacivat', 'Heungbu'],
-    hand: ['Taugenichts', 'Mecnun', 'Urashima'],
-    blocker: ['Rübezahl', 'Karagöz', 'Nolbu'],
-    counter: ['Emil', 'Hodscha', 'Shōnagon'],
-    joker: ['Däumling', 'Keloğlan', 'Issun'],
-    gambler: ['Hieronymus', 'Kerem', 'Lu Da'],
+    balanced: ['Tünnes', 'Dursun', 'Bajie', 'Bolle'],
+    sprinter: ['Hans', 'Temel', 'Momotaro', 'Struwwel'],
+    cheft: ['Moritz', 'Hacivat', 'Heungbu', 'Tahir'],
+    hand: ['Taugenichts', 'Mecnun', 'Urashima', 'Momo'],
+    blocker: ['Rübezahl', 'Karagöz', 'Nolbu', 'Benkei'],
+    counter: ['Emil', 'Hodscha', 'Shōnagon', 'Riese'],
+    joker: ['Däumling', 'Keloğlan', 'Issun', 'Pumuckl'],
+    gambler: ['Hieronymus', 'Kerem', 'Lu Da', 'Kalender'],
   },
   normal: {
-    balanced: ['Effi', 'Memed', 'Genji'],
-    sprinter: ['Till', 'Bamsı', 'Kintaro'],
-    cheft: ['Max', 'Zühre', 'Chunhyang'],
-    hand: ['Siddhartha', 'Yunus', 'Sanzang'],
-    blocker: ['Hagen', 'Dumrul', 'Zhang Fei'],
-    counter: ['Kröger', 'Kemal', 'Kongming'],
-    joker: ['Krabat', 'Köroğlu', 'Gildong'],
-    gambler: ['Felix', 'Kaygusuz', 'Xifeng'],
+    balanced: ['Effi', 'Memed', 'Genji', 'Botchan'],
+    sprinter: ['Till', 'Bamsı', 'Kintaro', 'Hızır'],
+    cheft: ['Max', 'Zühre', 'Chunhyang', 'Baoyu'],
+    hand: ['Siddhartha', 'Yunus', 'Sanzang', 'Meister'],
+    blocker: ['Hagen', 'Dumrul', 'Zhang Fei', 'Dietrich'],
+    counter: ['Kröger', 'Kemal', 'Kongming', 'Sun Bin'],
+    joker: ['Krabat', 'Köroğlu', 'Gildong', 'Goemon'],
+    gambler: ['Felix', 'Kaygusuz', 'Xifeng', 'Bahtiyar'],
   },
   hard: {
-    balanced: ['Schäl', 'Dede', 'Zhou Yu'],
-    sprinter: ['Reineke', 'Ferhat', 'Musashi'],
-    cheft: ['Gretel', 'Aslı', 'Daiyu'],
-    hand: ['Schlemihl', 'Şahmeran', 'Kaguya'],
-    blocker: ['Brunhild', 'Battal', 'Zhao Yun'],
-    counter: ['Cipolla', 'Kalfa', 'Sima'],
-    joker: ['Rumpelstilz', 'Nasreddin', 'Ne Zha'],
-    gambler: ['Munk', 'Köse', 'Li Kui'],
+    balanced: ['Schäl', 'Dede', 'Zhou Yu', 'Çelebi'],
+    sprinter: ['Reineke', 'Ferhat', 'Musashi', 'Tengu'],
+    cheft: ['Gretel', 'Aslı', 'Daiyu', 'Zhinü'],
+    hand: ['Schlemihl', 'Şahmeran', 'Kaguya', 'Parzival'],
+    blocker: ['Brunhild', 'Battal', 'Zhao Yun', 'Fafnir'],
+    counter: ['Cipolla', 'Kalfa', 'Sima', 'Kien'],
+    joker: ['Rumpelstilz', 'Nasreddin', 'Ne Zha', 'Kitsune'],
+    gambler: ['Munk', 'Köse', 'Li Kui', 'Leverkühn'],
   },
 };
 

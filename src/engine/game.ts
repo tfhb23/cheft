@@ -63,6 +63,8 @@ export interface Turn {
   mustOpenWithId: number | null;
   /** Teppichkarte genommen: muss in diesem Zug in einem Paar liegen und rauskommen. */
   mustPairWithId: number | null;
+  /** Rausgekommener Rommé-Spieler hat die Ablagekarte genommen und muss sie sofort verwenden. */
+  mustUseId: number | null;
   openedThisTurn: boolean;
   isHand: boolean;
   laidOffToOthers: boolean;
@@ -113,6 +115,9 @@ export interface RoundState {
   lastDiscarderMode: Mode | null;
   /** Offen genommene Karten (Ablage/Teppich) je Spieler, für die Bots sichtbar wie am echten Tisch. */
   taken: { player: number; card: Card }[];
+  /** Nach dem Austeilen: Spieler sortieren, bis alle bereit sind. */
+  waiting: boolean;
+  ready: boolean[];
   ended: boolean;
   result: RoundResult | null;
   log: LogEntry[];
@@ -208,6 +213,8 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     lastDiscarder: null,
     lastDiscarderMode: null,
     taken: [],
+    waiting: true,
+    ready: state.players.map(() => false),
     ended: false,
     result: null,
     log: [{ key: 'log.roundStart', params: { round: no } }],
@@ -222,6 +229,7 @@ function newTurn(player: number, phase: 'draw' | 'play', source: DrawSource | nu
     drawnCardId: drawnId,
     mustOpenWithId: null,
     mustPairWithId: null,
+    mustUseId: null,
     openedThisTurn: false,
     isHand: false,
     laidOffToOthers: false,
@@ -301,9 +309,32 @@ function cardsInHand(state: GameState, pid: number, ids: number[]): Card[] | nul
 
 function requireTurn(state: GameState, pid: number, phase: 'draw' | 'play'): Result {
   if (state.round.ended) return fail('err.roundOver');
+  if (state.round.waiting) return fail('err.notStarted');
   if (current(state) !== pid) return fail('err.notYourTurn');
   if (state.round.turn.phase !== phase) return fail(phase === 'draw' ? 'err.drawFirst' : 'err.alreadyDrew');
   return OK;
+}
+
+// ---------------------------------------------------------------- Bereit
+
+export function doReady(state: GameState, pid: number): Result {
+  const r = state.round;
+  if (!r.waiting) return OK;
+  r.ready[pid] = true;
+  if (r.ready.every(Boolean)) {
+    r.waiting = false;
+    r.log.push({ key: 'log.start', player: r.starter });
+  }
+  return OK;
+}
+
+/** Kann die Karte sofort verwendet werden (anlegen oder neue Kombination)? Eine Karte muss zum Abwerfen bleiben. */
+export function canUseImmediately(state: GameState, pid: number, card: Card): boolean {
+  const p = state.round.players[pid];
+  for (const m of state.round.melds) if (addOptions(m, card).length > 0) return true;
+  const hand = [...p.hand, card];
+  const part = findPartition(hand, { types: ROMME_TYPES, allowSkip: true, mustInclude: [card.id] });
+  return !!part && part.used > 0 && part.used < hand.length;
 }
 
 // ---------------------------------------------------------------- Ziehen
@@ -321,9 +352,10 @@ export function checkDraw(state: GameState, pid: number, source: DrawSource): Re
     const top = r.discard[r.discard.length - 1];
     if (!top) return fail('err.discardEmpty');
     if (p.mode === 'cheft') return OK;
-    // Rommé-Spieler: nur zum sofortigen Rauskommen, nie von einem Cheft-Spieler.
-    if (p.opened) return fail('err.rommeOpenedNoDiscard');
+    // Rommé-Spieler: nie von einem Cheft-Spieler; vor dem Rauskommen nur zum sofortigen Rauskommen,
+    // danach nur, wenn die Karte sofort angelegt oder ausgelegt wird.
     if (r.lastDiscarderMode === 'cheft') return fail('err.rommeDiscardCheft');
+    if (p.opened) return canUseImmediately(state, pid, top) ? OK : fail('err.rommeOpenedNoDiscard');
     if (firstTurnBlocked(state, pid)) return fail('err.firstTurn');
     if (!canOpenRommeWith([...p.hand, top], thresholdFor(state, pid), top.id)) return fail('err.rommeDiscardNoOpen');
     return OK;
@@ -347,7 +379,8 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
     card = r.stock.pop()!;
   } else if (source === 'discard') {
     card = r.discard.pop()!;
-    if (p.mode === 'romme') r.turn.mustOpenWithId = card.id;
+    if (p.mode === 'romme' && !p.opened) r.turn.mustOpenWithId = card.id;
+    if (p.mode === 'romme' && p.opened) r.turn.mustUseId = card.id;
     r.taken.push({ player: pid, card });
   } else {
     card = r.carpet!;
@@ -382,7 +415,7 @@ export function checkUndoDraw(state: GameState, pid: number): Result {
   const t = requireTurn(state, pid, 'play');
   if (!t.ok) return t;
   const turn = state.round.turn;
-  const eligible = (turn.drawSource === 'discard' && turn.mustOpenWithId !== null) || turn.drawSource === 'carpet';
+  const eligible = (turn.drawSource === 'discard' && (turn.mustOpenWithId !== null || turn.mustUseId !== null)) || turn.drawSource === 'carpet';
   if (!eligible) return fail('err.noUndo');
   if (turn.openedThisTurn || turn.actions > 0 || turn.pendingJokerId !== null) return fail('err.noUndoAfterLay');
   return OK;
@@ -632,6 +665,7 @@ export function checkDiscard(state: GameState, pid: number, cardId: number): Res
   if (r.turn.pendingJokerId !== null) return fail('err.jokerMustUse');
   if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) return fail('err.rommeDiscardNoOpen');
   if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) return fail('err.carpetNeedsPair');
+  if (r.turn.mustUseId !== null && p.hand.some((c) => c.id === r.turn.mustUseId)) return fail('err.mustUseTaken');
   if (p.hand.length > 1) {
     const next = nextIndex(state, pid);
     const layoffable = (c: Card) => r.melds.some((m) => addOptions(m, c).length > 0);
