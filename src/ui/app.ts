@@ -828,10 +828,13 @@ export class App {
     const openCard = starterCard
       ? h('div', { class: 'pile' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
       : null;
+    // Die offene Karte liegt auf der Seite des Startspielers (unten = ich, sonst Sitzposition).
+    const starterPos = r.starter === this.me ? 'bottom' : (this.seats().find((x) => x.pid === r.starter)?.pos ?? 'bottom');
     const center = h(
       'div',
-      { class: 'center' },
-      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard'))), openCard),
+      { class: `center${openCard ? ` open-${starterPos}` : ''}` },
+      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard')))),
+      openCard,
     );
     table.appendChild(center);
 
