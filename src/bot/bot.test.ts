@@ -43,3 +43,39 @@ describe('Bots spielen komplette Spiele regelkonform', () => {
     expect(wins).toBeGreaterThan(0);
   });
 });
+
+describe('Alle Bot-Rollen spielen regelkonform', () => {
+  it('jede Stufe und Spielweise übersteht ein Spiel', async () => {
+    const { LEVELS, STYLES } = await import('./names');
+    let seed = 500;
+    for (const level of LEVELS) {
+      for (const style of STYLES) {
+        const g = testGame(4, seed++, { rounds: 2 });
+        g.players.forEach((p) => {
+          if (p.isBot) p.bot = { level, style };
+        });
+        let guard = 0;
+        while (!g.finished && guard++ < 20000) {
+          if (g.round.ended) {
+            startNextRound(g);
+            continue;
+          }
+          const pid = g.round.turn.player;
+          const a = decideAction(g, pid);
+          const res = applyAction(g, pid, a);
+          if (!res.ok) throw new Error(`Rolle ${level}/${style}: ${a.kind} -> ${res.error}`);
+        }
+        expect(g.finished).toBe(true);
+      }
+    }
+  });
+  it('Namen sind eindeutig und Zufall löst auf', async () => {
+    const { resolveBots, NAMES } = await import('./names');
+    const all = Object.values(NAMES).flatMap((byStyle) => Object.values(byStyle).flat());
+    expect(all.length).toBe(72);
+    expect(new Set(all).size).toBe(72);
+    const { makeRng } = await import('../engine/cards');
+    const bots = resolveBots([{ level: 'random', style: 'random' }, { level: 'easy', style: 'cheft' }, { level: 'easy', style: 'cheft' }], makeRng(3));
+    expect(new Set(bots.map((b) => b.name)).size).toBe(3);
+  });
+});

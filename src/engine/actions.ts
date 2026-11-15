@@ -1,9 +1,10 @@
 /** Einheitliche Aktionen (für Oberfläche, Bots und später den Server). */
-import { DrawSource, GameState, Result, doDeclareCheft, doDiscard, doDraw, doLay, doLayOff, doStealJoker } from './game';
+import { DrawSource, GameState, Result, doDeclareCheft, doDiscard, doDraw, doLay, doLayOff, doStealJoker, doUndoDraw } from './game';
 
 export type Action =
   | { kind: 'draw'; source: DrawSource }
   | { kind: 'declareCheft' }
+  | { kind: 'undoDraw' }
   | { kind: 'lay'; groups: number[][] }
   | { kind: 'layOff'; cardId: number; meldId: number; end?: 'top' | 'bottom' }
   | { kind: 'steal'; meldId: number; jokerIndex: number; cardId: number }
@@ -15,6 +16,8 @@ export function applyAction(state: GameState, pid: number, a: Action): Result {
       return doDraw(state, pid, a.source);
     case 'declareCheft':
       return doDeclareCheft(state, pid);
+    case 'undoDraw':
+      return doUndoDraw(state, pid);
     case 'lay':
       return doLay(state, pid, a.groups);
     case 'layOff':

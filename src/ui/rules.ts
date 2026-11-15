@@ -80,7 +80,9 @@ export const RULES_DE: RuleSection[] = [
   {
     title: 'Bedienung',
     items: [
-      'Ziehen: Auf den Stapel, die oberste Ablagekarte oder die Teppichkarte tippen. Die neue Karte erscheint rechts in der Hand und ist grün markiert.',
+      'Ziehen: Auf den Stapel, die oberste Ablagekarte oder die Teppichkarte tippen. Die neue Karte erscheint rechts in der Hand (oder einsortiert, je nach Einstellung) und ist grün markiert.',
+      'Zurücklegen: Eine genommene Ablage- oder Teppichkarte ist orange markiert und kann mit „Zurücklegen“ zurückgegeben werden, solange noch nichts ausgelegt wurde. Danach gilt: gelegt ist gelegt.',
+      'Gegner: Jeder Bot hat eine Stufe (Gemütlich, Normal, Gerissen) und eine Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker). Bei „Überraschung“ siehst du nur den Namen; die Rollen werden am Spielende aufgedeckt.',
       'Hand sortieren: Karten mit dem Finger an eine beliebige Stelle ziehen. Die Reihenfolge bleibt erhalten.',
       'Auslegen: Karten antippen und dann „Auslegen“ drücken, oder die markierten Karten gemeinsam in die eigene Auslage ziehen. Die App teilt die Auswahl automatisch in gültige Kombinationen auf.',
       'Anlegen: Eine Karte auf eine Kombination am Tisch ziehen, oder markieren und auf die Kombination tippen.',

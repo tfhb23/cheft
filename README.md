@@ -30,6 +30,8 @@ https://tobiasfmueller.github.io/cheft/ . Dort im Handy-Browser öffnen und
 - Beim Start wählbar: Handkarten selbst sortieren (Drag & Drop) oder automatisch nach Farbe einsortieren.
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
+- Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
+- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Gegner wählbar oder „Überraschung“; Rollen werden am Spielende aufgedeckt.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Aufbau

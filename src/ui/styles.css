@@ -185,9 +185,6 @@ input.text {
 .seat-top .flip180 { max-width: 100%; }
 .seat-top .melds { max-width: 100%; }
 .flip180 { transform: rotate(180deg); }
-.reveal { display: flex; flex-wrap: wrap; justify-content: center; }
-.reveal .card { margin-left: calc(-20px * var(--so)); }
-.reveal .card:first-child { margin-left: 0; }
 .seat-left .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(90deg) translateY(-100%); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }
 .seat-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); white-space: nowrap; text-align: center; }
@@ -211,7 +208,7 @@ input.text {
 .meld.clickable { cursor: pointer; }
 
 /* Stapel */
-.piles { display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--s)); }
+.piles { display: flex; align-items: center; justify-content: center; gap: calc(16px * var(--s)); }
 .pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
 .stock-wrap { position: relative; margin-left: calc(14px * var(--s)); }
 .stock-wrap .count { pointer-events: none; position: absolute; left: 0; right: 0; top: calc(16px * var(--s)); text-align: center; color: var(--cream); font-size: calc(11px * var(--s)); text-shadow: var(--px) var(--px) 0 var(--ink); z-index: 2; }
@@ -232,13 +229,12 @@ input.text {
 .hand.two-rows { height: calc(var(--card-h) * 2 + 4px * var(--s)); }
 .hand .card { position: absolute; transition: left 120ms, top 120ms; touch-action: none; }
 .hand .card.selected { transform: translateY(calc(-6px * var(--s))); }
-.hand .card.fresh { transform: translateY(calc(-4px * var(--s))); }
-.hand .card.fresh.selected { transform: translateY(calc(-8px * var(--s))); }
+.hand .card.must { outline: calc(2px * var(--s)) solid var(--orange); outline-offset: var(--px); box-shadow: 0 0 0 calc(4px * var(--s)) var(--orange-pale); }
 .hand .card.dragging { transition: none; z-index: 100 !important; opacity: 0.92; transform: scale(1.05); pointer-events: none; }
 .hand.dealing { visibility: hidden; }
 .drag-badge { position: absolute; right: calc(-3px * var(--s)); top: calc(-3px * var(--s)); background: var(--orange); color: var(--cream); font-size: calc(8px * var(--s)); padding: 0 calc(2px * var(--s)); border: var(--px) solid var(--ink); }
 .actions { display: flex; gap: calc(2px * var(--s)); padding: calc(3px * var(--s)) calc(4px * var(--s)); background: var(--sand-dark); justify-content: center; padding-bottom: max(calc(3px * var(--s)), env(safe-area-inset-bottom)); }
-.actions .btn { flex: 1; min-width: 0; text-align: center; }
+.actions .btn { flex: 1; min-width: 0; text-align: center; font-size: calc(9px * var(--s)); padding-left: calc(2px * var(--s)); padding-right: calc(2px * var(--s)); overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Overlay */
 .overlay { position: fixed; inset: 0; background: rgba(60, 40, 20, 0.55); display: flex; align-items: center; justify-content: center; padding: calc(6px * var(--s)); z-index: 60; }

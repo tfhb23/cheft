@@ -30,10 +30,19 @@ export interface Settings {
   autoSort?: boolean;
 }
 
+export type BotLevel = 'easy' | 'normal' | 'hard';
+export type BotStyle = 'balanced' | 'sprinter' | 'cheft' | 'hand' | 'blocker' | 'counter' | 'joker' | 'gambler';
+
+export interface BotProfile {
+  level: BotLevel;
+  style: BotStyle;
+}
+
 export interface PlayerInfo {
   id: number;
   name: string;
   isBot: boolean;
+  bot?: BotProfile;
 }
 
 export interface PlayerRound {
@@ -58,6 +67,11 @@ export interface Turn {
   isHand: boolean;
   laidOffToOthers: boolean;
   pendingJokerId: number | null;
+  /** Anzahl Auslege-/Anlege-/Klau-Aktionen in diesem Zug. */
+  actions: number;
+  /** Cheft-Ansage kam durch das Ziehen (Teppichkarte) zustande. */
+  cheftByDraw: boolean;
+  cheftAnnouncedBefore: boolean;
 }
 
 export interface LogEntry {
@@ -97,6 +111,8 @@ export interface RoundState {
   lastRommeOpening: number | null;
   lastDiscarder: number | null;
   lastDiscarderMode: Mode | null;
+  /** Offen genommene Karten (Ablage/Teppich) je Spieler, für die Bots sichtbar wie am echten Tisch. */
+  taken: { player: number; card: Card }[];
   ended: boolean;
   result: RoundResult | null;
   log: LogEntry[];
@@ -191,6 +207,7 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     lastRommeOpening: null,
     lastDiscarder: null,
     lastDiscarderMode: null,
+    taken: [],
     ended: false,
     result: null,
     log: [{ key: 'log.roundStart', params: { round: no } }],
@@ -209,6 +226,9 @@ function newTurn(player: number, phase: 'draw' | 'play', source: DrawSource | nu
     isHand: false,
     laidOffToOthers: false,
     pendingJokerId: null,
+    actions: 0,
+    cheftByDraw: false,
+    cheftAnnouncedBefore: false,
   };
 }
 
@@ -328,11 +348,15 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
   } else if (source === 'discard') {
     card = r.discard.pop()!;
     if (p.mode === 'romme') r.turn.mustOpenWithId = card.id;
+    r.taken.push({ player: pid, card });
   } else {
     card = r.carpet!;
     r.carpet = null;
     r.turn.mustPairWithId = card.id;
+    r.turn.cheftAnnouncedBefore = r.cheftAnnounced;
+    r.turn.cheftByDraw = p.mode !== 'cheft';
     setCheft(state, pid);
+    r.taken.push({ player: pid, card });
   }
   p.hand.push(card);
   r.turn.phase = 'play';
@@ -349,6 +373,41 @@ function setCheft(state: GameState, pid: number): void {
     state.round.cheftAnnounced = true;
     state.round.log.push({ key: 'log.cheft', player: pid });
   }
+}
+
+// ---------------------------------------------------------------- Zurücklegen
+
+/** Ablagekarte (Rommé) oder Teppichkarte zurücklegen, solange noch nichts ausgelegt wurde. */
+export function checkUndoDraw(state: GameState, pid: number): Result {
+  const t = requireTurn(state, pid, 'play');
+  if (!t.ok) return t;
+  const turn = state.round.turn;
+  const eligible = (turn.drawSource === 'discard' && turn.mustOpenWithId !== null) || turn.drawSource === 'carpet';
+  if (!eligible) return fail('err.noUndo');
+  if (turn.openedThisTurn || turn.actions > 0 || turn.pendingJokerId !== null) return fail('err.noUndoAfterLay');
+  return OK;
+}
+
+export function doUndoDraw(state: GameState, pid: number): Result {
+  const c = checkUndoDraw(state, pid);
+  if (!c.ok) return c;
+  const r = state.round;
+  const p = r.players[pid];
+  const turn = r.turn;
+  const card = p.hand.find((x) => x.id === turn.drawnCardId);
+  if (!card) return fail('err.noUndo');
+  p.hand = p.hand.filter((x) => x.id !== card.id);
+  if (turn.drawSource === 'discard') r.discard.push(card);
+  else r.carpet = card;
+  const ti = r.taken.map((x) => x.card.id).lastIndexOf(card.id);
+  if (ti >= 0) r.taken.splice(ti, 1);
+  if (turn.cheftByDraw) {
+    p.mode = 'romme';
+    r.cheftAnnounced = turn.cheftAnnouncedBefore;
+  }
+  r.turn = newTurn(pid, 'draw', null, null);
+  r.log.push({ key: 'log.undo', player: pid });
+  return OK;
 }
 
 // ---------------------------------------------------------------- Cheft ansagen
@@ -463,6 +522,7 @@ export function doLay(state: GameState, pid: number, groups: number[][]): Result
     r.log.push({ key: 'log.lay', player: pid, params: { count: plan.cards.length } });
   }
   p.pairsLaid += plan.pairs;
+  r.turn.actions++;
   if (plan.cards.some((x) => x.id === r.turn.pendingJokerId)) r.turn.pendingJokerId = null;
   return OK;
 }
@@ -507,6 +567,7 @@ export function doLayOff(state: GameState, pid: number, cardId: number, meldId: 
   r.melds[idx] = c.result!;
   if (r.melds[idx].owner !== pid) r.turn.laidOffToOthers = true;
   if (r.turn.pendingJokerId === cardId) r.turn.pendingJokerId = null;
+  r.turn.actions++;
   r.log.push({ key: 'log.layOff', player: pid });
   return OK;
 }
@@ -554,6 +615,7 @@ export function doStealJoker(state: GameState, pid: number, meldId: number, joke
   r.melds[idx] = replaceJoker(meld, jokerIndex, card);
   p.hand = [...p.hand.filter((x) => x.id !== cardId), joker];
   r.turn.pendingJokerId = joker.id;
+  r.turn.actions++;
   r.log.push({ key: 'log.steal', player: pid });
   return OK;
 }

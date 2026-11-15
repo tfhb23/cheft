@@ -7,6 +7,8 @@ import {
   doLayOff,
   doDeclareCheft,
   doStealJoker,
+  doUndoDraw,
+  checkUndoDraw,
   checkDraw,
   checkLay,
   checkDiscard,
@@ -228,6 +230,48 @@ describe('Cheft', () => {
     const res = doLay(g, b, [[mate.id, carpet.id], [id(1), id(2)], [id(3), id(4)], [id(5), id(6)], [id(7), id(8)]]);
     expect(res.ok).toBe(true);
     expect(doDiscard(g, b, id(9)).ok).toBe(true);
+  });
+});
+
+describe('Zurücklegen', () => {
+  it('Ablagekarte zurücklegen, solange nichts liegt', () => {
+    const g = testGame(3, 21);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    expect(checkUndoDraw(g, b).ok).toBe(true);
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.turn.phase).toBe('draw');
+    expect(g.round.discard[g.round.discard.length - 1].rank).toBe(13);
+    expect(g.round.players[b].hand.length).toBe(14);
+    // Vom Stapel ziehen ist kein Rückgängig-Fall
+    expect(doDraw(g, b, 'stock').ok).toBe(true);
+    expect(checkUndoDraw(g, b).ok).toBe(false);
+  });
+  it('Teppichkarte zurücklegen nimmt die Cheft-Ansage zurück', () => {
+    const g = testGame(3, 22);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    const carpet = g.round.carpet!;
+    const pool2 = new CardPool();
+    const spec = `${carpet.suit}${carpet.rank === 1 ? 'A' : carpet.rank === 11 ? 'B' : carpet.rank === 12 ? 'D' : carpet.rank === 13 ? 'K' : carpet.rank}`;
+    setHand(g, b, [pool2.take(spec), ...pool2.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10')]);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    expect(g.round.players[b].mode).toBe('cheft');
+    expect(g.round.cheftAnnounced).toBe(true);
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.players[b].mode).toBe('romme');
+    expect(g.round.cheftAnnounced).toBe(false);
+    expect(g.round.carpet!.id).toBe(carpet.id);
   });
 });
 

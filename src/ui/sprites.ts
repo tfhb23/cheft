@@ -23,8 +23,8 @@ export const PALETTE = {
   skin: '#f3cfae',
   white: '#ffffff',
   mouth: '#d05a4a',
-  teal: '#2f8a8f',
-  tealDark: '#1d5a5e',
+  teal: '#4a4440',
+  tealDark: '#23201f',
 };
 
 const GLYPHS: Record<string, string[]> = {

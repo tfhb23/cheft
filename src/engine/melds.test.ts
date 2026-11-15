@@ -182,6 +182,12 @@ describe('Mehrere Aufteilungen', () => {
     const kinds = parts.map((x) => x.melds.map((m) => m.type).join(',')).sort();
     expect(kinds).toEqual(['run,run,run', 'set,set,set']);
   });
+  it('Joker in Folge: beide Positionen werden angeboten', () => {
+    const p = new CardPool();
+    const parts = findAllPartitions(p.takeAll('H4', 'H5', 'J'), { types: ROMME_TYPES });
+    expect(parts.length).toBe(2);
+    expect(parts.map((x) => x.melds[0].startRank).sort()).toEqual([3, 4]);
+  });
   it('eindeutige Aufteilung liefert genau ein Ergebnis', () => {
     const p = new CardPool();
     const parts = findAllPartitions(p.takeAll('H4', 'H5', 'H6', 'SK', 'DK', 'CK'), { types: ROMME_TYPES });

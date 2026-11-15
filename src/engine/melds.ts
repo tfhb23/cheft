@@ -40,27 +40,27 @@ export function meldAugen(m: MeldShape): number {
 
 // ---------------------------------------------------------------- Erkennen
 
-/** Versucht, die Karten als Folge zu lesen. Gibt die beste (augenreichste) Anordnung zurück. */
-export function asRun(cards: Card[]): MeldShape | null {
-  if (cards.length < 3 || cards.length > 14) return null;
+/** Alle gültigen Anordnungen der Karten als Folge (Ass unten/oben, Joker-Verteilung). */
+export function asRunAll(cards: Card[]): MeldShape[] {
+  if (cards.length < 3 || cards.length > 14) return [];
   const real = cards.filter((c) => !isJoker(c));
   const jokers = cards.filter(isJoker);
-  if (real.length === 0) return null;
+  if (real.length === 0) return [];
   const suit = real[0].suit as Suit;
-  if (real.some((c) => c.suit !== suit)) return null;
+  if (real.some((c) => c.suit !== suit)) return [];
   const nonAces = real.filter((c) => c.rank !== 1);
   const aces = real.filter((c) => c.rank === 1);
-  if (aces.length > 2) return null;
+  if (aces.length > 2) return [];
   const ranks = nonAces.map((c) => c.rank);
-  if (new Set(ranks).size !== ranks.length) return null;
+  if (new Set(ranks).size !== ranks.length) return [];
 
-  // Ass-Varianten: 0 Asse; 1 Ass unten/oben; 2 Asse unten+oben.
   const aceOptions: number[][] = [];
   if (aces.length === 0) aceOptions.push([]);
   else if (aces.length === 1) aceOptions.push([1], [14]);
   else aceOptions.push([1, 14]);
 
-  let best: MeldShape | null = null;
+  const out: MeldShape[] = [];
+  const seen = new Set<number>();
   for (const aceRanks of aceOptions) {
     const posRanks = [...ranks, ...aceRanks];
     const min = Math.min(...posRanks);
@@ -68,30 +68,30 @@ export function asRun(cards: Card[]): MeldShape | null {
     const span = max - min + 1;
     const gaps = span - posRanks.length;
     if (gaps > jokers.length) continue;
-    let extra = jokers.length - gaps;
-    let start = min;
-    let end = max;
-    // Überzählige Joker: zuerst oben anhängen (mehr Augen), sonst unten.
-    const up = Math.min(extra, 14 - end);
-    end += up;
-    extra -= up;
-    const down = Math.min(extra, start - 1);
-    start -= down;
-    extra -= down;
-    if (extra > 0) continue;
-    const len = end - start + 1;
-    if (len !== cards.length) continue;
-    // Karten den Positionen zuordnen.
-    const byRank = new Map<number, Card>();
-    for (const c of nonAces) byRank.set(c.rank, c);
-    aces.forEach((a, i) => byRank.set(aceRanks[i], a));
-    const ordered: Card[] = [];
-    let ji = 0;
-    for (let r = start; r <= end; r++) {
-      const c = byRank.get(r);
-      ordered.push(c ?? jokers[ji++]);
+    const extra = jokers.length - gaps;
+    for (let up = extra; up >= 0; up--) {
+      const down = extra - up;
+      const start = min - down;
+      const end = max + up;
+      if (start < 1 || end > 14) continue;
+      if (seen.has(start)) continue;
+      seen.add(start);
+      const byRank = new Map<number, Card>();
+      for (const c of nonAces) byRank.set(c.rank, c);
+      aces.forEach((a, i) => byRank.set(aceRanks[i], a));
+      const ordered: Card[] = [];
+      let ji = 0;
+      for (let r = start; r <= end; r++) ordered.push(byRank.get(r) ?? jokers[ji++]);
+      out.push({ type: 'run', cards: ordered, suit, startRank: start });
     }
-    const shape: MeldShape = { type: 'run', cards: ordered, suit, startRank: start };
+  }
+  return out;
+}
+
+/** Versucht, die Karten als Folge zu lesen. Gibt die beste (augenreichste) Anordnung zurück. */
+export function asRun(cards: Card[]): MeldShape | null {
+  let best: MeldShape | null = null;
+  for (const shape of asRunAll(cards)) {
     if (!best || meldAugen(shape) > meldAugen(best)) best = shape;
   }
   return best;
@@ -429,11 +429,14 @@ export function findAllPartitions(cards: Card[], opts: PartitionOptions, limit =
     for (let k = 1; k <= availJokers.length; k++) jokerSubsets.push(availJokers.slice(0, k));
     const tryShape = (idxs: number[], type: MeldType) => {
       const cs = idxs.map((i) => cards[i]);
-      const shape = type === 'run' ? asRun(cs) : type === 'set' ? asSet(cs) : asPair(cs);
-      if (!shape) return;
       let bits = 0;
       for (const i of idxs) bits |= 1 << i;
-      out.push({ shape, bits });
+      if (type === 'run') {
+        for (const shape of asRunAll(cs)) out.push({ shape, bits });
+        return;
+      }
+      const shape = type === 'set' ? asSet(cs) : asPair(cs);
+      if (shape) out.push({ shape, bits });
     };
     if (types.includes('pair')) {
       for (const i of realIdx) if (i !== first && mask & (1 << i) && sameCard(cards[i], fc)) { tryShape([first, i], 'pair'); break; }
@@ -474,7 +477,7 @@ export function findAllPartitions(cards: Card[], opts: PartitionOptions, limit =
       } else if (js.length > 0) return;
       if (pairCounts && !pairCounts.has(p)) return;
       const sig = melds
-        .map((m) => m.cards.map((c) => c.id).sort((a, b) => a - b).join('-'))
+        .map((m) => `${m.type}${m.startRank ?? ''}:` + m.cards.map((c) => c.id).sort((a, b) => a - b).join('-'))
         .sort()
         .join('|');
       if (seen.has(sig)) return;

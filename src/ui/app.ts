@@ -11,6 +11,7 @@ import {
   checkDraw,
   checkLay,
   checkStealJoker,
+  checkUndoDraw,
   current,
   layOffTargets,
   newGame,
@@ -20,6 +21,8 @@ import {
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
 import { decideAction } from '../bot/bot';
+import { BotChoice, LEVELS, STYLES, resolveBots } from '../bot/names';
+import { makeRng } from '../engine/cards';
 import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
@@ -41,6 +44,7 @@ interface Prefs {
   vibration: boolean;
   sound: boolean;
   autoSort: boolean;
+  botChoices: BotChoice[];
 }
 
 interface SaveFile {
@@ -97,7 +101,21 @@ export class App {
   private atlas: Atlas;
   private screen: Screen = 'menu';
   private state: GameState | null = null;
-  private prefs: Prefs = { name: '', bots: 3, rounds: 7, firstTurn: true, speed: 'normal', vibration: true, sound: false, autoSort: false };
+  private prefs: Prefs = {
+    name: '',
+    bots: 3,
+    rounds: 7,
+    firstTurn: true,
+    speed: 'normal',
+    vibration: true,
+    sound: false,
+    autoSort: false,
+    botChoices: [
+      { level: 'random', style: 'random' },
+      { level: 'random', style: 'random' },
+      { level: 'random', style: 'random' },
+    ],
+  };
   private order: number[] = [];
   private fresh = new Set<number>();
   private selected = new Set<number>();
@@ -108,7 +126,7 @@ export class App {
   private dealing = false;
   private showSettings = false;
   private peekTable = false;
-  private chooser: { groups: number[][]; shapes: MeldShape[]; augen: number }[] | null = null;
+  private chooser: { title: string; hint: string; options: { shapes: MeldShape[]; label: string; onPick: () => void }[] } | null = null;
   private toastTimer: number | null = null;
   private rulesFrom: Screen = 'menu';
 
@@ -312,6 +330,19 @@ export class App {
         { class: 'panel' },
         h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), nameInput),
         this.choice(t('setup.bots'), [{ v: 2, label: '2' }, { v: 3, label: '3' }], () => this.prefs.bots, (v) => (this.prefs.bots = v as number)),
+        ...this.prefs.botChoices.slice(0, this.prefs.bots).map((c, i) => this.botRow(c, i)),
+        h(
+          'button',
+          {
+            class: 'btn small',
+            onclick: () => {
+              this.prefs.botChoices = this.prefs.botChoices.map(() => ({ level: 'random', style: 'random' }));
+              this.savePrefs();
+              this.render();
+            },
+          },
+          t('setup.allRandom'),
+        ),
         this.choice(t('setup.rounds'), [{ v: 7, label: '7' }, { v: 11, label: '11' }], () => this.prefs.rounds, (v) => (this.prefs.rounds = v as number)),
         this.choice(
           t('setup.firstTurn'),
@@ -334,6 +365,49 @@ export class App {
         h('div', { class: 'muted small-text' }, `${t('setup.direction')}: ${t('setup.ccw')}`),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
         h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
+      ),
+    );
+  }
+
+  /** Eine Zeile je Gegner: Stufe und Spielweise durchschalten, "Überraschung" verbirgt die Rolle. */
+  private botRow(c: BotChoice, i: number): HTMLElement {
+    const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
+      const all: (T | 'random')[] = ['random', ...list];
+      return all[(all.indexOf(cur) + 1) % all.length];
+    };
+    const levelLabel = c.level === 'random' ? t('setup.random') : t(`level.${c.level}`);
+    const styleLabel = c.style === 'random' ? t('setup.random') : t(`style.${c.style}`);
+    return h(
+      'div',
+      { class: 'option' },
+      h('div', { class: 'muted' }, t('setup.bot', { n: i + 1 })),
+      h(
+        'div',
+        { class: 'choices' },
+        h(
+          'button',
+          {
+            class: `btn small${c.level === 'random' ? '' : ' primary'}`,
+            onclick: () => {
+              c.level = cycle(LEVELS, c.level);
+              this.savePrefs();
+              this.render();
+            },
+          },
+          `${t('setup.level')}: ${levelLabel}`,
+        ),
+        h(
+          'button',
+          {
+            class: `btn small${c.style === 'random' ? '' : ' primary'}`,
+            onclick: () => {
+              c.style = cycle(STYLES, c.style);
+              this.savePrefs();
+              this.render();
+            },
+          },
+          `${t('setup.style')}: ${styleLabel}`,
+        ),
       ),
     );
   }
@@ -363,7 +437,8 @@ export class App {
   private startGame(): void {
     const name = this.prefs.name.trim() || t('you');
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
-    for (let i = 1; i <= this.prefs.bots; i++) players.push({ id: i, name: t('bot.name', { n: i }), isBot: true });
+    const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
+    bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style } }));
     const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', autoSort: this.prefs.autoSort };
     this.state = newGame(players, settings);
     this.order = [];
@@ -581,8 +656,10 @@ export class App {
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    this.order.push(...added);
-    if (s.settings.autoSort) this.order = sortBySuit(me.hand).map((c) => c.id);
+    if (s.settings.autoSort) {
+      if (this.order.length === 0) this.order = sortBySuit(me.hand).map((c) => c.id);
+      else for (const id of added) this.insertSorted(id, me.hand);
+    } else this.order.push(...added);
     if (myTurn) for (const id of added) this.fresh.add(id);
     for (const id of [...this.fresh]) if (!have.has(id)) this.fresh.delete(id);
 
@@ -645,12 +722,11 @@ export class App {
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)));
       const label = h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`);
-      const reveal = r.ended && pr.hand.length ? h('div', { class: 'reveal' }, ...pr.hand.map((c) => this.cardEl(c, { small: true }))) : null;
-      const fan = !r.ended && showFan ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
         seat.pos === 'top'
-          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl), label, reveal)
-          : h('div', { class: 'seat-inner' }, meldsEl, label, fan, reveal);
+          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl), label)
+          : h('div', { class: 'seat-inner' }, meldsEl, label, fan);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
     }
@@ -677,7 +753,7 @@ export class App {
         const top = i === discardCards.length - 1;
         const hsh = hash(c.id);
         const rot = (hsh % 45) - 22;
-        const dx = ((hsh >> 6) % 19) - 9;
+        const dx = ((hsh >> 6) % 15) - 5;
         const dy = ((hsh >> 11) % 15) - 7;
         const el = this.cardEl(c, {
           glow: top && canDiscardDraw,
@@ -734,7 +810,8 @@ export class App {
       { class: `hand${this.dealing ? ' dealing' : ''}` },
       ...this.order.map((id) => {
         const c = byId.get(id)!;
-        const el = this.cardEl(c, { selected: this.selected.has(id), fresh: this.fresh.has(id) });
+        const mustId = myTurn ? (r.turn.mustOpenWithId ?? r.turn.mustPairWithId) : null;
+        const el = this.cardEl(c, { selected: this.selected.has(id), fresh: this.fresh.has(id) && id !== mustId, cls: id === mustId ? 'must' : undefined });
         el.classList.add('clickable');
         el.addEventListener('pointerdown', (e) => this.onPointerDown(e, id, el));
         el.addEventListener('pointermove', (e) => this.onPointerMove(e));
@@ -752,7 +829,9 @@ export class App {
       btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, cls: 'primary' }),
       btn(t('btn.layOff'), () => this.layOffSelected(), { disabled: !playPhase || !singleSel || !me.opened }),
       btn(t('btn.discard'), () => singleSel && this.act({ kind: 'discard', cardId: singleSel.id }), { disabled: !playPhase || !singleSel }),
-      btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, cls: 'dark' }),
+      playPhase && checkUndoDraw(s, HUMAN).ok
+        ? btn(t('btn.undoDraw'), () => this.act({ kind: 'undoDraw' }), { cls: 'dark' })
+        : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, cls: 'dark' }),
     );
 
     const game = h('div', { class: 'game' }, header, opponents, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
@@ -760,6 +839,27 @@ export class App {
     else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
     return game;
+  }
+
+  /** Neue Karte in die Farbgruppe einsortieren; Joker und unbekannte Farben ganz rechts. */
+  private insertSorted(id: number, hand: Card[]): void {
+    const byId = new Map(hand.map((c) => [c.id, c]));
+    const card = byId.get(id);
+    if (!card || isJoker(card)) {
+      this.order.push(id);
+      return;
+    }
+    let lastSame = -1;
+    let insertAt = -1;
+    this.order.forEach((oid, i) => {
+      const o = byId.get(oid);
+      if (!o || o.suit !== card.suit) return;
+      lastSame = i;
+      if (insertAt < 0 && o.rank > card.rank) insertAt = i;
+    });
+    if (insertAt >= 0) this.order.splice(insertAt, 0, id);
+    else if (lastSame >= 0) this.order.splice(lastSame + 1, 0, id);
+    else this.order.push(id);
   }
 
   private meldEl(m: Meld, isTarget: boolean, isStealable: boolean, small: boolean): HTMLElement {
@@ -830,12 +930,10 @@ export class App {
       return { M, depth, free: H - topH - ownH };
     };
     let g = layoutSides();
-    if (sides.length && W - g.depth < pilesMin) {
-      sides.forEach((e) => setScale(e, small));
-      g = layoutSides();
-    }
-    if (top && g.free < minMid) {
-      setScale(top, small);
+    const tooWide = sides.length > 0 && W - g.depth < pilesMin;
+    const tooHigh = !!top && g.free < minMid;
+    if (tooWide || tooHigh) {
+      seats.forEach((e) => setScale(e, small));
       g = layoutSides();
     }
   }
@@ -1043,7 +1141,11 @@ export class App {
       }
       if (valid.length === 1) return this.act({ kind: 'lay', groups: valid[0].groups });
       if (valid.length > 1) {
-        this.chooser = valid;
+        this.chooser = {
+          title: t('choose.title'),
+          hint: t('choose.hint'),
+          options: valid.map((v) => ({ shapes: v.shapes, label: t('choose.augen', { n: v.augen }), onPick: () => this.act({ kind: 'lay', groups: v.groups }) })),
+        };
         this.render();
         return true;
       }
@@ -1076,11 +1178,29 @@ export class App {
     }
     const meldIds = new Set(targets.map((x) => x.meld.id));
     if (meldIds.size === 1) {
-      this.act({ kind: 'layOff', cardId: card.id, meldId: targets[0].meld.id, end: 'top' });
+      this.layOffWithChoice(targets[0].meld, card);
       return;
     }
     this.targetMode = true;
     this.render();
+  }
+
+  /** Legt an; passt ein Joker an beide Enden einer Folge, fragt die App nach dem Ende. */
+  private layOffWithChoice(m: Meld, card: Card): boolean {
+    const s = this.state!;
+    const opts = layOffTargets(s, HUMAN, card.id).filter((x) => x.meld.id === m.id);
+    if (opts.length <= 1) return this.act({ kind: 'layOff', cardId: card.id, meldId: m.id, end: 'top' });
+    this.chooser = {
+      title: t('choose.end'),
+      hint: '',
+      options: opts.map((o, i) => ({
+        shapes: [o.result],
+        label: t(i === 0 ? 'choose.top' : 'choose.bottom'),
+        onPick: () => this.act({ kind: 'layOff', cardId: card.id, meldId: m.id, end: i === 0 ? 'top' : 'bottom' }),
+      })),
+    };
+    this.render();
+    return true;
   }
 
   private dropOnMeld(m: Meld, cardId: number): boolean {
@@ -1100,7 +1220,7 @@ export class App {
       play('error');
       return false;
     }
-    return this.act({ kind: 'layOff', cardId: card.id, meldId: m.id, end: 'top' });
+    return this.layOffWithChoice(m, card);
   }
 
   private tapMeld(m: Meld): void {
@@ -1181,27 +1301,27 @@ export class App {
   }
 
   private renderChooser(): HTMLElement {
-    const options = this.chooser ?? [];
+    const ch = this.chooser!;
     return h(
       'div',
       { class: 'overlay' },
       h(
         'div',
         { class: 'panel dialog' },
-        h('h2', null, t('choose.title')),
-        h('p', { class: 'muted small-text' }, t('choose.hint')),
-        ...options.map((o) =>
+        h('h2', null, ch.title),
+        ch.hint ? h('p', { class: 'muted small-text' }, ch.hint) : null,
+        ...ch.options.map((o) =>
           h(
             'div',
             {
               class: 'choose-option',
               onclick: () => {
                 this.chooser = null;
-                this.act({ kind: 'lay', groups: o.groups });
+                o.onPick();
               },
             },
             h('div', { class: 'choose-melds' }, ...o.shapes.map((m) => h('div', { class: 'choose-meld' }, ...m.cards.map((c) => this.cardEl(c, { mini: true }))))),
-            h('div', { class: 'muted small-text' }, t('choose.augen', { n: o.augen })),
+            h('div', { class: 'muted small-text' }, o.label),
           ),
         ),
         h(
@@ -1259,7 +1379,9 @@ export class App {
           null,
           name(p.id),
           h('div', { class: 'factors' }, `${t(`mode.${pr.mode}`)} · ${pr.opened ? t('status.opened') : t('status.notOpened')}`),
-          pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
+          pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
+          !pr.opened && pr.hand.length ? h('div', { class: 'factors' }, t('cards.count', { n: pr.hand.length })) : null,
+          s.finished && p.bot ? h('div', { class: 'factors accent' }, `${t(`level.${p.bot.level}`)} · ${t(`style.${p.bot.style}`)}`) : null,
         ),
         h('td', { class: 'num' }, String(sc.base), sc.factors.length ? h('div', { class: 'factors' }, sc.factors.map((f) => t(`factor.${f}`)).join(', ')) : null),
         h('td', { class: 'num' }, String(sc.total)),
