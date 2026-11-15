@@ -9,6 +9,7 @@ import {
   PlayerInfo,
   Settings,
   checkDraw,
+  checkDeclareCheft,
   checkLay,
   checkStealJoker,
   checkUndoDraw,
@@ -58,6 +59,14 @@ interface Prefs {
   seating: 'manual' | 'random';
   /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
   sortedDeal: boolean;
+}
+
+interface DialogSpec {
+  title: string;
+  text?: string;
+  /** Eingabefeld (zum Einfügen oder, schreibgeschützt, zum Kopieren). */
+  input?: { value: string; readonly?: boolean; placeholder?: string };
+  buttons: { label: string; primary?: boolean; danger?: boolean; onClick?: (input: string) => void }[];
 }
 
 /** Die Einstellungen eines Spiels, wie Solo-Setup und Lobby sie anzeigen. */
@@ -149,6 +158,10 @@ export class App {
   private joinCode = '';
   /** Raumcode aus dem Link, solange die Verbindung aufgebaut wird. */
   private linkRoom: string | null = null;
+  /** Eigener Dialog im Look der App (statt der Browser-Pop-ups). */
+  private dialog: DialogSpec | null = null;
+  private dialogInput = '';
+  private lastDiscardTap = 0;
   /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
   private forgottenName = randomForgottenName();
   private playerName(): string {
@@ -323,7 +336,7 @@ export class App {
   private exportSave(): void {
     if (!this.state) return;
     const code = btoa(unescape(encodeURIComponent(JSON.stringify({ state: this.state, order: this.order }))));
-    const show = () => prompt(t('save.show'), code);
+    const show = () => this.askDialog({ title: t('btn.exportSave'), text: t('save.show'), input: { value: code, readonly: true }, buttons: [{ label: t('btn.close'), primary: true }] });
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code).then(
         () => this.toast(t('save.copied')),
@@ -332,20 +345,33 @@ export class App {
     } else show();
   }
   private importSave(): void {
-    const code = prompt(t('save.prompt'));
-    if (!code) return;
-    try {
-      const raw = decodeURIComponent(escape(atob(code.trim())));
-      const s = this.parseSave(raw);
-      if (!s) throw new Error('invalid');
-      this.state = s.state;
-      this.order = s.order;
-      this.save();
-      this.toast(t('save.imported'));
-      this.continueGame();
-    } catch {
-      this.toast(t('save.invalid'), true);
-    }
+    this.askDialog({
+      title: t('btn.importSave'),
+      text: t('save.prompt'),
+      input: { value: '', placeholder: '…' },
+      buttons: [
+        { label: t('btn.cancel') },
+        {
+          label: t('btn.load'),
+          primary: true,
+          onClick: (code) => {
+            if (!code.trim()) return;
+            try {
+              const raw = decodeURIComponent(escape(atob(code.trim())));
+              const s = this.parseSave(raw);
+              if (!s) throw new Error('invalid');
+              this.state = s.state;
+              this.order = s.order;
+              this.save();
+              this.toast(t('save.imported'));
+              this.continueGame();
+            } catch {
+              this.toast(t('save.invalid'), true);
+            }
+          },
+        },
+      ],
+    });
   }
 
   // ------------------------------------------------------------ Rendern
@@ -378,7 +404,66 @@ export class App {
         if (nt) nt.scrollTop = scroll;
         break;
     }
+    if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
     void this.syncWakeLock();
+  }
+
+  // ------------------------------------------------------------ Eigener Dialog
+  private askDialog(spec: DialogSpec): void {
+    document.querySelector('.toast')?.remove();
+    this.dialog = spec;
+    this.dialogInput = spec.input?.value ?? '';
+    this.render();
+  }
+
+  private closeDialog(): void {
+    this.dialog = null;
+    this.render();
+  }
+
+  private renderDialog(d: DialogSpec): HTMLElement {
+    let field: HTMLElement | null = null;
+    if (d.input) {
+      const ta = h('textarea', {
+        class: 'text',
+        rows: '4',
+        placeholder: d.input.placeholder ?? '',
+        readonly: d.input.readonly ? 'readonly' : null,
+        oninput: (e: Event) => (this.dialogInput = (e.target as HTMLTextAreaElement).value),
+        onfocus: (e: Event) => d.input?.readonly && (e.target as HTMLTextAreaElement).select(),
+      }) as HTMLTextAreaElement;
+      ta.value = this.dialogInput;
+      field = ta;
+    }
+    return h(
+      'div',
+      { class: 'overlay' },
+      h(
+        'div',
+        { class: 'panel dialog' },
+        h('h2', null, d.title),
+        d.text ? h('p', null, d.text) : null,
+        field,
+        h(
+          'div',
+          { class: 'btn-row' },
+          ...d.buttons.map((b) =>
+            h(
+              'button',
+              {
+                class: `btn${b.primary ? ' primary' : ''}${b.danger ? ' danger' : ''}`,
+                onclick: () => {
+                  const value = this.dialogInput;
+                  this.closeDialog();
+                  b.onClick?.(value);
+                },
+              },
+              b.label,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   private cardEl(
@@ -637,11 +722,24 @@ export class App {
   }
 
   private quitGame(): void {
-    if (!confirm(t('confirm.quit'))) return;
-    this.state = null;
-    this.botGen++;
-    this.save();
-    this.goto('menu');
+    this.showSettings = false;
+    this.askDialog({
+      title: t('confirm.quit.title'),
+      text: t('confirm.quit'),
+      buttons: [
+        { label: t('btn.cancel') },
+        {
+          label: t('btn.quit'),
+          danger: true,
+          onClick: () => {
+            this.state = null;
+            this.botGen++;
+            this.save();
+            this.goto('menu');
+          },
+        },
+      ],
+    });
   }
 
   private saveAndQuit(): void {
@@ -1066,7 +1164,7 @@ export class App {
     );
     // Die ganze Ablage bleibt sichtbar; ältere Karten verschwinden nicht plötzlich.
     const discardCards = r.discard;
-    const topClick = drawPhase ? () => this.act({ kind: 'draw', source: 'discard' }) : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined;
+    const topClick = drawPhase ? () => this.onDiscardDrawTap() : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined;
     const discard = h(
       'div',
       { class: 'discard' },
@@ -1576,9 +1674,56 @@ export class App {
     this.dropOnMeld(m, cards[0].id);
   }
 
-  private declareCheft(): void {
-    if (!confirm(t('confirm.cheft'))) return;
-    this.act({ kind: 'declareCheft' });
+  /** Cheft ansagen, mit Rückfrage im App-Stil. Mit `takeDiscard` wird danach gleich die Ablagekarte genommen. */
+  private declareCheft(takeDiscard = false): void {
+    this.askDialog({
+      title: t('confirm.cheft.title'),
+      text: t('confirm.cheft'),
+      buttons: [
+        { label: t('btn.cancel') },
+        {
+          label: t('btn.cheftConfirm'),
+          primary: true,
+          onClick: () => {
+            if (!takeDiscard) {
+              this.act({ kind: 'declareCheft' });
+              return;
+            }
+            if (this.online) {
+              // Der Server führt beide Aktionen in dieser Reihenfolge aus.
+              this.pendingAppearFrom = this.pileRect('discard');
+              this.net?.action({ kind: 'declareCheft' });
+              this.net?.action({ kind: 'draw', source: 'discard' });
+            } else if (this.act({ kind: 'declareCheft' })) this.act({ kind: 'draw', source: 'discard' });
+          },
+        },
+      ],
+    });
+  }
+
+  /** Tippen auf die Ablage beim Ziehen. Zweimal kurz nacheinander (wenn die Karte als Rommé-Spieler nicht erlaubt ist) bietet Cheft an. */
+  private onDiscardDrawTap(): void {
+    const s = this.state!;
+    const now = Date.now();
+    const double = now - this.lastDiscardTap < 500;
+    this.lastDiscardTap = now;
+    const draw = checkDraw(s, this.me, 'discard');
+    if (draw.ok) {
+      this.lastDiscardTap = 0;
+      this.act({ kind: 'draw', source: 'discard' });
+      return;
+    }
+    if (s.round.discard.length > 0 && checkDeclareCheft(s, this.me).ok) {
+      if (double) {
+        this.lastDiscardTap = 0;
+        this.declareCheft(true);
+      } else {
+        this.toast(`${t(draw.error, draw.params)} ${t('hint.cheftDouble')}`, true);
+        play('error');
+      }
+      return;
+    }
+    this.act({ kind: 'draw', source: 'discard' }); // zeigt den Grund an
   }
 
   // ------------------------------------------------------------ Dialoge
@@ -1800,7 +1945,19 @@ export class App {
   }
 
   private leaveOnline(tellServer: boolean): void {
-    if (tellServer && !confirm(t('confirm.quit'))) return;
+    if (tellServer) {
+      this.showSettings = false;
+      this.askDialog({
+        title: t('confirm.leave.title'),
+        text: t('confirm.leave'),
+        buttons: [{ label: t('btn.cancel') }, { label: t('lobby.leave'), danger: true, onClick: () => this.leaveOnlineNow(true) }],
+      });
+      return;
+    }
+    this.leaveOnlineNow(false);
+  }
+
+  private leaveOnlineNow(tellServer: boolean): void {
     if (tellServer) this.net?.leave();
     this.net?.close();
     this.net = null;
@@ -2109,8 +2266,9 @@ export class App {
   private copyCode(code: string): void {
     const text = this.canShareLink() ? `${location.origin}/${code}` : code;
     const label = t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode');
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => this.toast(t(this.canShareLink() ? 'lobby.copied' : 'lobby.copiedCode')), () => prompt(label, text));
-    else prompt(label, text);
+    const show = () => this.askDialog({ title: label, input: { value: text, readonly: true }, buttons: [{ label: t('btn.close'), primary: true }] });
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => this.toast(t(this.canShareLink() ? 'lobby.copied' : 'lobby.copiedCode')), show);
+    else show();
   }
 
   private renderChooser(): HTMLElement {

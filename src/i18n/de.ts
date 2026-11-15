@@ -36,8 +36,15 @@ export const de: Record<string, string> = {
   'settings.keepAwake': 'Bildschirm anlassen',
   'settings.on': 'an',
   'settings.off': 'aus',
-  'confirm.quit': 'Laufendes Spiel wirklich abbrechen?',
-  'confirm.cheft': 'Cheft ansagen? Das ist unwiderruflich: Du darfst dann nur noch mit 5 oder 7 Paaren rauskommen, die Erstmeldung der Rommé-Spieler steigt auf 101 Augen und deine Strafpunkte verdoppeln sich, wenn du verlierst.',
+  'confirm.quit.title': 'Spiel abbrechen?',
+  'confirm.quit': 'Das laufende Spiel wirklich abbrechen?',
+  'confirm.leave.title': 'Raum verlassen?',
+  'confirm.leave': 'Den Raum wirklich verlassen?',
+  'confirm.cheft.title': 'Cheft ansagen?',
+  'confirm.cheft': 'Das ist unwiderruflich: Du darfst dann nur noch mit 5 oder 7 Paaren rauskommen, die Erstmeldung der Rommé-Spieler steigt auf 101 Augen und deine Strafpunkte verdoppeln sich, wenn du verlierst.',
+  'btn.cheftConfirm': 'Cheft ansagen',
+  'btn.load': 'Laden',
+  'hint.cheftDouble': 'Zweimal tippen: Cheft ansagen und die Karte trotzdem nehmen.',
 
   // Einstellungen
   'setup.name': 'Dein Name',
