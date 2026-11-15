@@ -72,6 +72,7 @@ type ClientMsg =
   | { type: 'rejoin'; room: string; token: string; snap?: string }
   | { type: 'claim'; room: string; pid: number; name: string }
   | { type: 'pause'; on: boolean }
+  | { type: 'rename'; name: string }
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
   | { type: 'lobby'; op: 'removeSeat'; pid: number }
@@ -230,6 +231,14 @@ function handle(c: Conn, msg: ClientMsg): void {
       for (const o of conns) if (o !== c && o.room === room && o.pid === r.pid) o.room = null;
       leave(c);
       joined(c, room, r.pid, r.token);
+      return;
+    }
+    case 'rename': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const r = room.rename(c.pid, String(msg.name ?? ''));
+      if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
+      broadcast(room);
       return;
     }
     case 'pause': {

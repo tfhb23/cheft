@@ -331,4 +331,23 @@ describe('Räume', () => {
     expect(log.length).toBeLessThanOrEqual(8);
     expect(log.every((e) => e.player >= 0 && e.player < 3 && e.card.id >= 0)).toBe(true);
   });
+
+  it('Spieler können sich umbenennen, auch der Gastgeber und mitten im Spiel', () => {
+    const room = new Rooms(31).create();
+    room.addHuman('Anna');
+    room.addHuman('Ben');
+    room.addBot({ level: 'random', style: 'random' });
+    expect(room.rename(0, '  Annika  ').ok).toBe(true);
+    expect(room.seats[0].name).toBe('Annika');
+    expect(room.hostPid).toBe(0);
+    const clash = room.rename(1, 'Annika'); // gleicher Name: bekommt eine Nummer
+    expect(clash.ok).toBe(true);
+    expect(room.seats[1].name).toBe('Annika 2');
+    expect(room.rename(1, '###').ok).toBe(false); // nach dem Säubern leer
+    expect(room.rename(2, 'Neu').ok).toBe(false); // Bots nicht
+    room.start();
+    expect(room.rename(0, 'Anna').ok).toBe(true);
+    expect(room.state!.players[0].name).toBe('Anna');
+    expect(room.lobbyView().seats[0].name).toBe('Anna');
+  });
 });

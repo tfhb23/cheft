@@ -1,5 +1,5 @@
 /** Kleine Pixel-Sounds per WebAudio, ohne Dateien. */
-export type SoundName = 'card' | 'discard' | 'lay' | 'win' | 'error';
+export type SoundName = 'card' | 'discard' | 'lay' | 'win' | 'error' | 'cheft';
 
 let ctx: AudioContext | null = null;
 let enabled = false;
@@ -32,6 +32,42 @@ function blip(freq: number, dur: number, type: OscillatorType, gain = 0.08, dela
   o.stop(t + dur);
 }
 
+/** Tiefer Paukenschlag: Sinus, dessen Tonhöhe schnell fällt. */
+function boom(freq: number, dur: number, gain = 0.2, delay = 0): void {
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(freq * 1.6, t);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.45, t + dur);
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t);
+  o.stop(t + dur);
+}
+
+/** Rauschstoß wie ein Becken, durch einen Hochpass geschickt. */
+function crash(dur: number, gain = 0.07, delay = 0): void {
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 3500;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(hp).connect(g).connect(ctx.destination);
+  src.start(t);
+}
+
 export function play(name: SoundName): void {
   if (!enabled) return;
   unlockAudio();
@@ -54,6 +90,16 @@ export function play(name: SoundName): void {
       break;
     case 'error':
       blip(180, 0.12, 'sawtooth', 0.05);
+      break;
+    case 'cheft':
+      // Dramatisch: Paukenschlag mit verminderten Akkord, aufsteigender Lauf und ein zweiter, großer Einschlag
+      boom(80, 0.55, 0.22);
+      [220, 262, 311].forEach((f) => blip(f, 0.4, 'sawtooth', 0.045, 0.03));
+      [262, 311, 370, 440, 523].forEach((f, i) => blip(f, 0.09, 'square', 0.05, 0.42 + i * 0.07));
+      boom(65, 0.9, 0.26, 0.82);
+      crash(0.7, 0.08, 0.82);
+      [110, 131, 156, 220].forEach((f) => blip(f, 0.85, 'sawtooth', 0.05, 0.84));
+      [440, 523, 622].forEach((f) => blip(f, 0.7, 'square', 0.035, 0.86));
       break;
   }
 }

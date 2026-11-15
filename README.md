@@ -17,10 +17,8 @@ npm run build      # Produktions-Build nach dist/
 npm run preview    # Build lokal ansehen
 ```
 
-Für die Installation am Handy muss die App über HTTPS erreichbar sein. Der Workflow
-`.github/workflows/pages.yml` veröffentlicht jeden Push auf `main` automatisch auf GitHub Pages:
-https://tfhb23.github.io/cheft/ . Dort im Handy-Browser öffnen und
-„Zum Startbildschirm hinzufügen“ wählen.
+Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffnen und
+„Zum Startbildschirm hinzufügen“ wählen. Jeder Push auf `main` wird von Render automatisch gebaut und veröffentlicht.
 
 ## Bedienung und Speichern
 
@@ -65,15 +63,13 @@ npm run build && npm run server   # http://localhost:8080 (App + WebSocket unter
 
 Betrieb im Internet: Das Repo enthält ein `Dockerfile` und eine `render.yaml`. Auf Render.com
 genügt „New → Blueprint“ mit diesem Repo; der kostenlose Plan reicht zum Testen (er schläft nach
-15 Minuten ohne Verkehr ein und braucht beim ersten Aufruf etwa eine Minute; offene Spiele bleiben dank Kopie erhalten). Die App auf GitHub
-Pages verbindet sich mit dem Server, dessen Adresse als Repository-Variable `CHEFT_SERVER_URL`
-(z. B. `wss://cheft.onrender.com/ws`) hinterlegt oder in der App unter „Server-Adresse“ eingetragen wird.
-Läuft die App direkt vom Server (eigene Domain), ist keine Einstellung nötig.
+15 Minuten ohne Verkehr ein und braucht beim ersten Aufruf etwa eine Minute; offene Spiele bleiben dank Kopie erhalten). Der Server
+liefert die App selbst aus, App und Mehrspieler laufen unter derselben Adresse. Wird die App ausnahmsweise auf einer anderen Adresse
+gehostet, lässt sich die Server-Adresse beim Bauen als `VITE_SERVER_URL` oder in der App unter „Server-Adresse“ eintragen.
 
 **Eigene Domain (z. B. https://cheft.beigi.eu):** Im Render-Dienst unter Settings, Custom Domains die Domain eintragen und beim DNS-Anbieter einen
 CNAME-Eintrag auf die `onrender.com`-Adresse des Dienstes setzen. Der Docker-Build lädt die Dateien absolut ab `/` (Umgebungsvariable `CHEFT_BASE=/`),
-dadurch öffnen Raumlinks wie `https://cheft.beigi.eu/232` den Raum direkt. App und Server laufen unter derselben Adresse, `CHEFT_SERVER_URL`
-wird dann nicht gebraucht. Jeder Push auf `main` wird von Render automatisch neu gebaut und veröffentlicht.
+dadurch öffnen Raumlinks wie `https://cheft.beigi.eu/232` den Raum direkt. Jeder Push auf `main` wird von Render automatisch neu gebaut und veröffentlicht.
 
 ## Aufbau
 

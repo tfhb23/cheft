@@ -107,6 +107,7 @@ input.text, textarea.text {
   max-width: calc(120px * var(--s));
 }
 
+input.text.name-edit { width: calc(90px * var(--s)); max-width: 100%; }
 textarea.text { max-width: none; resize: none; display: block; margin-bottom: calc(3px * var(--s)); word-break: break-all; }
 
 /* ---------- Karten */

@@ -39,7 +39,7 @@ export interface NetHandlers {
   onClaimable(room: string, seats: ClaimableSeat[]): void;
 }
 
-/** Standardadresse: gleiche Herkunft wie die Seite; auf GitHub Pages gibt es keinen Server. */
+/** Standardadresse: gleiche Herkunft wie die Seite (der Server liefert die App selbst aus). */
 export function defaultServerUrl(): string {
   const built = (import.meta.env?.VITE_SERVER_URL as string | undefined) ?? '';
   if (built) return built;
@@ -208,6 +208,9 @@ export class NetClient {
   }
   claim(room: string, pid: number, name: string): void {
     this.send({ type: 'claim', room, pid, name });
+  }
+  rename(name: string): void {
+    this.send({ type: 'rename', name });
   }
   pause(on: boolean): void {
     this.send({ type: 'pause', on });

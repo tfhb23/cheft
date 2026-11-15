@@ -160,6 +160,22 @@ export class Room {
     return ok;
   }
 
+  /** Spieler benennt sich um (in der Lobby und im laufenden Spiel). */
+  rename(pid: number, name: string): Result {
+    const seat = this.seats[pid];
+    if (!seat || seat.isBot) return fail('net.noSuchSeat');
+    const clean = sanitizeName(name);
+    if (!clean) return fail('net.badName');
+    const taken = (n: string) => this.seats.some((o) => o.pid !== pid && o.name === n);
+    let unique = clean;
+    if (taken(unique)) unique = `${clean.slice(0, 10)} ${pid + 1}`;
+    if (taken(unique)) return fail('net.nameTaken');
+    seat.name = unique;
+    if (this.state) this.state.players[pid].name = unique;
+    this.touch();
+    return ok;
+  }
+
   findByToken(token: string): Seat | undefined {
     return this.seats.find((s) => !s.isBot && s.token === token);
   }

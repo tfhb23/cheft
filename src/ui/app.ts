@@ -630,6 +630,40 @@ export class App {
   }
 
   /** Eine Zeile je Bot: Stufe und Spielweise durchschalten, "Zufall" verbirgt die Rolle. */
+  /** Eigenen Namen ändern (Lobby und Spiel): wird beim Verlassen des Felds oder mit Enter übernommen. */
+  private nameDraft: string | null = null;
+
+  private nameField(current: string): HTMLElement {
+    return h('input', {
+      class: 'text name-edit',
+      type: 'text',
+      maxlength: '12',
+      value: this.nameDraft ?? current,
+      placeholder: this.forgottenName,
+      title: t('setup.name'),
+      oninput: (e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value),
+      onchange: (e: Event) => this.commitName((e.target as HTMLInputElement).value, current),
+      onblur: () => {
+        if (this.nameDraft !== null) this.commitName(this.nameDraft, current);
+      },
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === 'Enter') (e.target as HTMLElement).blur();
+      },
+    });
+  }
+
+  private commitName(value: string, current: string): void {
+    this.nameDraft = null;
+    const v = value.trim();
+    if (!v || v === current) {
+      this.render();
+      return;
+    }
+    this.prefs.name = v;
+    this.savePrefs();
+    this.net?.rename(v);
+  }
+
   /** Zwei gleich breite Knöpfe nebeneinander (Stufe und Spielweise), Überschrift darüber. Bricht nie um. */
   private botPicker(c: BotChoice, onChange: (next: BotChoice) => void): HTMLElement {
     const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
@@ -906,6 +940,7 @@ export class App {
       return true;
     }
     const res = applyAction(s, this.me, action);
+    if (res.ok) this.noteModes();
     if (!res.ok) {
       this.toast(t(res.error, res.params), true);
       play('error');
@@ -999,6 +1034,7 @@ export class App {
           const hand = this.state.round.players[pid].hand;
           applyAction(this.state, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });
         }
+        this.noteModes();
         this.save();
         this.render();
         if (action.kind === 'draw') {
@@ -1810,6 +1846,7 @@ export class App {
         'div',
         { class: 'panel dialog' },
         h('h2', null, t('btn.settings')),
+        this.online && this.state ? h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
         this.choice(
           t('settings.speed'),
           [
@@ -2032,6 +2069,21 @@ export class App {
     this.goto('menu');
   }
 
+  /** Wird jemand Cheft, gibt es den dramatischen Sound. */
+  private lastModes: string[] = [];
+  private lastModesRound = 0;
+  private noteModes(): void {
+    const s = this.state;
+    if (!s) return;
+    const modes = s.round.players.map((p) => p.mode);
+    if (s.round.no === this.lastModesRound && modes.some((m, i) => m === 'cheft' && this.lastModes[i] === 'romme')) {
+      play('cheft');
+      vibrate(80, this.prefs.vibration);
+    }
+    this.lastModes = modes;
+    this.lastModesRound = s.round.no;
+  }
+
   private onServerUpdate(u: ServerUpdate): void {
     if (!this.online) return;
     this.online.lobby = u.lobby;
@@ -2063,6 +2115,7 @@ export class App {
           }
         : null;
     this.state = u.state;
+    this.noteModes();
     if (newRound) {
       this.order = [];
       this.fresh.clear();
@@ -2230,7 +2283,7 @@ export class App {
             'span',
             { class: 'row' },
             isHost && lobby.seats.length > 1 ? h('span', { class: 'handle', title: t('lobby.drag') }) : null,
-            h('span', null, seat.name, seat.pid === this.me ? h('span', { class: 'muted' }, ` (${t('lobby.you')})`) : null),
+            seat.pid === this.me ? this.nameField(seat.name) : h('span', null, seat.name),
             seat.isHost ? h('span', { class: 'badge open' }, t('lobby.host')) : null,
             !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null,
             seat.isBot && !isHost ? h('span', { class: 'badge' }, 'Bot') : null,
