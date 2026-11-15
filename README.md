@@ -3,8 +3,8 @@
 Cheft als Web-App im Pixel-Look (angelehnt an Windows-3.1-Solitaire, Farbwelt im Cheft-Orange).
 Läuft im Browser auf Android, iOS und PC und lässt sich als PWA auf den Homescreen legen.
 
-**Phase 1 (dieser Stand):** Solo gegen 2–3 Computergegner, komplett offline.
-**Phase 2 (geplant):** Online-Mehrspieler mit Raumcode, bis zu 4 Spieler, Bots füllen leere Plätze.
+Solo gegen 2–3 Computergegner (offline) oder online mit Freunden: Raum eröffnen, 4-stelligen Code
+weitergeben, leere Plätze mit Bots auffüllen. Während eines laufenden Spiels kann niemand einsteigen.
 
 ## Starten
 
@@ -34,6 +34,24 @@ https://tobiasfmueller.github.io/cheft/ . Dort im Handy-Browser öffnen und
 - Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Gegner wählbar oder „Überraschung“; Rollen werden am Spielende aufgedeckt.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
+## Mehrspieler-Server
+
+Der Server (`server/`) hält den Spielzustand je Raum, führt die Regeln aus, spielt die Bots und
+liefert zusätzlich die gebaute App aus. Die Clients sehen nur ihre eigene Hand; fremde Hände und
+der Nachziehstapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
+„Zurück in den Raum“ wieder einsteigen; nach 45 Sekunden ohne Verbindung spielt ein Bot für ihn weiter.
+
+```bash
+npm run build && npm run server   # http://localhost:8080 (App + WebSocket unter /ws)
+```
+
+Betrieb im Internet: Das Repo enthält ein `Dockerfile` und eine `render.yaml`. Auf Render.com
+genügt „New → Blueprint“ mit diesem Repo; der kostenlose Plan reicht zum Testen (er schläft nach
+15 Minuten ohne Besuch ein und braucht beim ersten Aufruf etwa eine Minute). Die App auf GitHub
+Pages verbindet sich mit dem Server, dessen Adresse als Repository-Variable `CHEFT_SERVER_URL`
+(z. B. `wss://cheft.onrender.com/ws`) hinterlegt oder in der App unter „Server-Adresse“ eingetragen wird.
+Läuft die App direkt vom Server (eigene Domain), ist keine Einstellung nötig.
+
 ## Aufbau
 
 ```
@@ -42,7 +60,10 @@ src/engine/   Regeln und Spielzustand (ohne DOM, wiederverwendbar für den Serve
   melds.ts      Folgen, Sätze, Cheft-Paare, Joker, Partitionssuche
   game.ts       Spielablauf, Prüfungen, Wertung
   actions.ts    Einheitliche Aktionen (Oberfläche, Bots, später Netzwerk)
-src/bot/      Computergegner
+src/bot/      Computergegner (Profile, Namen)
+src/net/      WebSocket-Client
+src/engine/view.ts  Spieler-Sicht mit maskierten Karten
+server/       Mehrspieler-Server (Räume, Protokoll, Bots)
 src/i18n/     Texte (de.ts; weitere Sprachen als eigene Datei mit gleichen Schlüsseln)
 src/ui/       Oberfläche: Sprite-Atlas (Pixelkarten per Canvas), Spielfeld, Menü, Regeln
 scripts/      Icon-Generator

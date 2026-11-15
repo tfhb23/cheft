@@ -28,12 +28,14 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
+import { NetClient, LobbyInfo, ServerUpdate, defaultServerUrl } from '../net/client';
+import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
 
-type Screen = 'menu' | 'setup' | 'rules' | 'game';
+type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'online' | 'lobby';
+const ONLINE_KEY = 'cheft.online.v1';
 const SAVE_KEY = 'cheft.save.v2';
 const PREFS_KEY = 'cheft.prefs.v2';
-const HUMAN = 0;
 
 interface Prefs {
   name: string;
@@ -45,6 +47,7 @@ interface Prefs {
   sound: boolean;
   autoSort: boolean;
   botChoices: BotChoice[];
+  serverUrl: string;
 }
 
 interface SaveFile {
@@ -115,7 +118,19 @@ export class App {
       { level: 'random', style: 'random' },
       { level: 'random', style: 'random' },
     ],
+    serverUrl: '',
   };
+  /** Online: Verbindung, Raum und eigene Platznummer. */
+  private net: NetClient | null = null;
+  private online: { room: string; pid: number; token: string; lobby: LobbyInfo | null; status: 'connecting' | 'open' | 'closed' } | null = null;
+  private joinCode = '';
+  private pendingBefore: RectMap | null = null;
+  private lastRoundNo = 0;
+
+  /** Eigene Platznummer: lokal immer 0, online vom Server. */
+  private get me(): number {
+    return this.online ? this.online.pid : 0;
+  }
   private order: number[] = [];
   private fresh = new Set<number>();
   private selected = new Set<number>();
@@ -182,6 +197,7 @@ export class App {
     return { state: s.state, order: Array.isArray(s.order) ? s.order : [] };
   }
   private save(): void {
+    if (this.online) return;
     try {
       if (this.state && !this.state.finished) localStorage.setItem(SAVE_KEY, JSON.stringify({ state: this.state, order: this.order }));
       else localStorage.removeItem(SAVE_KEY);
@@ -233,6 +249,12 @@ export class App {
       case 'rules':
         this.root.appendChild(this.renderRules());
         break;
+      case 'online':
+        this.root.appendChild(this.renderOnline());
+        break;
+      case 'lobby':
+        this.root.appendChild(this.renderLobby());
+        break;
       case 'game':
         this.root.appendChild(this.renderGame());
         this.layoutHand();
@@ -276,6 +298,8 @@ export class App {
         { class: 'panel' },
         hasSave && h('button', { class: 'btn primary', onclick: () => this.continueGame() }, t('btn.continue')),
         h('button', { class: `btn${hasSave ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
+        h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
+        this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
         h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
         h('button', { class: 'btn small', onclick: () => this.importSave() }, t('btn.importSave')),
       ),
@@ -508,26 +532,31 @@ export class App {
     const s = this.state!;
     const before = snapshot(this.root);
     const appearFrom = action.kind === 'draw' ? this.pileRect(action.source) : null;
-    const res = applyAction(s, HUMAN, action);
+    if (this.online) {
+      // Lokal nur prüfen, ausführen tut der Server.
+      const probe = applyAction(structuredClone(s), this.me, action);
+      if (!probe.ok) {
+        this.toast(t(probe.error, probe.params), true);
+        play('error');
+        return false;
+      }
+      if (!this.net || !this.net.connected) {
+        this.toast(t('net.disconnected'), true);
+        return false;
+      }
+      this.pendingBefore = before;
+      this.pendingAppearFrom = appearFrom;
+      this.net.action(action);
+      this.afterOwnAction(action, s);
+      return true;
+    }
+    const res = applyAction(s, this.me, action);
     if (!res.ok) {
       this.toast(t(res.error, res.params), true);
       play('error');
       return false;
     }
-    this.targetMode = false;
-    if (action.kind === 'steal') this.selected = new Set([s.round.turn.pendingJokerId ?? -1]);
-    if (action.kind === 'discard' || action.kind === 'lay' || action.kind === 'layOff') {
-      const hand = new Set(s.round.players[HUMAN].hand.map((c) => c.id));
-      for (const id of [...this.selected]) if (!hand.has(id)) this.selected.delete(id);
-    }
-    if (action.kind === 'discard') this.fresh.clear();
-    if (action.kind === 'draw') {
-      play('card');
-      vibrate(10, this.prefs.vibration);
-    } else if (action.kind === 'discard') {
-      play('discard');
-      vibrate(15, this.prefs.vibration);
-    } else play('lay');
+    this.afterOwnAction(action, s);
     this.save();
     this.render();
     if (s.round.ended) this.onRoundEnded();
@@ -536,9 +565,30 @@ export class App {
     return true;
   }
 
+  private pendingAppearFrom: DOMRect | null = null;
+
+  private afterOwnAction(action: Action, s: GameState): void {
+    this.targetMode = false;
+    if (action.kind === 'steal' && !this.online) this.selected = new Set([s.round.turn.pendingJokerId ?? -1]);
+    if (action.kind === 'discard' || action.kind === 'lay' || action.kind === 'layOff') {
+      if (!this.online) {
+        const hand = new Set(s.round.players[this.me].hand.map((c) => c.id));
+        for (const id of [...this.selected]) if (!hand.has(id)) this.selected.delete(id);
+      } else this.selected.clear();
+    }
+    if (action.kind === 'discard') this.fresh.clear();
+    if (action.kind === 'draw') {
+      play('card');
+      vibrate(10, this.prefs.vibration);
+    } else if (action.kind === 'discard') {
+      play('discard');
+      vibrate(15, this.prefs.vibration);
+    } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') play('lay');
+  }
+
   private onRoundEnded(): void {
     const r = this.state!.round.result!;
-    if (r.winner === HUMAN) play('win');
+    if (r.winner === this.me) play('win');
     vibrate(30, this.prefs.vibration);
   }
 
@@ -547,7 +597,7 @@ export class App {
   }
 
   private async runBots(): Promise<void> {
-    if (this.botsRunning) return;
+    if (this.botsRunning || this.online) return;
     this.botsRunning = true;
     const gen = this.botGen;
     try {
@@ -613,6 +663,11 @@ export class App {
 
   private nextRound(): void {
     if (!this.state) return;
+    if (this.online) {
+      if (this.state.finished) this.net?.backToLobby();
+      else this.net?.nextRound();
+      return;
+    }
     if (this.state.finished) {
       this.state = null;
       this.save();
@@ -648,7 +703,7 @@ export class App {
     const s = this.state!;
     const n = s.players.length;
     const others: number[] = [];
-    for (let i = 1; i < n; i++) others.push((HUMAN + i) % n);
+    for (let i = 1; i < n; i++) others.push((this.me + i) % n);
     // Gegen den Uhrzeigersinn: nach dem Menschen (unten) kommt rechts, dann gegenüber, dann links.
     if (n === 4) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'top' }, { pid: others[2], pos: 'left' }];
     if (n === 3) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'left' }];
@@ -658,8 +713,8 @@ export class App {
   private renderGame(): HTMLElement {
     const s = this.state!;
     const r = s.round;
-    const me = r.players[HUMAN];
-    const myTurn = current(s) === HUMAN && !r.ended;
+    const me = r.players[this.me];
+    const myTurn = current(s) === this.me && !r.ended;
     const drawPhase = myTurn && r.turn.phase === 'draw';
     const playPhase = myTurn && r.turn.phase === 'play';
 
@@ -684,7 +739,7 @@ export class App {
       'div',
       { class: 'topbar' },
       h('span', { class: 'accent' }, t('round', { n: r.no, total: s.settings.rounds })),
-      h('span', { class: 'muted' }, ` · ${s.players[HUMAN].name}: ${s.totals[HUMAN]} P.`),
+      h('span', { class: 'muted' }, ` · ${s.players[this.me].name}: ${s.totals[this.me]} P.`),
       h('span', null, ' ', h('span', { class: `badge${me.mode === 'cheft' ? ' cheft' : ''}` }, t(`mode.${me.mode}`)), ' ', h('span', { class: `badge${me.opened ? ' open' : ''}` }, t(me.opened ? 'status.opened' : 'status.notOpened'))),
       h(
         'div',
@@ -725,11 +780,11 @@ export class App {
     // Ziele für Anlegen / Klauen
     const selectedCards = me.hand.filter((c) => this.selected.has(c.id));
     const singleSel = selectedCards.length === 1 ? selectedCards[0] : null;
-    const targets = playPhase && singleSel && this.targetMode ? layOffTargets(s, HUMAN, singleSel.id) : [];
+    const targets = playPhase && singleSel && this.targetMode ? layOffTargets(s, this.me, singleSel.id) : [];
     const targetIds = new Set(targets.map((x) => x.meld.id));
     const stealable = new Set<number>();
     if (playPhase && singleSel && !isJoker(singleSel) && me.opened) {
-      for (const m of r.melds) m.cards.forEach((c, i) => isJoker(c) && checkStealJoker(s, HUMAN, m.id, i, singleSel.id).ok && stealable.add(m.id));
+      for (const m of r.melds) m.cards.forEach((c, i) => isJoker(c) && checkStealJoker(s, this.me, m.id, i, singleSel.id).ok && stealable.add(m.id));
     }
 
     // Tisch
@@ -750,9 +805,9 @@ export class App {
     }
 
     // Stapel in der Mitte
-    const canStock = drawPhase && checkDraw(s, HUMAN, 'stock').ok;
-    const canDiscardDraw = drawPhase && checkDraw(s, HUMAN, 'discard').ok;
-    const canCarpet = drawPhase && checkDraw(s, HUMAN, 'carpet').ok;
+    const canStock = drawPhase && checkDraw(s, this.me, 'stock').ok;
+    const canDiscardDraw = drawPhase && checkDraw(s, this.me, 'discard').ok;
+    const canCarpet = drawPhase && checkDraw(s, this.me, 'carpet').ok;
     const stockWrap = h(
       'div',
       { class: 'stock-wrap' },
@@ -782,9 +837,9 @@ export class App {
         return el;
       }),
     );
-    const starterCard = r.waiting ? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId) : undefined;
+    const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCard = starterCard
-      ? h('div', { class: 'pile' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === HUMAN ? t('you') : s.players[r.starter].name })))
+      ? h('div', { class: 'pile' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
       : null;
     const center = h(
       'div',
@@ -794,10 +849,10 @@ export class App {
     table.appendChild(center);
 
     // Eigene Auslage
-    const myMelds = r.melds.filter((m) => m.owner === HUMAN);
+    const myMelds = r.melds.filter((m) => m.owner === this.me);
     const own = h(
       'div',
-      { class: 'own', dataset: { seat: String(HUMAN) } },
+      { class: 'own', dataset: { seat: String(this.me) } },
       h('div', { class: 'own-label' }, myMelds.length ? `${t('you')} (${t(`mode.${me.mode}`)})` : playPhase && selectedCards.length >= 2 ? t('drop.lay') : ''),
       h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false))),
     );
@@ -807,8 +862,8 @@ export class App {
     let msg = '';
     if (r.ended) msg = '';
     else if (r.waiting) {
-      const waitingFor = s.players.filter((p) => !r.ready[p.id] && p.id !== HUMAN).map((p) => p.name);
-      msg = r.ready[HUMAN] ? t('wait.others', { names: waitingFor.join(', ') }) : t('wait.sorting');
+      const waitingFor = s.players.filter((p) => !r.ready[p.id] && p.id !== this.me).map((p) => p.name);
+      msg = r.ready[this.me] ? t('wait.others', { names: waitingFor.join(', ') }) : t('wait.sorting');
     } else if (!myTurn) {
       const last = r.log[r.log.length - 1];
       msg = last && last.player !== undefined ? this.logText(last) : t('turn.bot', { name: s.players[current(s)].name });
@@ -822,7 +877,7 @@ export class App {
     let info = '';
     if (me.opened) info = t('threshold.opened');
     else if (me.mode === 'cheft') info = t('threshold.cheft');
-    else info = t('threshold', { n: thresholdFor(s, HUMAN) });
+    else info = t('threshold', { n: thresholdFor(s, this.me) });
     if (selectedCards.length >= 3 && !me.opened && me.mode === 'romme') {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
@@ -850,14 +905,14 @@ export class App {
     const btn = (label: string, onclick: () => void, opts: { disabled?: boolean; cls?: string } = {}) => h('button', { class: `btn ${opts.cls ?? ''}`, disabled: opts.disabled, onclick }, label);
     const canCheft = myTurn && !me.opened && me.mode === 'romme' && r.turn.mustOpenWithId === null;
     const actions = r.waiting
-      ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[HUMAN], cls: 'primary' }))
+      ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[this.me], cls: 'primary' }))
       : h(
       'div',
       { class: 'actions' },
       btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, cls: 'primary' }),
       btn(t('btn.layOff'), () => this.layOffSelected(), { disabled: !playPhase || !singleSel || !me.opened }),
       btn(t('btn.discard'), () => singleSel && this.act({ kind: 'discard', cardId: singleSel.id }), { disabled: !playPhase || !singleSel }),
-      playPhase && checkUndoDraw(s, HUMAN).ok
+      playPhase && checkUndoDraw(s, this.me).ok
         ? btn(t('btn.undoDraw'), () => this.act({ kind: 'undoDraw' }), { cls: 'dark' })
         : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, cls: 'dark' }),
     );
@@ -909,7 +964,7 @@ export class App {
 
   private meldEl(m: Meld, isTarget: boolean, isStealable: boolean, small: boolean): HTMLElement {
     const s = this.state!;
-    const playPhase = current(s) === HUMAN && s.round.turn.phase === 'play' && !s.round.ended;
+    const playPhase = current(s) === this.me && s.round.turn.phase === 'play' && !s.round.ended;
     const onClick = playPhase ? () => this.tapMeld(m) : undefined;
     const el = h(
       'div',
@@ -934,7 +989,7 @@ export class App {
   private logText(e: { key: string; player?: number; params?: Record<string, string | number> }): string {
     const s = this.state!;
     const params: Record<string, string | number> = { ...(e.params ?? {}) };
-    if (e.player !== undefined) params.name = e.player === HUMAN ? t('you') : s.players[e.player].name;
+    if (e.player !== undefined) params.name = e.player === this.me ? t('you') : s.players[e.player].name;
     if (e.key === 'log.discard') {
       const top = s.round.discard[s.round.discard.length - 1];
       params.card = top ? cardName(top) : '';
@@ -1125,7 +1180,7 @@ export class App {
     this.drag = null;
     this.save();
     const s = this.state;
-    const playPhase = !!s && current(s) === HUMAN && s.round.turn.phase === 'play' && !s.round.ended;
+    const playPhase = !!s && current(s) === this.me && s.round.turn.phase === 'play' && !s.round.ended;
     if (zone && playPhase) {
       if (zone.classList.contains('discard') && d.group.length === 1) {
         if (this.act({ kind: 'discard', cardId: d.id })) return;
@@ -1139,7 +1194,7 @@ export class App {
         } else this.toast(t('err.nothingSelected'), true);
       }
     } else if (zone && !playPhase) {
-      this.toast(t(current(s!) === HUMAN ? 'err.drawFirst' : 'err.notYourTurn'), true);
+      this.toast(t(current(s!) === this.me ? 'err.drawFirst' : 'err.notYourTurn'), true);
     }
     this.render();
   }
@@ -1154,13 +1209,13 @@ export class App {
 
   private selectedCards(ids: number[]): Card[] {
     const set = new Set(ids);
-    return this.state!.round.players[HUMAN].hand.filter((c) => set.has(c.id));
+    return this.state!.round.players[this.me].hand.filter((c) => set.has(c.id));
   }
 
   /** Teilt die Karten automatisch in gültige Kombinationen auf und legt sie aus. */
   private laySelected(ids: number[]): boolean {
     const s = this.state!;
-    const me = s.round.players[HUMAN];
+    const me = s.round.players[this.me];
     const cards = this.selectedCards(ids);
     if (cards.length < 2) {
       this.toast(t('err.nothingSelected'), true);
@@ -1178,7 +1233,7 @@ export class App {
       const valid: { groups: number[][]; shapes: MeldShape[]; augen: number }[] = [];
       for (const part of parts) {
         const groups = part.melds.map((m) => m.cards.map((c) => c.id));
-        const chk = checkLay(s, HUMAN, groups);
+        const chk = checkLay(s, this.me, groups);
         if (chk.ok) valid.push({ groups, shapes: part.melds, augen: part.augen });
         else if (!firstError) firstError = { error: chk.error, params: chk.params };
       }
@@ -1194,7 +1249,7 @@ export class App {
       }
     }
     if (!firstError && interpretMeld(cards, ALL_TYPES)) {
-      const chk = checkLay(s, HUMAN, [cards.map((c) => c.id)]);
+      const chk = checkLay(s, this.me, [cards.map((c) => c.id)]);
       if (!chk.ok) firstError = { error: chk.error, params: chk.params };
     }
     this.toast(t(firstError?.error ?? 'err.invalidMeld', firstError?.params), true);
@@ -1210,11 +1265,11 @@ export class App {
       return;
     }
     const card = cards[0];
-    if (!s.round.players[HUMAN].opened) {
+    if (!s.round.players[this.me].opened) {
       this.toast(t('err.notOpened'), true);
       return;
     }
-    const targets = layOffTargets(s, HUMAN, card.id);
+    const targets = layOffTargets(s, this.me, card.id);
     if (targets.length === 0) {
       this.toast(t('err.noTarget'), true);
       return;
@@ -1231,7 +1286,7 @@ export class App {
   /** Legt an; passt ein Joker an beide Enden einer Folge, fragt die App nach dem Ende. */
   private layOffWithChoice(m: Meld, card: Card): boolean {
     const s = this.state!;
-    const opts = layOffTargets(s, HUMAN, card.id).filter((x) => x.meld.id === m.id);
+    const opts = layOffTargets(s, this.me, card.id).filter((x) => x.meld.id === m.id);
     if (opts.length <= 1) return this.act({ kind: 'layOff', cardId: card.id, meldId: m.id, end: 'top' });
     this.chooser = {
       title: t('choose.end'),
@@ -1248,18 +1303,18 @@ export class App {
 
   private dropOnMeld(m: Meld, cardId: number): boolean {
     const s = this.state!;
-    const card = s.round.players[HUMAN].hand.find((c) => c.id === cardId);
+    const card = s.round.players[this.me].hand.find((c) => c.id === cardId);
     if (!card) return false;
     if (!isJoker(card)) {
       for (let i = 0; i < m.cards.length; i++) {
-        if (isJoker(m.cards[i]) && checkStealJoker(s, HUMAN, m.id, i, card.id).ok) {
+        if (isJoker(m.cards[i]) && checkStealJoker(s, this.me, m.id, i, card.id).ok) {
           return this.act({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id });
         }
       }
     }
-    const targets = layOffTargets(s, HUMAN, card.id).filter((x) => x.meld.id === m.id);
+    const targets = layOffTargets(s, this.me, card.id).filter((x) => x.meld.id === m.id);
     if (targets.length === 0) {
-      this.toast(t(s.round.players[HUMAN].opened ? 'err.cannotAdd' : 'err.notOpened'), true);
+      this.toast(t(s.round.players[this.me].opened ? 'err.cannotAdd' : 'err.notOpened'), true);
       play('error');
       return false;
     }
@@ -1325,9 +1380,11 @@ export class App {
           (v) => (this.prefs.sound = v as boolean),
         ),
         h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')),
-        h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')),
-        h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')),
-        h('button', { class: 'btn danger', onclick: () => this.quitGame() }, t('btn.quit')),
+        this.online ? null : h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')),
+        this.online ? null : h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')),
+        this.online
+          ? h('button', { class: 'btn danger', onclick: () => this.leaveOnline(true) }, t('lobby.leave'))
+          : h('button', { class: 'btn danger', onclick: () => this.quitGame() }, t('btn.quit')),
         h(
           'button',
           {
@@ -1341,6 +1398,299 @@ export class App {
         ),
       ),
     );
+  }
+
+  // ------------------------------------------------------------ Online
+  private storedOnline(): { url: string; room: string; token: string } | null {
+    try {
+      const raw = localStorage.getItem(ONLINE_KEY);
+      return raw ? (JSON.parse(raw) as { url: string; room: string; token: string }) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private storeOnline(v: { url: string; room: string; token: string } | null): void {
+    try {
+      if (v) localStorage.setItem(ONLINE_KEY, JSON.stringify(v));
+      else localStorage.removeItem(ONLINE_KEY);
+    } catch {
+      /* ignorieren */
+    }
+  }
+
+  private serverUrl(): string {
+    return (this.prefs.serverUrl || defaultServerUrl()).trim();
+  }
+
+  private ensureNet(): NetClient {
+    if (this.net) return this.net;
+    this.net = new NetClient({
+      onJoined: (info) => {
+        this.online = { room: info.room, pid: info.pid, token: info.token, lobby: this.online?.lobby ?? null, status: 'open' };
+        this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token });
+      },
+      onUpdate: (u) => this.onServerUpdate(u),
+      onError: (error, params) => {
+        this.toast(t(error, params), true);
+        if (error === 'net.noRoom' && (this.screen === 'lobby' || this.screen === 'game' || !this.online)) {
+          this.storeOnline(null);
+          if (this.online) this.leaveOnline(false);
+        }
+      },
+      onStatus: (status) => {
+        if (this.online) this.online.status = status;
+        if (status === 'closed' && this.online) this.toast(t('online.offline'), true);
+        if (this.screen === 'lobby' || this.screen === 'online') this.render();
+      },
+      onLeft: () => this.leaveOnline(false),
+    });
+    return this.net;
+  }
+
+  private connectOnline(after: () => void): void {
+    const url = this.serverUrl();
+    if (!url) {
+      this.toast(t('online.noServer'), true);
+      return;
+    }
+    const net = this.ensureNet();
+    if (net.connected) {
+      after();
+      return;
+    }
+    net.connect(url);
+    const t0 = Date.now();
+    const wait = () => {
+      if (net.connected) after();
+      else if (Date.now() - t0 < 8000) setTimeout(wait, 150);
+      else this.toast(t('net.disconnected'), true);
+    };
+    wait();
+  }
+
+  private createRoom(): void {
+    const name = this.prefs.name.trim() || t('you');
+    this.connectOnline(() => this.net!.create(name));
+  }
+
+  private joinRoom(): void {
+    const code = this.joinCode.trim().toUpperCase();
+    if (code.length !== 4) {
+      this.toast(t('net.noRoom'), true);
+      return;
+    }
+    const name = this.prefs.name.trim() || t('you');
+    this.connectOnline(() => this.net!.join(code, name));
+  }
+
+  private resumeOnline(): void {
+    const stored = this.storedOnline();
+    if (!stored) return;
+    this.prefs.serverUrl = this.prefs.serverUrl || stored.url;
+    const net = this.ensureNet();
+    this.online = { room: stored.room, pid: 0, token: stored.token, lobby: null, status: 'connecting' };
+    net.connect(stored.url, { room: stored.room, token: stored.token });
+    this.screen = 'lobby';
+    this.render();
+  }
+
+  private leaveOnline(tellServer: boolean): void {
+    if (tellServer && !confirm(t('confirm.quit'))) return;
+    if (tellServer) this.net?.leave();
+    this.net?.close();
+    this.net = null;
+    this.online = null;
+    this.storeOnline(null);
+    this.state = this.loadSave()?.state ?? null;
+    this.order = [];
+    this.botGen++;
+    this.goto('menu');
+  }
+
+  private onServerUpdate(u: ServerUpdate): void {
+    if (!this.online) return;
+    this.online.lobby = u.lobby;
+    if (!u.state) {
+      this.state = null;
+      this.lastRoundNo = 0;
+      if (this.screen !== 'rules') this.screen = 'lobby';
+      this.render();
+      return;
+    }
+    const prev = this.state;
+    const newRound = u.state.round.no !== this.lastRoundNo;
+    this.lastRoundNo = u.state.round.no;
+    const before = this.pendingBefore ?? (this.screen === 'game' ? snapshot(this.root) : new Map());
+    const appearFrom = this.pendingAppearFrom;
+    this.pendingBefore = null;
+    this.pendingAppearFrom = null;
+    this.state = u.state;
+    if (newRound) {
+      this.order = [];
+      this.fresh.clear();
+      this.selected.clear();
+      this.targetMode = false;
+      this.peekTable = false;
+      this.chooser = null;
+    }
+    if (u.last && u.last.pid === this.me && u.last.action.kind === 'steal') {
+      this.selected = new Set([u.state.round.turn.pendingJokerId ?? -1]);
+    }
+    this.screen = 'game';
+    if (newRound && prev === null) {
+      void this.startRoundWithDeal();
+      return;
+    }
+    if (newRound) {
+      void this.startRoundWithDeal();
+      return;
+    }
+    this.render();
+    const r = u.state.round;
+    if (u.last && u.last.pid !== this.me) {
+      const seat = this.seatRect(u.last.pid);
+      const k = u.last.action.kind;
+      if (k === 'draw') play('card');
+      else if (k === 'discard') play('discard');
+      else if (k === 'lay' || k === 'layOff') play('lay');
+      if (!r.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+    } else if (!r.ended) {
+      void flip(this.root, before, { appearFrom });
+    }
+    if (r.ended && prev && !prev.round.ended) this.onRoundEnded();
+  }
+
+  private renderOnline(): HTMLElement {
+    const nameInput = h('input', {
+      class: 'text',
+      type: 'text',
+      maxlength: '12',
+      value: this.prefs.name,
+      placeholder: t('you'),
+      oninput: (e: Event) => {
+        this.prefs.name = (e.target as HTMLInputElement).value;
+        this.savePrefs();
+      },
+    });
+    const codeInput = h('input', {
+      class: 'text code',
+      type: 'text',
+      maxlength: '4',
+      value: this.joinCode,
+      placeholder: 'ABCD',
+      autocapitalize: 'characters',
+      oninput: (e: Event) => {
+        this.joinCode = (e.target as HTMLInputElement).value.toUpperCase();
+      },
+    });
+    const serverInput = h('input', {
+      class: 'text',
+      type: 'url',
+      value: this.prefs.serverUrl || defaultServerUrl(),
+      placeholder: 'wss://cheft.example.org/ws',
+      oninput: (e: Event) => {
+        this.prefs.serverUrl = (e.target as HTMLInputElement).value;
+        this.savePrefs();
+      },
+    });
+    return h(
+      'div',
+      { class: 'menu' },
+      h('h2', null, t('online.title')),
+      h(
+        'div',
+        { class: 'panel' },
+        h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), nameInput),
+        h('button', { class: 'btn primary', onclick: () => this.createRoom() }, t('online.create')),
+        h('div', { class: 'option' }, h('div', { class: 'muted' }, t('online.code')), h('div', { class: 'row' }, codeInput, h('button', { class: 'btn', onclick: () => this.joinRoom() }, t('online.join')))),
+        h('details', null, h('summary', { class: 'muted small-text' }, t('online.server')), h('div', { class: 'muted small-text' }, t('online.serverHint')), serverInput),
+        h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
+      ),
+    );
+  }
+
+  private renderLobby(): HTMLElement {
+    const o = this.online;
+    const lobby = o?.lobby;
+    if (!o || !lobby) {
+      return h('div', { class: 'menu' }, h('div', { class: 'panel' }, h('p', null, t('online.connecting')), h('button', { class: 'btn', onclick: () => this.leaveOnline(false) }, t('btn.back'))));
+    }
+    const isHost = lobby.hostPid === this.me;
+    const seats = lobby.seats.map((seat) =>
+      h(
+        'div',
+        { class: 'row spread lobby-seat' },
+        h('span', null, seat.name, seat.pid === this.me ? h('span', { class: 'muted' }, ` (${t('lobby.you')})`) : null, seat.isHost ? h('span', { class: 'badge open' }, t('lobby.host')) : null, !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null),
+        h(
+          'span',
+          { class: 'row' },
+          seat.isBot && isHost ? this.lobbyBotButtons(seat) : seat.isBot ? h('span', { class: 'badge' }, 'Bot') : null,
+          isHost && seat.pid !== this.me ? h('button', { class: 'btn small', onclick: () => this.net?.removeSeat(seat.pid) }, t('lobby.remove')) : null,
+        ),
+      ),
+    );
+    const settings = isHost
+      ? [
+          this.choice(t('setup.rounds'), [{ v: 7, label: '7' }, { v: 11, label: '11' }], () => lobby.settings.rounds, (v) => this.net?.settings({ rounds: v as number })),
+          this.choice(
+            t('setup.firstTurn'),
+            [
+              { v: true, label: t('setup.yes') },
+              { v: false, label: t('setup.no') },
+            ],
+            () => lobby.settings.firstTurnOpenAllowed,
+            (v) => this.net?.settings({ firstTurnOpenAllowed: v as boolean }),
+          ),
+          this.choice(
+            t('settings.speed'),
+            [
+              { v: 'normal', label: t('settings.speed.normal') },
+              { v: 'fast', label: t('settings.speed.fast') },
+            ],
+            () => lobby.settings.speed,
+            (v) => this.net?.settings({ speed: v as 'normal' | 'fast' }),
+          ),
+        ]
+      : [h('div', { class: 'muted small-text' }, `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')}`)];
+    return h(
+      'div',
+      { class: 'menu' },
+      h('h2', null, t('lobby.title', { code: lobby.code })),
+      h(
+        'div',
+        { class: 'panel' },
+        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn small', onclick: () => this.copyCode(lobby.code) }, t('lobby.copy'))),
+        h('div', { class: 'muted small-text' }, t('lobby.share')),
+        ...seats,
+        isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
+        ...settings,
+        isHost
+          ? h('button', { class: 'btn primary', disabled: lobby.seats.length < 3, onclick: () => this.net?.start() }, lobby.seats.length < 3 ? t('lobby.need', { min: 3 }) : t('lobby.start'))
+          : h('div', { class: 'muted' }, t('lobby.waitHost')),
+        o.status !== 'open' ? h('div', { class: 'muted small-text' }, t(o.status === 'connecting' ? 'online.connecting' : 'online.offline')) : null,
+        h('button', { class: 'btn', onclick: () => this.leaveOnline(true) }, t('lobby.leave')),
+      ),
+    );
+  }
+
+  private lobbyBotButtons(seat: LobbyInfo['seats'][number]): HTMLElement {
+    const [lv, st] = (seat.botLabel ?? 'random/random').split('/') as [BotChoice['level'], BotChoice['style']];
+    const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
+      const all: (T | 'random')[] = ['random', ...list];
+      return all[(all.indexOf(cur) + 1) % all.length];
+    };
+    return h(
+      'span',
+      { class: 'row' },
+      h('button', { class: `btn small${lv === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: cycle(LEVELS, lv), style: st } }) }, lv === 'random' ? t('setup.random') : t(`level.${lv}`)),
+      h('button', { class: `btn small${st === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: lv, style: cycle(STYLES, st) } }) }, st === 'random' ? t('setup.random') : t(`style.${st}`)),
+    );
+  }
+
+  private copyCode(code: string): void {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(() => this.toast(t('lobby.copied')), () => prompt(t('lobby.copy'), code));
+    else prompt(t('lobby.copy'), code);
   }
 
   private renderChooser(): HTMLElement {
@@ -1382,8 +1732,16 @@ export class App {
     );
   }
 
-  private renderEndBar(): HTMLElement {
+  private nextRoundButton(): HTMLElement {
     const s = this.state!;
+    if (this.online && this.online.lobby && this.online.lobby.hostPid !== this.me) {
+      return h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('lobby.hostNext'));
+    }
+    const label = this.online ? t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound') : t(s.finished ? 'btn.endGame' : 'btn.nextRound');
+    return h('button', { class: 'btn primary', onclick: () => this.nextRound() }, label);
+  }
+
+  private renderEndBar(): HTMLElement {
     return h(
       'div',
       { class: 'endbar' },
@@ -1398,14 +1756,14 @@ export class App {
         },
         t('btn.showResult'),
       ),
-      h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound')),
+      this.nextRoundButton(),
     );
   }
 
   /** Punkteverlauf: Spieler als Spalten, Runden als Zeilen mit aufsummierten Strafpunkten. */
   private renderRoundsTable(order: number[]): HTMLElement {
     const s = this.state!;
-    const name = (pid: number) => (pid === HUMAN ? t('you') : s.players[pid].name);
+    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
     const sums = order.map(() => 0);
     const max = Math.max(1, ...s.totals);
     const body = s.history.map((res) =>
@@ -1433,7 +1791,7 @@ export class App {
     const s = this.state!;
     const r = s.round;
     const res = r.result!;
-    const name = (pid: number) => (pid === HUMAN ? t('you') : s.players[pid].name);
+    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
     const extras: string[] = [];
     if (res.winnerMode === 'cheft') extras.push(t('roundEnd.cheft'));
     if (res.hand) extras.push(t('roundEnd.hand'));
@@ -1493,7 +1851,7 @@ export class App {
           },
           t('btn.peekTable'),
         ),
-        h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound')),
+        this.nextRoundButton(),
       ),
     );
   }

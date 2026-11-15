@@ -271,3 +271,9 @@ table.rounds .bar { position: absolute; left: 0; top: 0; bottom: 0; background: 
 table.rounds td.cell.win .bar { background: #d9ecd2; }
 table.rounds .sum, table.rounds .delta { position: relative; z-index: 1; }
 table.rounds .delta { display: block; font-size: calc(7px * var(--s)); color: var(--ink-soft); }
+
+/* ---------- Online */
+.code-big { font-family: var(--font-head); font-size: calc(16px * var(--s)); letter-spacing: calc(2px * var(--s)); color: var(--orange-dark); }
+.lobby-seat { border-bottom: var(--px) solid var(--sand-dark); padding: var(--px) 0; }
+input.text.code { max-width: calc(50px * var(--s)); text-transform: uppercase; letter-spacing: calc(2px * var(--s)); }
+details summary { cursor: pointer; }
