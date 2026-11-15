@@ -210,11 +210,6 @@ input.text {
 .meld.clickable { cursor: pointer; }
 
 /* Stapel */
-.center.open-bottom, .center.open-top { flex-direction: column; gap: calc(6px * var(--s)); }
-.center.open-top > .pile { order: -1; }
-.center.open-right { gap: calc(16px * var(--s)); }
-.center.open-left { gap: calc(16px * var(--s)); }
-.center.open-left > .pile { order: -1; }
 .piles { display: flex; align-items: center; justify-content: center; gap: calc(16px * var(--s)); }
 .pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
 .stock-wrap { position: relative; margin-left: calc(14px * var(--s)); }
