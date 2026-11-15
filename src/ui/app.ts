@@ -16,7 +16,7 @@ import {
   layOffTargets,
   newGame,
   startNextRound,
-  thresholdFor,
+  tableThreshold,
   winnerOfGame,
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
@@ -45,7 +45,6 @@ interface Prefs {
   speed: 'normal' | 'fast';
   vibration: boolean;
   sound: boolean;
-  autoSort: boolean;
   botChoices: BotChoice[];
   serverUrl: string;
 }
@@ -112,7 +111,6 @@ export class App {
     speed: 'normal',
     vibration: true,
     sound: false,
-    autoSort: false,
     botChoices: [
       { level: 'random', style: 'random' },
       { level: 'random', style: 'random' },
@@ -377,15 +375,6 @@ export class App {
           () => this.prefs.firstTurn,
           (v) => (this.prefs.firstTurn = v as boolean),
         ),
-        this.choice(
-          t('setup.sort'),
-          [
-            { v: false, label: t('setup.sort.manual') },
-            { v: true, label: t('setup.sort.auto') },
-          ],
-          () => this.prefs.autoSort,
-          (v) => (this.prefs.autoSort = v as boolean),
-        ),
         h('div', { class: 'muted small-text' }, `${t('setup.direction')}: ${t('setup.ccw')}`),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
         h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
@@ -463,7 +452,7 @@ export class App {
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style } }));
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', autoSort: this.prefs.autoSort };
+    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw' };
     this.state = newGame(players, settings);
     this.order = [];
     this.fresh.clear();
@@ -724,10 +713,8 @@ export class App {
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    if (s.settings.autoSort) {
-      if (this.order.length === 0) this.order = sortBySuit(me.hand).map((c) => c.id);
-      else for (const id of added) this.insertSorted(id, me.hand);
-    } else this.order.push(...added);
+    if (this.order.length === 0) this.order = sortBySuit(me.hand).map((c) => c.id);
+    else this.order.push(...added);
     if (myTurn) {
       for (const id of added) {
         if (id === r.turn.drawnCardId || id === r.turn.pendingJokerId) this.fresh.add(id);
@@ -815,7 +802,7 @@ export class App {
         ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet, dim: drawPhase && !canCarpet, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'carpet' }) : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
       this.stockEl(canStock, drawPhase),
-      r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count' }, String(r.stock.length)) : null,
+      r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
     );
     const discardCards = r.discard.slice(-6);
     const discard = h(
@@ -874,10 +861,7 @@ export class App {
     else if (r.turn.mustUseId !== null && me.hand.some((c) => c.id === r.turn.mustUseId)) msg = t('turn.you.mustUse');
     else if (this.targetMode) msg = t('target.pick');
     else msg = t('turn.you.play');
-    let info = '';
-    if (me.opened) info = t('threshold.opened');
-    else if (me.mode === 'cheft') info = t('threshold.cheft');
-    else info = t('threshold', { n: thresholdFor(s, this.me) });
+    let info = t('threshold', { n: tableThreshold(s) });
     if (selectedCards.length >= 3 && !me.opened && me.mode === 'romme') {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
@@ -922,27 +906,6 @@ export class App {
     else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
     return game;
-  }
-
-  /** Neue Karte in die Farbgruppe einsortieren; Joker und unbekannte Farben ganz rechts. */
-  private insertSorted(id: number, hand: Card[]): void {
-    const byId = new Map(hand.map((c) => [c.id, c]));
-    const card = byId.get(id);
-    if (!card || isJoker(card)) {
-      this.order.push(id);
-      return;
-    }
-    let lastSame = -1;
-    let insertAt = -1;
-    this.order.forEach((oid, i) => {
-      const o = byId.get(oid);
-      if (!o || o.suit !== card.suit) return;
-      lastSame = i;
-      if (insertAt < 0 && o.rank > card.rank) insertAt = i;
-    });
-    if (insertAt >= 0) this.order.splice(insertAt, 0, id);
-    else if (lastSame >= 0) this.order.splice(lastSame + 1, 0, id);
-    else this.order.push(id);
   }
 
   /** Nachziehstapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */

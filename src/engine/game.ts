@@ -260,14 +260,18 @@ export function handCard(state: GameState, pid: number, cardId: number): Card | 
   return playerRound(state, pid).hand.find((c) => c.id === cardId);
 }
 
-/** Mindestaugen für die Rommé-Erstmeldung dieses Spielers (0 beim Hand machen). */
-export function thresholdFor(state: GameState, pid: number): number {
+/** Aktuelle Mindestaugen am Tisch für die nächste Rommé-Erstmeldung. */
+export function tableThreshold(state: GameState): number {
   const r = state.round;
-  const p = r.players[pid];
-  if (p.opened) return 0;
   let t = r.cheftAnnounced ? CHEFT_THRESHOLD : BASE_THRESHOLD;
   if (r.lastRommeOpening !== null) t = Math.max(t, r.lastRommeOpening + 1);
   return t;
+}
+
+/** Mindestaugen für die Rommé-Erstmeldung dieses Spielers (0 beim Hand machen). */
+export function thresholdFor(state: GameState, pid: number): number {
+  if (state.round.players[pid].opened) return 0;
+  return tableThreshold(state);
 }
 
 function firstTurnBlocked(state: GameState, pid: number): boolean {
@@ -552,6 +556,11 @@ export function doLay(state: GameState, pid: number, groups: number[][]): Result
     if (p.mode === 'romme' && !plan.isHand) r.lastRommeOpening = plan.augen;
     r.log.push({ key: plan.isHand ? 'log.hand' : 'log.open', player: pid, params: { augen: plan.augen, pairs: plan.pairs } });
   } else {
+    // Weitere Kombinationen im Zug des Rauskommens zählen zur Erstmeldung, solange nicht bei anderen angelegt wurde.
+    if (r.turn.openedThisTurn && !r.turn.isHand && !r.turn.laidOffToOthers && p.mode === 'romme' && plan.augen > 0) {
+      p.openingValue += plan.augen;
+      r.lastRommeOpening = p.openingValue;
+    }
     r.log.push({ key: 'log.lay', player: pid, params: { count: plan.cards.length } });
   }
   p.pairsLaid += plan.pairs;

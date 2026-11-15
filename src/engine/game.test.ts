@@ -81,6 +81,19 @@ describe('Rommé-Erstmeldung', () => {
     expect(thresholdFor(g, next)).toBe(101);
     expect(thresholdFor(g, pid)).toBe(0);
   });
+  it('weitere Kombinationen im selben Zug zählen zur Erstmeldung', () => {
+    const g = testGame(4, 41);
+    const p = new CardPool();
+    const pid = g.round.starter;
+    freshTurn(g, pid);
+    setHand(g, pid, p.takeAll('SD', 'SK', 'SA', 'HK', 'DK', 'CK', 'H4', 'H5', 'H6', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5'));
+    const h = g.round.players[pid].hand;
+    expect(doLay(g, pid, [[h[0].id, h[1].id, h[2].id], [h[3].id, h[4].id, h[5].id]]).ok).toBe(true); // 61
+    expect(doLay(g, pid, [[h[6].id, h[7].id, h[8].id]]).ok).toBe(true); // +15
+    expect(g.round.players[pid].openingValue).toBe(76);
+    expect(g.round.lastRommeOpening).toBe(76);
+    expect(thresholdFor(g, (pid + 1) % 4)).toBe(77);
+  });
   it('Hand machen braucht keine Mindestaugen', () => {
     const g = testGame(3, 2);
     const p = new CardPool();

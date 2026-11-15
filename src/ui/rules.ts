@@ -37,7 +37,7 @@ export const RULES_DE: RuleSection[] = [
     items: [
       'Folge: mindestens 3 aufeinanderfolgende Karten einer Farbe. Das Ass kann unten (A-2-3) oder oben (D-K-A) liegen, König-Ass-2 ist verboten.',
       'Satz: 3 oder 4 gleiche Werte in verschiedenen Farben.',
-      'Erstmeldung: mindestens 51 Augen. Sobald jemand Cheft angesagt hat, brauchen alle Rommé-Spieler, die noch drin sind, 101 Augen. Jede weitere Erstmeldung muss die vorherige um mindestens 1 Auge übertreffen.',
+      'Erstmeldung: mindestens 51 Augen. Sobald jemand Cheft angesagt hat, brauchen alle Rommé-Spieler, die noch drin sind, 101 Augen. Jede weitere Erstmeldung muss die vorherige um mindestens 1 Auge übertreffen. Weitere Kombinationen im selben Zug zählen zur Erstmeldung dazu, solange dazwischen nicht bei anderen angelegt wurde.',
       'Die Ablagekarte darf ein Rommé-Spieler nur nehmen, wenn er damit sofort rauskommt. Wurde sie von einem Cheft-Spieler abgeworfen, darf er sie nicht nehmen.',
       'Nach der Erstmeldung darf man weitere Kombinationen legen und Karten anlegen, auch bei Mitspielern, aber nie an Cheft-Paare.',
     ],
@@ -80,7 +80,7 @@ export const RULES_DE: RuleSection[] = [
   {
     title: 'Bedienung',
     items: [
-      'Ziehen: Auf den Stapel, die oberste Ablagekarte oder die Teppichkarte tippen. Die neue Karte erscheint rechts in der Hand (oder einsortiert, je nach Einstellung) und ist grün markiert.',
+      'Ziehen: Auf den Stapel, die oberste Ablagekarte oder die Teppichkarte tippen. Die neue Karte erscheint rechts in der Hand und ist grün markiert. Zu Rundenbeginn ist die Hand nach Farbe sortiert.',
       'Zurücklegen: Eine genommene Ablage- oder Teppichkarte ist orange markiert und kann mit „Zurücklegen“ zurückgegeben werden, solange noch nichts ausgelegt wurde. Danach gilt: gelegt ist gelegt.',
       'Gegner: Jeder Bot hat eine Stufe (Gemütlich, Normal, Gerissen) und eine Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker). Bei „Überraschung“ siehst du nur den Namen; die Rollen werden am Spielende aufgedeckt.',
       'Hand sortieren: Karten mit dem Finger an eine beliebige Stelle ziehen. Die Reihenfolge bleibt erhalten.',

@@ -211,7 +211,7 @@ input.text {
 .piles { display: flex; align-items: center; justify-content: center; gap: calc(16px * var(--s)); }
 .pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
 .stock-wrap { position: relative; margin-left: calc(14px * var(--s)); }
-.stock-wrap .count { pointer-events: none; position: absolute; left: 0; right: 0; top: calc(16px * var(--s)); text-align: center; color: var(--cream); font-size: calc(11px * var(--s)); text-shadow: var(--px) var(--px) 0 var(--ink); z-index: 2; }
+.stock-wrap .count-on-card { pointer-events: none; position: absolute; left: calc(9px * var(--s)); top: calc(15px * var(--s)); width: calc(14px * var(--s)); height: calc(14px * var(--s)); background: var(--cream); border: var(--px) solid var(--ink); color: var(--ink); font-size: calc(11px * var(--s)); line-height: calc(12px * var(--s)); text-align: center; z-index: 2; }
 .carpet { position: absolute; top: 0; left: calc(-12px * var(--s)); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
 .carpet .card { box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
 .stock-wrap > .card { position: relative; z-index: 1; box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
