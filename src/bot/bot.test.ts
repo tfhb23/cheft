@@ -74,10 +74,18 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
   it('Namen sind eindeutig und Zufall löst auf', async () => {
     const { resolveBots, NAMES } = await import('./names');
     const all = Object.values(NAMES).flatMap((byStyle) => Object.values(byStyle).flat());
-    expect(all.length).toBe(96);
-    expect(new Set(all).size).toBe(96);
+    expect(all.length).toBe(128); // 4 Stufen × 8 Spielweisen × 4 Namen
+    expect(new Set(all).size).toBe(128);
     const { makeRng } = await import('../engine/cards');
     const bots = resolveBots([{ level: 'random', style: 'random' }, { level: 'easy', style: 'cheft' }, { level: 'easy', style: 'cheft' }], makeRng(3));
     expect(new Set(bots.map((b) => b.name)).size).toBe(3);
+  });
+  it('Zufall wählt nie den Mastermind, der muss bewusst gewählt werden', async () => {
+    const { resolveBots } = await import('./names');
+    const { makeRng } = await import('../engine/cards');
+    const rng = makeRng(9);
+    const levels = new Set(Array.from({ length: 60 }, () => resolveBots([{ level: 'random', style: 'random' }], rng)[0].level));
+    expect(levels.has('master')).toBe(false);
+    expect(resolveBots([{ level: 'master', style: 'joker' }], rng)[0].level).toBe('master');
   });
 });

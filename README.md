@@ -30,7 +30,7 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
-- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
+- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Mehrspieler-Server
@@ -52,7 +52,7 @@ der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kan
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
 - **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein (auch im Solospiel). Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
 - **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
-- **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
+- **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Die Ansicht bleibt nach dem Loslassen stehen, ein Tippen irgendwo beendet sie. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
 - **Bildschirm anlassen:** Im Zahnrad-Menü (Standard: an) hält die App den Bildschirm während des Spiels wach, sofern der Browser das
   unterstützt. Ein gesperrtes Handy trennt die Verbindung; die 45 Sekunden laufen ab dem Moment der Trennung.
 - **Vorwärmen:** Beim Start der App wird ein schlafender Server im Hintergrund geweckt, wenn er auf einer anderen Adresse liegt.

@@ -34,7 +34,7 @@ export interface Settings {
   peekDiscards?: boolean;
 }
 
-export type BotLevel = 'easy' | 'normal' | 'hard';
+export type BotLevel = 'easy' | 'normal' | 'hard' | 'master';
 export type BotStyle = 'balanced' | 'sprinter' | 'cheft' | 'hand' | 'blocker' | 'counter' | 'joker' | 'gambler';
 
 export interface BotProfile {

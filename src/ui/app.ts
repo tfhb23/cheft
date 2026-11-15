@@ -882,14 +882,30 @@ export class App {
     });
     document.body.appendChild(layer);
     this.peekLayer = layer;
-    // Kurz stehen lassen, damit der Daumen nicht im Weg ist, wenn man alle Spieler sehen will.
-    const end = () => {
-      document.removeEventListener('pointerup', end);
-      document.removeEventListener('pointercancel', end);
-      window.setTimeout(() => this.hidePeek(), 700);
+    // Nach dem Loslassen bleibt die Ansicht stehen (der Daumen ist sonst im Weg). Erst das nächste Tippen irgendwo
+    // beendet sie; dieses Tippen löst nichts darunter aus, damit nicht aus Versehen eine Karte gezogen wird.
+    const released = () => {
+      document.removeEventListener('pointerup', released);
+      document.removeEventListener('pointercancel', released);
+      const dismiss = (e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();
+        document.removeEventListener('pointerdown', dismiss, true);
+        const swallow = (ev: Event) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+        };
+        document.addEventListener('click', swallow, true);
+        window.setTimeout(() => document.removeEventListener('click', swallow, true), 450);
+        this.hidePeek();
+      };
+      // Kurz warten, damit das Loslassen selbst nicht als Tippen zählt
+      window.setTimeout(() => {
+        if (this.peekLayer === layer) document.addEventListener('pointerdown', dismiss, true);
+      }, 60);
     };
-    document.addEventListener('pointerup', end);
-    document.addEventListener('pointercancel', end);
+    document.addEventListener('pointerup', released);
+    document.addEventListener('pointercancel', released);
   }
 
   /** Eine gezogene Karte fliegt vom Stapel (verdeckt) oder von der Ablage (offen) zum Sitz des Spielers. */

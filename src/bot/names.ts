@@ -1,11 +1,13 @@
 /**
- * Bot-Rollen und Namen: 3 Stufen × 8 Spielweisen = 24 Rollen, je 4 Namen.
+ * Bot-Rollen und Namen: 4 Stufen × 8 Spielweisen = 32 Rollen, je 4 Namen.
  * Namen sind literarischen und volkstümlichen Figuren aus dem deutschen,
  * türkischen und fernöstlichen Raum entlehnt.
  */
 import { BotLevel, BotStyle } from '../engine/game';
 
-export const LEVELS: BotLevel[] = ['easy', 'normal', 'hard'];
+export const LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'master'];
+/** „Zufall“ wählt nur aus diesen Stufen; der Mastermind muss bewusst gewählt werden. */
+const RANDOM_LEVELS: BotLevel[] = ['easy', 'normal', 'hard'];
 export const STYLES: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
 
 export const NAMES: Record<BotLevel, Record<BotStyle, [string, string, string, string]>> = {
@@ -39,6 +41,16 @@ export const NAMES: Record<BotLevel, Record<BotStyle, [string, string, string, s
     joker: ['Rumpelstilz', 'Nasreddin', 'Ne Zha', 'Kitsune'],
     gambler: ['Munk', 'Köse', 'Li Kui', 'Leverkühn'],
   },
+  master: {
+    balanced: ['Faust', 'Danişmend', 'Sima Yi', 'Zeami'],
+    sprinter: ['Siegfried', 'Dede Korkut', 'Lü Bu', 'Yoshitsune'],
+    cheft: ['Scheherazade', 'Zeynep', 'Mulan', 'Käthchen'],
+    hand: ['Wotan', 'Kaşgarlı', 'Sun Wukong', 'Miyamoto'],
+    blocker: ['Mephisto', 'Karaca', 'Guan Yu', 'Nobunaga'],
+    counter: ['Humboldt', 'Piri Reis', 'Zhuge Liang', 'Ino Tadataka'],
+    joker: ['Eulenspiegel', 'Aladdin', 'Tanuki', 'Sarutahiko'],
+    gambler: ['Wallenstein', 'Hasan Sabbah', 'Ji Gong', 'Fukurokuju'],
+  },
 };
 
 export interface BotChoice {
@@ -50,7 +62,7 @@ export interface BotChoice {
 export function resolveBots(choices: BotChoice[], rng: () => number): { level: BotLevel; style: BotStyle; name: string }[] {
   const used = new Set<string>();
   return choices.map((c) => {
-    const level = c.level === 'random' ? LEVELS[Math.floor(rng() * LEVELS.length)] : c.level;
+    const level = c.level === 'random' ? RANDOM_LEVELS[Math.floor(rng() * RANDOM_LEVELS.length)] : c.level;
     const style = c.style === 'random' ? STYLES[Math.floor(rng() * STYLES.length)] : c.style;
     const pool = NAMES[level][style].filter((n) => !used.has(n));
     const candidates = pool.length ? pool : NAMES[level][style];

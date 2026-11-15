@@ -2,8 +2,8 @@
  * Computergegner mit Profilen: Stufe (gemütlich/normal/gerissen) und Spielweise.
  * decideAction liefert jeweils die nächste regelkonforme Aktion für den Spieler pid.
  */
-import { Card, isJoker, penaltyValue, sameCard, makeRng } from '../engine/cards';
-import { Action } from '../engine/actions';
+import { Card, isJoker, makeDeck, penaltyValue, sameCard, makeRng } from '../engine/cards';
+import { Action, applyAction } from '../engine/actions';
 import {
   BotProfile,
   GameState,
@@ -44,6 +44,10 @@ interface Knobs {
   smartDiscard: boolean;
   /** Zufallsanteil beim Risiko (0..1). */
   gamble: number;
+  /** Joker möglichst als letzte Karte abwerfen (verbrennen) und dafür aufheben. */
+  burn: boolean;
+  /** Mastermind: zählt alle gespielten Karten und rechnet mit Wahrscheinlichkeiten. */
+  master: boolean;
 }
 
 const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'balanced' };
@@ -62,6 +66,8 @@ export function knobsFor(profile: BotProfile): Knobs {
     steal: true,
     smartDiscard: true,
     gamble: 0,
+    burn: false,
+    master: false,
   };
   switch (profile.level) {
     case 'easy':
@@ -74,6 +80,14 @@ export function knobsFor(profile: BotProfile): Knobs {
       k.blocker = true;
       k.counter = true;
       k.jokerHunter = true;
+      k.burn = true;
+      break;
+    case 'master':
+      k.blocker = true;
+      k.counter = true;
+      k.jokerHunter = true;
+      k.burn = true;
+      k.master = true;
       break;
   }
   switch (profile.style) {
@@ -98,6 +112,7 @@ export function knobsFor(profile: BotProfile): Knobs {
     case 'joker':
       k.jokerHunter = true;
       k.steal = true;
+      k.burn = true;
       break;
     case 'gambler':
       k.cheftEagerPairs = 3;
@@ -181,7 +196,7 @@ export function decideAction(state: GameState, pid: number): Action {
     const more = bestAdditionalMelds(state, pid, k);
     if (more) return { kind: 'lay', groups: more };
     if (k.steal) {
-      const steal = findSteal(state, pid);
+      const steal = findSteal(state, pid, k);
       if (steal) return steal;
     }
     if (k.layAll) {
@@ -259,6 +274,21 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
     const isHand = part.used === n - 1;
     if (isHand || part.augen >= threshold + margin) consider(groupsOf(part.melds), part.used, part.augen);
   }
+  // Mastermind: Reicht die Erstmeldung auch ohne Joker, bleiben die Joker auf der Hand (Klauen, Verbrennen).
+  if (k.master && hand.some(isJoker) && !(!ignoreProfile && must === null && holdForHand(state, pid, k))) {
+    let alt: Best | null = null;
+    for (let kk = 0; kk < n; kk++) {
+      if (hand[kk].id === must) continue;
+      const rest = hand.filter((c, i) => i !== kk && !isJoker(c));
+      if (must !== null && !rest.some((c) => c.id === must)) continue;
+      const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: must === null ? [] : [must] });
+      if (!part || part.used === 0 || part.augen < threshold + margin) continue;
+      const groups = groupsOf(part.melds);
+      if (!checkLay(state, pid, groups).ok) continue;
+      if (!alt || part.used > alt.used || (part.used === alt.used && part.augen > alt.augen)) alt = { groups, used: part.used, augen: part.augen };
+    }
+    if (alt) return (alt as Best).groups;
+  }
   if (!best) return null;
   const b = best as Best;
   // Handmacher: lieber warten, außer die Erstmeldung ist bereits die Hand oder eine Pflichtkarte zwingt.
@@ -279,7 +309,7 @@ function bestAdditionalMelds(state: GameState, pid: number, k: Knobs): number[][
     }
   }
   if (!k.layAll && hand.length > 4) return null;
-  let best: { groups: number[][]; used: number } | null = null;
+  let best: { groups: number[][]; used: number; keepsJoker: boolean } | null = null;
   for (let kk = 0; kk < hand.length; kk++) {
     const rest = hand.filter((_, i) => i !== kk);
     // Jokerjäger behält einen Joker zum Verbrennen, wenn er damit die letzte Karte wäre
@@ -287,7 +317,8 @@ function bestAdditionalMelds(state: GameState, pid: number, k: Knobs): number[][
     if (!part || part.used === 0) continue;
     const groups = groupsOf(part.melds);
     if (!checkLay(state, pid, groups).ok) continue;
-    if (!best || part.used > best.used) best = { groups, used: part.used };
+    // Verbrenner: bei gleicher Kartenzahl lieber den Joker als letzte Karte behalten und am Ende abwerfen
+    if (!best || part.used > best.used || (k.burn && part.used === best.used && isJoker(hand[kk]) && !best.keepsJoker)) best = { groups, used: part.used, keepsJoker: isJoker(hand[kk]) };
   }
   return best ? best.groups : null;
 }
@@ -297,7 +328,7 @@ function findLayOff(state: GameState, pid: number, k: Knobs): Action | null {
   if (p.hand.length < 2) return null;
   const sorted = [...p.hand].sort((a, b) => (isJoker(a) ? 1 : 0) - (isJoker(b) ? 1 : 0) || penaltyValue(b) - penaltyValue(a));
   for (const c of sorted) {
-    if (isJoker(c) && k.jokerHunter && p.hand.length <= 3) continue; // zum Verbrennen aufheben
+    if (isJoker(c) && (k.jokerHunter || k.burn) && p.hand.length <= 3 && !endIsNear(state, pid)) continue; // zum Verbrennen aufheben
     const targets = layOffTargets(state, pid, c.id);
     if (targets.length === 0) continue;
     const own = targets.find((t) => t.meld.owner === pid) ?? targets[0];
@@ -306,20 +337,47 @@ function findLayOff(state: GameState, pid: number, k: Knobs): Action | null {
   return null;
 }
 
-function findSteal(state: GameState, pid: number): Action | null {
+/** Alle erlaubten Joker-Klauzüge bewerten (Zug durchspielen) und den mit den wenigsten Reststrafpunkten wählen. */
+function findSteal(state: GameState, pid: number, k: Knobs): Action | null {
   const p = state.round.players[pid];
   if (p.hand.length < 2) return null;
+  const options: Extract<Action, { kind: 'steal' }>[] = [];
   for (const m of state.round.melds) {
     for (let i = 0; i < m.cards.length; i++) {
       if (!isJoker(m.cards[i])) continue;
       const rep = jokerRepresents(m, i);
       if (!rep) continue;
-      const card = p.hand.find((c) => c.suit === rep.suit && c.rank === rep.rank);
-      if (!card) continue;
-      if (checkStealJoker(state, pid, m.id, i, card.id).ok) return { kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id };
+      for (const card of p.hand.filter((c) => c.suit === rep.suit && c.rank === rep.rank)) {
+        if (checkStealJoker(state, pid, m.id, i, card.id).ok) options.push({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id });
+      }
     }
   }
-  return null;
+  if (options.length === 0) return null;
+  if (options.length === 1) return options[0];
+  let best = options[0];
+  let bestScore = Infinity;
+  for (const o of options) {
+    const sim = structuredClone(state);
+    if (!applyAction(sim, pid, o).ok) continue;
+    const joker = sim.round.turn.pendingJokerId;
+    if (joker !== null) {
+      const follow = useJoker(sim, pid, joker);
+      if (follow) applyAction(sim, pid, follow);
+    }
+    const rest = sim.round.players[pid].hand;
+    // Reststrafpunkte; ein behaltener Joker zählt für Verbrenner weniger, weil er die Runde beenden kann
+    const score = rest.reduce((sum, c) => sum + (isJoker(c) && k.burn ? 8 : penaltyValue(c)), 0) + rest.length * 0.5;
+    if (score < bestScore) {
+      bestScore = score;
+      best = o;
+    }
+  }
+  return best;
+}
+
+/** Ende der Runde droht: Ein anderer Spieler ist draußen und hat nur noch wenige Karten. */
+function endIsNear(state: GameState, pid: number): boolean {
+  return state.round.players.some((q, i) => i !== pid && q.opened && q.hand.length <= 2);
 }
 
 function useJoker(state: GameState, pid: number, jokerId: number): Action | null {
@@ -338,6 +396,148 @@ function useJoker(state: GameState, pid: number, jokerId: number): Action | null
   return null;
 }
 
+// ---------------------------------------------------------------- Mastermind: Kartenzählen und Wahrscheinlichkeiten
+
+const SUITS = ['H', 'D', 'C', 'S'] as const;
+const augen = (rank: number) => (rank === 1 ? 11 : rank >= 10 ? 10 : rank);
+
+interface Unseen {
+  /** Noch nicht gesehene Kopien je Karte ('H5', 'J' für Joker). */
+  copies: Map<string, number>;
+  total: number;
+}
+
+/**
+ * Welche Karten kann der Bot noch nicht verorten? Gesehen sind die eigene Hand, alle Auslagen, die ganze Ablage,
+ * die Teppichkarte und die Karten, die Mitspieler offen genommen haben. Der Rest steckt im Stapel oder in fremden Händen.
+ */
+function unseenCards(state: GameState, pid: number): Unseen {
+  const r = state.round;
+  const seen = new Set<number>();
+  for (const c of r.players[pid].hand) seen.add(c.id);
+  for (const m of r.melds) for (const c of m.cards) seen.add(c.id);
+  for (const c of r.discard) seen.add(c.id);
+  if (r.carpet) seen.add(r.carpet.id);
+  for (const x of r.taken) seen.add(x.card.id);
+  const copies = new Map<string, number>();
+  let total = 0;
+  for (const c of makeDeck()) {
+    if (seen.has(c.id)) continue;
+    const key = isJoker(c) ? 'J' : `${c.suit}${c.rank}`;
+    copies.set(key, (copies.get(key) ?? 0) + 1);
+    total++;
+  }
+  return { copies, total };
+}
+
+/** Wahrscheinlichkeit, eine von `m` Kopien in `draws` Zügen zu bekommen. */
+const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Math.min(1, m / U), draws);
+
+/**
+ * Wie wertvoll ist die Karte für die Hand? Erwartete Augen der besten Kombinationen, an denen sie beteiligt sein kann
+ * (fertige Kombination, oder Wahrscheinlichkeit, die fehlenden Karten noch zu bekommen).
+ */
+function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean): number {
+  if (isJoker(c)) return 60;
+  const draws = 3;
+  const U = Math.max(8, un.total);
+  const J = un.copies.get('J') ?? 0;
+  const jokersInHand = hand.filter(isJoker).length;
+  const have = (suit: string, rank: number) => hand.some((o) => !isJoker(o) && o.suit === suit && o.rank === rank);
+  const chance = (suit: string, rank: number) => outsChance((un.copies.get(`${suit}${rank}`) ?? 0) + J * 0.5, U, draws);
+  let best = 0;
+  let second = 0;
+  const consider = (v: number) => {
+    if (v > best) {
+      second = best;
+      best = v;
+    } else if (v > second) second = v;
+  };
+
+  if (mode === 'cheft' || !opened) {
+    // Paar: identische Karte (Cheft zählt Paare, Rommé-Spieler halten sie als Option)
+    const same = hand.filter((o) => !isJoker(o) && sameCard(o, c)).length;
+    const pts = augen(c.rank) * 2;
+    if (same >= 2) consider(pts + 6);
+    else consider((jokersInHand ? 0.8 : chance(c.suit, c.rank)) * pts * (mode === 'cheft' ? 1.4 : 0.7));
+  }
+  if (mode !== 'cheft') {
+    // Satz: drei Farben gleichen Werts
+    const haveSuits = SUITS.filter((s) => have(s, c.rank));
+    const missing = Math.max(0, 3 - haveSuits.length - Math.min(jokersInHand, 1));
+    const pts3 = augen(c.rank) * 3;
+    if (missing === 0) consider(pts3 + 6);
+    else {
+      const ch = SUITS.filter((s) => !have(s, c.rank))
+        .map((s) => chance(s, c.rank))
+        .sort((a, b) => b - a);
+      let p = 1;
+      for (let i = 0; i < missing; i++) p *= ch[i] ?? 0;
+      consider(p * pts3);
+    }
+    // Folge: Fenster aus drei Karten derselben Farbe (Ass auch oben)
+    for (const k of c.rank === 1 ? [1, 14] : [c.rank]) {
+      for (let a = k - 2; a <= k; a++) {
+        if (a < 1 || a + 2 > 14) continue;
+        const chances: number[] = [];
+        let pts = 0;
+        for (let rk = a; rk <= a + 2; rk++) {
+          const rr = rk === 14 ? 1 : rk;
+          pts += augen(rr);
+          if (!have(c.suit, rr)) chances.push(chance(c.suit, rr));
+        }
+        if (jokersInHand && chances.length) chances.splice(chances.indexOf(Math.min(...chances)), 1); // der Joker deckt die schwerste Lücke
+        const p = chances.reduce((x, y) => x * y, 1);
+        consider(p * pts + (chances.length === 0 ? 6 : 0));
+      }
+    }
+  }
+  return best + 0.35 * second;
+}
+
+/** Mastermind wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt. */
+function masterDiscard(state: GameState, pid: number, pool: Card[]): number {
+  const r = state.round;
+  const p = r.players[pid];
+  const un = unseenCards(state, pid);
+  const next = r.players[nextIndex(state, pid)];
+  const nextTaken = r.taken.filter((x) => x.player === nextIndex(state, pid)).map((x) => x.card);
+  const danger = endIsNear(state, pid);
+  // Ausgelegte Joker: Die passenden Karten sind zum Klauen wertvoll
+  const jokerTargets: { suit: string; rank: number }[] = [];
+  if (p.opened) {
+    for (const m of r.melds) {
+      m.cards.forEach((c, i) => {
+        const rep = isJoker(c) ? jokerRepresents(m, i) : null;
+        if (rep) jokerTargets.push(rep);
+      });
+    }
+  }
+  let bestCard = pool[0];
+  let bestScore = -Infinity;
+  for (const c of pool) {
+    const keep = keepValue(c, p.hand, un, p.mode, p.opened);
+    let score = -keep;
+    if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
+    else score += p.opened ? penaltyValue(c) * 0.9 : penaltyValue(c) * 0.12;
+    if (isJoker(c)) score -= 500;
+    // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
+    for (const t of nextTaken) {
+      if (isJoker(t)) continue;
+      if (sameCard(t, c)) score -= 9;
+      else if (t.rank === c.rank) score -= 4;
+      else if (t.suit === c.suit && Math.abs(t.rank - c.rank) <= 2) score -= 4;
+    }
+    if (next.mode === 'cheft' && !next.opened) score -= 1;
+    if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) score -= 25;
+    if (score > bestScore) {
+      bestScore = score;
+      bestCard = c;
+    }
+  }
+  return bestCard.id;
+}
+
 /** Sichtbare Kopien einer Karte (Ablage ohne oberste Karte, Auslagen). */
 function visibleCopies(state: GameState, card: Card): number {
   const r = state.round;
@@ -354,6 +554,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs): number {
   const hand = p.hand;
   const legal = hand.filter((c) => checkDiscard(state, pid, c.id).ok);
   const pool = legal.length > 0 ? legal : hand;
+  if (k.master) return masterDiscard(state, pid, pool);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);
