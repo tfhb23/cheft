@@ -28,6 +28,8 @@ export interface Settings {
   direction: 'cw' | 'ccw';
   /** Hand automatisch nach Farbe sortieren (nur Oberfläche). */
   autoSort?: boolean;
+  /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) erlaubt. Nicht regelkonform, aber hilfreich gegen Bots. */
+  peekDiscards?: boolean;
 }
 
 export type BotLevel = 'easy' | 'normal' | 'hard';
@@ -115,6 +117,8 @@ export interface RoundState {
   lastDiscarderMode: Mode | null;
   /** Offen genommene Karten (Ablage/Teppich) je Spieler, für die Bots sichtbar wie am echten Tisch. */
   taken: { player: number; card: Card }[];
+  /** Die letzten Abwürfe mit Spieler (auch wenn die Karte inzwischen genommen wurde), für den Rückblick. */
+  discardLog?: { player: number; card: Card }[];
   /** Nach dem Austeilen: Spieler sortieren, bis alle bereit sind. */
   waiting: boolean;
   ready: boolean[];
@@ -147,7 +151,8 @@ export const NOT_OPENED_PENALTY = 100;
 
 // ---------------------------------------------------------------- Aufbau
 
-export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.now() % 2147483647): GameState {
+/** `dealer` bestimmt, wer die erste Runde austeilt; der Spieler danach beginnt (Standard 0, die Oberfläche lost aus). */
+export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.now() % 2147483647, dealer = 0): GameState {
   if (players.length < 2 || players.length > 4) throw new Error('2-4 Spieler');
   const state: GameState = {
     settings,
@@ -158,7 +163,7 @@ export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.n
     finished: false,
     seed,
   };
-  state.round = dealRound(state, 1, 0);
+  state.round = dealRound(state, 1, dealer % players.length);
   return state;
 }
 
@@ -217,6 +222,7 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     lastDiscarder: null,
     lastDiscarderMode: null,
     taken: [],
+    discardLog: [],
     waiting: true,
     ready: state.players.map(() => false),
     ended: false,
@@ -330,10 +336,10 @@ export function doReady(state: GameState, pid: number): Result {
   const r = state.round;
   if (r.ended) {
     // Rundenende bestätigen; sobald alle bestätigt haben, wird die nächste Runde ausgeteilt.
-    if (state.finished) return OK;
+    // Nach dem letzten Spiel merkt sich das nur die Bestätigungen; den Rückweg in die Lobby regelt der Server.
     const flags = (r.nextReady ??= state.players.map(() => false));
     flags[pid] = true;
-    if (flags.every(Boolean)) startNextRound(state);
+    if (!state.finished && flags.every(Boolean)) startNextRound(state);
     return OK;
   }
   if (!r.waiting) return OK;
@@ -757,6 +763,7 @@ export function doDiscard(state: GameState, pid: number, cardId: number): Result
   const card = handCard(state, pid, cardId)!;
   p.hand = p.hand.filter((x) => x.id !== cardId);
   r.discard.push(card);
+  r.discardLog = [...(r.discardLog ?? []), { player: pid, card }].slice(-8);
   r.lastDiscarder = pid;
   r.lastDiscarderMode = p.mode;
   p.turns++;

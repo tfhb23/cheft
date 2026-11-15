@@ -11,10 +11,18 @@ import { BotChoice, resolveBots } from '../src/bot/names';
 
 export type Speed = 'normal' | 'fast';
 
+export type Seating = 'manual' | 'random';
+
+export const ROUND_OPTIONS = [3, 5, 7, 9];
+
 export interface LobbySettings {
   rounds: number;
   firstTurnOpenAllowed: boolean;
   speed: Speed;
+  /** Sitzordnung: wie vom Gastgeber festgelegt oder beim Start ausgelost. */
+  seating: Seating;
+  /** Rückblick auf die letzten Abwürfe erlaubt. */
+  peekDiscards: boolean;
 }
 
 export interface Seat {
@@ -88,7 +96,7 @@ export class Room {
   readonly code: string;
   seats: Seat[] = [];
   hostPid = 0;
-  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal' };
+  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
@@ -266,7 +274,9 @@ export class Room {
       return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now() };
     });
     this.hostPid = snap.hostPid;
-    this.settings = snap.settings;
+    // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
+    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true };
+    this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
     this.rev = snap.rev;
     // Nach dem Wiederherstellen warten alle, bis die Menschen wieder verbunden sind.
@@ -278,7 +288,9 @@ export class Room {
 
   updateSettings(patch: Partial<LobbySettings>): Result {
     if (this.started) return fail('net.alreadyStarted');
-    if (patch.rounds !== undefined && patch.rounds !== 7 && patch.rounds !== 11) return fail('net.badSettings');
+    if (patch.rounds !== undefined && !ROUND_OPTIONS.includes(patch.rounds)) return fail('net.badSettings');
+    if (patch.peekDiscards !== undefined && typeof patch.peekDiscards !== 'boolean') return fail('net.badSettings');
+    if (patch.seating !== undefined && patch.seating !== 'manual' && patch.seating !== 'random') return fail('net.badSettings');
     // Nur gesetzte Werte übernehmen: Ein fehlender Wert darf die bestehende Einstellung nicht überschreiben.
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     this.settings = { ...this.settings, ...defined };
@@ -299,8 +311,10 @@ export class Room {
       s.bot = { level: b.level, style: b.style };
       return { id: s.pid, name: b.name, isBot: true, bot: s.bot };
     });
-    const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw' };
-    this.state = newGame(players, settings, Math.floor(this.rng() * 2147483647));
+    const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw', peekDiscards: this.settings.peekDiscards };
+    // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
+    const dealer = Math.floor(this.rng() * players.length);
+    this.state = newGame(players, settings, Math.floor(this.rng() * 2147483647), dealer);
     this.touch();
     return ok;
   }
@@ -313,12 +327,47 @@ export class Room {
     return ok;
   }
 
+  /** Sitzordnung ändern: `order[neu] = alter Platz`. Liefert die Zuordnung alt nach neu. */
+  reorder(order: number[]): { ok: true; map: number[] } | Result {
+    if (this.started) return fail('net.alreadyStarted');
+    const n = this.seats.length;
+    if (order.length !== n || new Set(order).size !== n || order.some((o) => !Number.isInteger(o) || o < 0 || o >= n)) return fail('net.badSettings');
+    const map: number[] = [];
+    order.forEach((old, neu) => (map[old] = neu));
+    this.applyPidMap(map);
+    this.touch();
+    return { ok: true, map };
+  }
+
+  /** Lost die Sitzordnung aus. Liefert die Zuordnung alt nach neu. */
+  shuffleSeats(): number[] {
+    const order = this.seats.map((s) => s.pid);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const map: number[] = [];
+    order.forEach((old, neu) => (map[old] = neu));
+    this.applyPidMap(map);
+    return map;
+  }
+
+  private applyPidMap(map: number[]): void {
+    const seats = [...this.seats];
+    this.seats = seats.map((_, neu) => seats[map.indexOf(neu)]);
+    this.seats.forEach((s, i) => (s.pid = i));
+    this.hostPid = map[this.hostPid] ?? 0;
+  }
+
   // ------------------------------------------------------------ Spiel
   act(pid: number, action: Action): Result {
     if (!this.state) return fail('net.notStarted');
     if (this.paused) return fail('net.paused');
     const res = applyAction(this.state, pid, action);
-    if (res.ok) this.touch();
+    if (res.ok) {
+      this.touch();
+      this.checkFinishedConfirm();
+    }
     return res;
   }
 
@@ -326,16 +375,29 @@ export class Room {
   nextRound(pid: number): Result {
     if (!this.state) return fail('net.notStarted');
     if (this.paused) return fail('net.paused');
-    if (!this.state.round.ended || this.state.finished) return fail('net.notEnded');
+    if (!this.state.round.ended) return fail('net.notEnded');
     const res = applyAction(this.state, pid, { kind: 'ready' });
-    if (res.ok) this.touch();
+    if (res.ok) {
+      this.touch();
+      this.checkFinishedConfirm();
+    }
     return res;
+  }
+
+  /** Nach dem letzten Spiel geht es erst in die Lobby, wenn alle die Endauswertung bestätigt haben. */
+  private checkFinishedConfirm(): void {
+    const s = this.state;
+    if (!s || !s.finished || !s.round.ended) return;
+    if (this.seats.every((seat) => s.round.nextReady?.[seat.pid])) {
+      this.state = null;
+      this.paused = null;
+    }
   }
 
   /** Welcher Sitz soll jetzt automatisch spielen? Bots immer, getrennte Menschen nach Wartezeit. */
   autoSeat(now = Date.now()): number | null {
     const s = this.state;
-    if (!s || this.paused || s.finished) return null;
+    if (!s || this.paused) return null;
     const r = s.round;
     const auto = (pid: number) => {
       const seat = this.seats[pid];
@@ -363,6 +425,7 @@ export class Room {
     const confirm = s.round.waiting || s.round.ended;
     const action: Action = confirm ? { kind: 'ready' } : decideAction(s, pid);
     const res = applyAction(s, pid, action);
+    if (confirm) this.checkFinishedConfirm();
     if (!res.ok && !confirm) {
       const hand = s.round.players[pid].hand;
       if (hand.length) applyAction(s, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });

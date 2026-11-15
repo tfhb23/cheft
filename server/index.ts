@@ -6,7 +6,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room, Rooms, Speed, Result, RoomSnapshot } from './room';
+import { Room, Rooms, Speed, Seating, Result, RoomSnapshot, MIN_PLAYERS } from './room';
 import { seal, open as openSnapshot } from './snapshot';
 import { Action } from '../src/engine/actions';
 import { BotChoice } from '../src/bot/names';
@@ -75,7 +75,8 @@ type ClientMsg =
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
   | { type: 'lobby'; op: 'removeSeat'; pid: number }
-  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; speed?: Speed }
+  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; speed?: Speed; seating?: Seating; peekDiscards?: boolean }
+  | { type: 'lobby'; op: 'reorder'; order: number[] }
   | { type: 'lobby'; op: 'botChoice'; pid: number; choice: BotChoice }
   | { type: 'lobby'; op: 'start' }
   | { type: 'lobby'; op: 'backToLobby' }
@@ -119,6 +120,18 @@ function joined(c: Conn, room: Room, pid: number, token: string): void {
   scheduleBots(room);
 }
 
+/** Platznummern im Raum ändern (Entfernen, Umsortieren, Auslosen) und die betroffenen Spieler informieren. */
+function remap(room: Room, map: (pid: number) => number): void {
+  for (const o of conns) {
+    if (o.room !== room) continue;
+    const np = map(o.pid);
+    if (np === o.pid) continue;
+    o.pid = np;
+    const seat = room.seats[np];
+    if (seat?.token) send(o, { type: 'joined', room: room.code, pid: np, token: seat.token });
+  }
+}
+
 function leave(c: Conn): void {
   const room = c.room;
   if (!room) return;
@@ -126,7 +139,7 @@ function leave(c: Conn): void {
   if (!room.started) {
     // In der Lobby wird der Platz freigegeben; verlässt der Host, übernimmt der nächste Mensch.
     room.removeSeat(c.pid);
-    for (const o of conns) if (o.room === room && o.pid > c.pid) o.pid--;
+    remap(room, (p) => (p > c.pid ? p - 1 : p));
     if (room.seats.length === 0 || !room.seats.some((s) => !s.isBot)) rooms.remove(room.code);
     else room.hostPid = room.seats.find((s) => !s.isBot)!.pid;
   } else {
@@ -235,18 +248,36 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'lobby': {
       const room = c.room;
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      // Zurück in die Lobby darf jeder Mensch; alles andere der Spielleiter.
+      // Das Spielende bestätigen darf jeder Mensch; alles andere der Spielleiter.
       if (msg.op !== 'backToLobby' && c.pid !== room.effectiveHost()) return send(c, { type: 'error', error: 'net.hostOnly' });
       let r: Result;
       if (msg.op === 'addBot') r = room.addBot(msg.choice);
       else if (msg.op === 'removeSeat') {
         if (msg.pid === room.effectiveHost()) return send(c, { type: 'error', error: 'net.hostOnly' });
-        for (const o of conns) if (o.room === room && o.pid === msg.pid) o.room = null;
+        for (const o of conns) {
+          if (o.room === room && o.pid === msg.pid) {
+            o.room = null;
+            send(o, { type: 'left' });
+          }
+        }
         r = room.removeSeat(msg.pid);
-        for (const o of conns) if (o.room === room && o.pid > msg.pid) o.pid--;
-      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, speed: msg.speed });
-      else if (msg.op === 'start') r = room.start();
-      else r = room.backToLobby();
+        remap(room, (p) => (p > msg.pid ? p - 1 : p));
+      } else if (msg.op === 'reorder') {
+        const rr = room.reorder(Array.isArray(msg.order) ? msg.order.map(Number) : []);
+        if ('map' in rr) {
+          remap(room, (p) => rr.map[p]);
+          r = { ok: true };
+        } else r = rr;
+      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, speed: msg.speed, seating: msg.seating, peekDiscards: msg.peekDiscards });
+      else if (msg.op === 'start') {
+        // Zufällige Sitzordnung wird erst beim Start ausgelost.
+        if (room.settings.seating === 'random' && !room.started && room.seats.length >= MIN_PLAYERS) {
+          const map = room.shuffleSeats();
+          remap(room, (p) => map[p]);
+        }
+        r = room.start();
+      } else if (msg.op === 'botChoice') r = room.setBotChoice(Number(msg.pid), msg.choice);
+      else r = room.nextRound(c.pid); // 'backToLobby': Spielende bestätigen
       if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
       broadcast(room);
       scheduleBots(room);

@@ -336,6 +336,7 @@ export function atlasOffset(idx: number): { x: number; y: number } {
 
 /** Zwei gemischte Decks: Karten des zweiten Decks haben eine andere Rückseite. */
 export function backOf(card: Card): 'back' | 'back2' {
+  if (card.id === -2) return 'back2'; // vom Server maskierte Karte aus dem zweiten Deck
   if (card.id === 104) return 'back';
   if (card.id === 105) return 'back2';
   return card.id >= 52 ? 'back2' : 'back';

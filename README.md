@@ -52,6 +52,9 @@ der Nachziehstapel werden maskiert übertragen. Verliert ein Spieler die Verbind
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
+- **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein. Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
+- **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
+- **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
 - **Bildschirm anlassen:** Im Zahnrad-Menü (Standard: an) hält die App den Bildschirm während des Spiels wach, sofern der Browser das
   unterstützt. Ein gesperrtes Handy trennt die Verbindung; die 45 Sekunden laufen ab dem Moment der Trennung.
 - **Vorwärmen:** Beim Start der App wird ein schlafender Server im Hintergrund geweckt, wenn er auf einer anderen Adresse liegt.

@@ -11,7 +11,7 @@ export interface LobbyInfo {
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' solange nicht alle Menschen verbunden sind. */
   paused: 'manual' | 'auto' | null;
-  settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast' };
+  settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean };
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
 }
 
@@ -193,8 +193,12 @@ export class NetClient {
   removeSeat(pid: number): void {
     this.send({ type: 'lobby', op: 'removeSeat', pid });
   }
-  settings(patch: { rounds?: number; firstTurnOpenAllowed?: boolean; speed?: 'normal' | 'fast' }): void {
+  settings(patch: { rounds?: number; firstTurnOpenAllowed?: boolean; speed?: 'normal' | 'fast'; seating?: 'manual' | 'random'; peekDiscards?: boolean }): void {
     this.send({ type: 'lobby', op: 'settings', ...patch });
+  }
+  /** Neue Sitzordnung: order[neu] = bisheriger Platz. */
+  reorder(order: number[]): void {
+    this.send({ type: 'lobby', op: 'reorder', order });
   }
   start(): void {
     this.send({ type: 'lobby', op: 'start' });

@@ -36,6 +36,8 @@ type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
 const SAVE_KEY = 'cheft.save.v2';
 const PREFS_KEY = 'cheft.prefs.v2';
+/** Wählbare Rundenzahlen. */
+const ROUND_CHOICES = [3, 5, 7, 9];
 
 interface Prefs {
   name: string;
@@ -49,6 +51,8 @@ interface Prefs {
   serverUrl: string;
   /** Bildschirm während des Spiels nicht ausgehen lassen. */
   keepAwake: boolean;
+  /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
+  peekDiscards: boolean;
 }
 
 interface SaveFile {
@@ -120,6 +124,7 @@ export class App {
     ],
     serverUrl: '',
     keepAwake: true,
+    peekDiscards: true,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
@@ -213,6 +218,7 @@ export class App {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) this.prefs = { ...this.prefs, ...JSON.parse(raw) };
+      if (!ROUND_CHOICES.includes(this.prefs.rounds)) this.prefs.rounds = 7;
     } catch {
       /* ignorieren */
     }
@@ -345,7 +351,7 @@ export class App {
         h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
         this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
         h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
-        h('button', { class: 'btn small', onclick: () => this.importSave() }, t('btn.importSave')),
+        h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
       ),
       h('div', { class: 'muted small-text' }, t('setup.online')),
     );
@@ -402,7 +408,7 @@ export class App {
         h(
           'button',
           {
-            class: 'btn small',
+            class: 'btn',
             onclick: () => {
               this.prefs.botChoices = this.prefs.botChoices.map(() => ({ level: 'random', style: 'random' }));
               this.savePrefs();
@@ -411,7 +417,7 @@ export class App {
           },
           t('setup.allRandom'),
         ),
-        this.choice(t('setup.rounds'), [{ v: 7, label: '7' }, { v: 11, label: '11' }], () => this.prefs.rounds, (v) => (this.prefs.rounds = v as number)),
+        this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => this.prefs.rounds, (v) => (this.prefs.rounds = v as number)),
         this.choice(
           t('setup.firstTurn'),
           [
@@ -420,6 +426,15 @@ export class App {
           ],
           () => this.prefs.firstTurn,
           (v) => (this.prefs.firstTurn = v as boolean),
+        ),
+        this.choice(
+          t('setup.peek'),
+          [
+            { v: true, label: t('setup.allowed') },
+            { v: false, label: t('setup.off') },
+          ],
+          () => this.prefs.peekDiscards,
+          (v) => (this.prefs.peekDiscards = v as boolean),
         ),
         h('div', { class: 'muted small-text' }, `${t('setup.direction')}: ${t('setup.ccw')}`),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
@@ -434,8 +449,8 @@ export class App {
       const all: (T | 'random')[] = ['random', ...list];
       return all[(all.indexOf(cur) + 1) % all.length];
     };
-    const levelLabel = c.level === 'random' ? t('setup.random') : t(`level.${c.level}`);
-    const styleLabel = c.style === 'random' ? t('setup.random') : t(`style.${c.style}`);
+    const levelLabel = c.level === 'random' ? t('setup.randomShort') : t(`level.${c.level}`);
+    const styleLabel = c.style === 'random' ? t('setup.randomShort') : t(`style.${c.style}`);
     return h(
       'div',
       { class: 'option' },
@@ -446,7 +461,7 @@ export class App {
         h(
           'button',
           {
-            class: `btn small${c.level === 'random' ? '' : ' primary'}`,
+            class: `btn${c.level === 'random' ? '' : ' primary'}`,
             onclick: () => {
               c.level = cycle(LEVELS, c.level);
               this.savePrefs();
@@ -458,7 +473,7 @@ export class App {
         h(
           'button',
           {
-            class: `btn small${c.style === 'random' ? '' : ' primary'}`,
+            class: `btn${c.style === 'random' ? '' : ' primary'}`,
             onclick: () => {
               c.style = cycle(STYLES, c.style);
               this.savePrefs();
@@ -475,7 +490,7 @@ export class App {
     return h(
       'div',
       { class: 'game' },
-      h('div', { class: 'topbar' }, h('button', { class: 'btn small', onclick: () => this.goto(this.rulesFrom) }, t('btn.back')), h('h2', null, t('btn.rules'))),
+      h('div', { class: 'topbar' }, h('button', { class: 'btn', onclick: () => this.goto(this.rulesFrom) }, t('btn.back')), h('h2', null, t('btn.rules'))),
       h('div', { class: 'rules' }, ...RULES_DE.map((sec) => h('div', null, h('h3', null, sec.title), h('ul', null, ...sec.items.map((i) => h('li', null, i)))))),
     );
   }
@@ -498,8 +513,9 @@ export class App {
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style } }));
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw' };
-    this.state = newGame(players, settings);
+    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards };
+    // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
+    this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length));
     this.order = [];
     this.fresh.clear();
     this.selected.clear();
@@ -550,6 +566,113 @@ export class App {
     this.save();
     this.botGen++;
     this.goto('menu');
+  }
+
+  // ------------------------------------------------------------ Rückblick auf Abwürfe
+  private peekSuppress = false;
+  private peekLayer: HTMLElement | null = null;
+  private peekTimer: number | null = null;
+
+  /** Rückblick ist erlaubt (Einstellung), wenn man an der Reihe ist und schon Abwürfe vorliegen. */
+  private canPeek(): boolean {
+    const s = this.state;
+    if (!s || this.screen !== 'game' || this.drag) return false;
+    const r = s.round;
+    return !!s.settings.peekDiscards && current(s) === this.me && !r.ended && !r.waiting && (r.discardLog ?? []).some((e) => e.player !== this.me);
+  }
+
+  /** Langes Drücken auf die Ablage zeigt die letzten Abwürfe, solange der Finger bleibt. */
+  private bindPeek(el: HTMLElement): void {
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    el.addEventListener('pointerdown', () => {
+      if (this.peekTimer) clearTimeout(this.peekTimer);
+      if (!this.canPeek()) return;
+      this.peekTimer = window.setTimeout(() => {
+        this.peekTimer = null;
+        this.showPeek();
+      }, 380);
+    });
+    const cancel = () => {
+      if (this.peekTimer) clearTimeout(this.peekTimer);
+      this.peekTimer = null;
+    };
+    el.addEventListener('pointerup', cancel);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('pointerleave', cancel);
+  }
+
+  private hidePeek(): void {
+    if (!this.peekLayer) return;
+    const layer = this.peekLayer;
+    this.peekLayer = null;
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }).onfinish = () => layer.remove();
+    window.setTimeout(() => (this.peekSuppress = false), 350);
+  }
+
+  /**
+   * Zeigt die letzten Abwürfe der anderen: Der Tisch wird abgedunkelt, jede Karte gleitet von der Ablage ein Stück
+   * in Richtung des Spielers, der sie abgeworfen hat, und trägt dessen Namen. So ist klar, dass es nur ein Rückblick
+   * ist und keine Karte auf dem Stapel oder in der Ablage eines Spielers liegt.
+   */
+  private showPeek(): void {
+    if (!this.canPeek() || this.peekLayer) return;
+    const s = this.state!;
+    const r = s.round;
+    const entries = (r.discardLog ?? []).slice(-(s.players.length - 1)).filter((e) => e.player !== this.me);
+    const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
+    if (!entries.length || !pile) return;
+    this.peekSuppress = true;
+    vibrate(10, this.prefs.vibration);
+    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')), h('div', { class: 'peek-hint' }, t('peek.hint')));
+    const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
+    const margin = pile.width * 0.7;
+    entries.forEach((e, i) => {
+      const seat = this.seatRect(e.player);
+      const sc = seat ? { x: seat.left + seat.width / 2, y: seat.top + seat.height / 2 } : { x: pc.x, y: pc.y - 200 };
+      // Gut die Hälfte des Wegs von der Ablage zum Sitz, aber im Bild bleiben
+      let tx = pc.x + (sc.x - pc.x) * 0.58;
+      let ty = pc.y + (sc.y - pc.y) * 0.58;
+      tx = Math.min(window.innerWidth - margin, Math.max(margin, tx));
+      ty = Math.min(window.innerHeight - margin * 1.6, Math.max(margin * 1.4, ty));
+      const len = Math.hypot(tx - pc.x, ty - pc.y);
+      const line = h('div', { class: 'peek-line' });
+      line.style.cssText = `left:${pc.x}px;top:${pc.y}px;width:${len}px;transform:rotate(${Math.atan2(ty - pc.y, tx - pc.x)}rad)`;
+      const takenBy = r.taken.find((x) => x.card.id === e.card.id);
+      const stillThere = r.discard.some((c) => c.id === e.card.id);
+      const who = e.player === this.me ? t('you') : s.players[e.player].name;
+      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: takenBy.player === this.me ? t('you') : s.players[takenBy.player].name })) : null);
+      const card = this.cardEl(e.card, {});
+      delete card.dataset.cardId;
+      const item = h('div', { class: `peek-item${takenBy && !stillThere ? ' taken' : ''}` }, card, tag);
+      item.style.left = `${tx - pile.width / 2}px`;
+      item.style.top = `${ty - pile.height / 2}px`;
+      item.style.width = `${pile.width}px`;
+      layer.appendChild(line);
+      layer.appendChild(item);
+      item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(0.92)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: i * 70, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'backwards' });
+    });
+    document.body.appendChild(layer);
+    this.peekLayer = layer;
+    const end = () => {
+      document.removeEventListener('pointerup', end);
+      document.removeEventListener('pointercancel', end);
+      this.hidePeek();
+    };
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+  }
+
+  /** Eine gezogene Karte fliegt vom Stapel (verdeckt) oder von der Ablage (offen) zum Sitz des Spielers. */
+  private flyDraw(d: { pid: number; source: 'stock' | 'discard' | 'carpet'; from: DOMRect | null; face: Card | null; back: Card | null }): void {
+    const seat = this.seatRect(d.pid);
+    if (!d.from || !seat) return;
+    const ghost = this.cardEl(d.source === 'stock' ? (d.back ? backOf(d.back) : 'back') : (d.face ?? 'back'));
+    ghost.classList.add('fly');
+    delete ghost.dataset.cardId;
+    document.body.appendChild(ghost);
+    const to = new DOMRect(seat.left + seat.width / 2 - d.from.width / 2, seat.top + seat.height / 2 - d.from.height / 2, d.from.width, d.from.height);
+    void flyClone(ghost, d.from, to, 320, true, 0, 0).then(() => ghost.remove());
+    ghost.remove();
   }
 
   private pileRect(source: 'stock' | 'discard' | 'carpet'): DOMRect | null {
@@ -663,7 +786,16 @@ export class App {
         const action = decideAction(this.state, pid);
         const before = snapshot(this.root);
         const seat = this.seatRect(pid);
-        const stockRect = action.kind === 'draw' && action.source === 'stock' ? this.pileRect('stock') : null;
+        const drawInfo =
+          action.kind === 'draw'
+            ? {
+                pid,
+                source: action.source,
+                from: this.pileRect(action.source),
+                face: action.source === 'discard' ? (this.state.round.discard[this.state.round.discard.length - 1] ?? null) : action.source === 'carpet' ? this.state.round.carpet : null,
+                back: this.state.round.stock[this.state.round.stock.length - 1] ?? null,
+              }
+            : null;
         const res = applyAction(this.state, pid, action);
         if (!res.ok) {
           console.error('Bot-Fehler', action, res.error);
@@ -674,15 +806,8 @@ export class App {
         this.render();
         if (action.kind === 'draw') {
           play('card');
-          if (stockRect && seat) {
-            const botHand = this.state.round.players[pid].hand;
-            const ghost = this.cardEl(botHand.length ? backOf(botHand[botHand.length - 1]) : 'back');
-            ghost.classList.add('fly');
-            document.body.appendChild(ghost);
-            const to = new DOMRect(seat.left + seat.width / 2 - stockRect.width / 2, seat.top + seat.height / 2 - stockRect.height / 2, stockRect.width, stockRect.height);
-            void flyClone(ghost, stockRect, to, 260, true).then(() => ghost.remove());
-            ghost.remove();
-          } else void flip(this.root, before, { disappearTo: seat });
+          if (drawInfo) this.flyDraw(drawInfo);
+          void flip(this.root, before, {});
         } else {
           play(action.kind === 'discard' ? 'discard' : 'lay');
           if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
@@ -856,7 +981,9 @@ export class App {
       this.stockEl(canStock, drawPhase),
       r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
     );
-    const discardCards = r.discard.slice(-6);
+    // Die ganze Ablage bleibt sichtbar; ältere Karten verschwinden nicht plötzlich.
+    const discardCards = r.discard;
+    const topClick = drawPhase ? () => this.act({ kind: 'draw', source: 'discard' }) : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined;
     const discard = h(
       'div',
       { class: 'discard' },
@@ -869,13 +996,21 @@ export class App {
         const dy = ((hsh >> 11) % 15) - 7;
         const el = this.cardEl(c, {
           glow: top && canDiscardDraw,
-          onClick: top ? (drawPhase ? () => this.act({ kind: 'draw', source: 'discard' }) : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined) : undefined,
+          // Nach einem langen Drücken (Rückblick) löst das Loslassen keinen Klick aus.
+          onClick:
+            top && topClick
+              ? () => {
+                  if (this.peekSuppress) return;
+                  topClick();
+                }
+              : undefined,
         });
         el.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`;
         el.style.zIndex = String(i);
         return el;
       }),
     );
+    this.bindPeek(discard);
     const center = h(
       'div',
       { class: 'center' },
@@ -1249,12 +1384,28 @@ export class App {
         if (chk.ok) valid.push({ groups, shapes: part.melds, augen: part.augen });
         else if (!firstError) firstError = { error: chk.error, params: chk.params };
       }
-      if (valid.length === 1) return this.act({ kind: 'lay', groups: valid[0].groups });
-      if (valid.length > 1) {
+      // Aufteilungen, die auf dem Tisch gleich aussehen (z. B. zwei gleiche Karten vertauscht), nur einmal anbieten.
+      const look = (v: { shapes: MeldShape[] }) =>
+        v.shapes
+          .map((m) => {
+            const cs = m.cards.map((c) => (isJoker(c) ? 'J' : `${c.suit}${c.rank}`));
+            return `${m.type}:${(m.type === 'run' ? cs : [...cs].sort()).join(',')}`;
+          })
+          .sort()
+          .join('|');
+      const seen = new Set<string>();
+      const distinct = valid.filter((v) => {
+        const k = look(v);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      if (distinct.length === 1) return this.act({ kind: 'lay', groups: distinct[0].groups });
+      if (distinct.length > 1) {
         this.chooser = {
           title: t('choose.title'),
           hint: t('choose.hint'),
-          options: valid.map((v) => ({ shapes: v.shapes, label: t('choose.augen', { n: v.augen }), onPick: () => this.act({ kind: 'lay', groups: v.groups }) })),
+          options: distinct.map((v) => ({ shapes: v.shapes, label: t('choose.augen', { n: v.augen }), onPick: () => this.act({ kind: 'lay', groups: v.groups }) })),
         };
         this.render();
         return true;
@@ -1591,6 +1742,17 @@ export class App {
     const appearFrom = this.pendingAppearFrom;
     this.pendingBefore = null;
     this.pendingAppearFrom = null;
+    // Zieht ein Mitspieler, merken wir uns vor dem Neuzeichnen, wo der Stapel lag und welche Karte es war.
+    const drawInfo =
+      prev && u.last && u.last.pid !== this.me && u.last.action.kind === 'draw'
+        ? {
+            pid: u.last.pid,
+            source: u.last.action.source,
+            from: this.pileRect(u.last.action.source),
+            face: u.last.action.source === 'discard' ? (prev.round.discard[prev.round.discard.length - 1] ?? null) : u.last.action.source === 'carpet' ? prev.round.carpet : null,
+            back: prev.round.stock[prev.round.stock.length - 1] ?? null,
+          }
+        : null;
     this.state = u.state;
     if (newRound) {
       this.order = [];
@@ -1620,7 +1782,8 @@ export class App {
       if (k === 'draw') play('card');
       else if (k === 'discard') play('discard');
       else if (k === 'lay' || k === 'layOff') play('lay');
-      if (!r.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+      if (drawInfo) this.flyDraw(drawInfo);
+      if (!r.ended) void flip(this.root, before, k === 'draw' ? {} : { appearFrom: seat, disappearTo: seat });
     } else if (!r.ended) {
       void flip(this.root, before, { appearFrom });
     }
@@ -1720,22 +1883,34 @@ export class App {
       return h('div', { class: 'menu' }, h('div', { class: 'panel' }, h('p', null, t('online.connecting')), h('button', { class: 'btn', onclick: () => this.leaveOnline(false) }, t('btn.back'))));
     }
     const isHost = lobby.hostPid === this.me;
-    const seats = lobby.seats.map((seat) =>
-      h(
+    const list = h('div', { class: 'seat-list' });
+    lobby.seats.forEach((seat, index) => {
+      const row = h(
         'div',
-        { class: 'row spread lobby-seat' },
-        h('span', null, seat.name, seat.pid === this.me ? h('span', { class: 'muted' }, ` (${t('lobby.you')})`) : null, seat.isHost ? h('span', { class: 'badge open' }, t('lobby.host')) : null, !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null),
+        { class: 'lobby-seat', dataset: { pid: String(seat.pid) } },
         h(
-          'span',
-          { class: 'row' },
-          seat.isBot && isHost ? this.lobbyBotButtons(seat) : seat.isBot ? h('span', { class: 'badge' }, 'Bot') : null,
-          isHost && seat.pid !== this.me ? h('button', { class: 'btn small', onclick: () => this.net?.removeSeat(seat.pid) }, t('lobby.remove')) : null,
+          'div',
+          { class: 'row spread' },
+          h(
+            'span',
+            { class: 'row' },
+            isHost && lobby.seats.length > 1 ? h('span', { class: 'handle', title: t('lobby.drag') }) : null,
+            h('span', null, seat.name, seat.pid === this.me ? h('span', { class: 'muted' }, ` (${t('lobby.you')})`) : null),
+            seat.isHost ? h('span', { class: 'badge open' }, t('lobby.host')) : null,
+            !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null,
+            seat.isBot && !isHost ? h('span', { class: 'badge' }, 'Bot') : null,
+          ),
+          isHost && seat.pid !== this.me ? h('button', { class: 'btn icon', title: t('lobby.remove'), onclick: () => this.net?.removeSeat(seat.pid) }, 'x') : null,
         ),
-      ),
-    );
+        seat.isBot && isHost ? this.lobbyBotButtons(seat) : null,
+      );
+      const handle = row.querySelector('.handle');
+      if (handle) handle.addEventListener('pointerdown', (e) => this.dragSeat(e as PointerEvent, list, index));
+      list.appendChild(row);
+    });
     const settings = isHost
       ? [
-          this.choice(t('setup.rounds'), [{ v: 7, label: '7' }, { v: 11, label: '11' }], () => lobby.settings.rounds, (v) => this.net?.settings({ rounds: v as number })),
+          this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => lobby.settings.rounds, (v) => this.net?.settings({ rounds: v as number })),
           this.choice(
             t('setup.firstTurn'),
             [
@@ -1744,6 +1919,24 @@ export class App {
             ],
             () => lobby.settings.firstTurnOpenAllowed,
             (v) => this.net?.settings({ firstTurnOpenAllowed: v as boolean }),
+          ),
+          this.choice(
+            t('setup.seating'),
+            [
+              { v: 'manual', label: t('setup.seating.manual') },
+              { v: 'random', label: t('setup.seating.random') },
+            ],
+            () => lobby.settings.seating,
+            (v) => this.net?.settings({ seating: v as 'manual' | 'random' }),
+          ),
+          this.choice(
+            t('setup.peek'),
+            [
+              { v: true, label: t('setup.allowed') },
+              { v: false, label: t('setup.off') },
+            ],
+            () => lobby.settings.peekDiscards,
+            (v) => this.net?.settings({ peekDiscards: v as boolean }),
           ),
           this.choice(
             t('settings.speed'),
@@ -1755,7 +1948,13 @@ export class App {
             (v) => this.net?.settings({ speed: v as 'normal' | 'fast' }),
           ),
         ]
-      : [h('div', { class: 'muted small-text' }, `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')}`)];
+      : [
+          h(
+            'div',
+            { class: 'muted small-text' },
+            `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')} · ${t('setup.seating')}: ${t(`setup.seating.${lobby.settings.seating}`)} · ${t('setup.peek')}: ${t(lobby.settings.peekDiscards ? 'setup.allowed' : 'setup.off')}`,
+          ),
+        ];
     return h(
       'div',
       { class: 'menu' },
@@ -1763,9 +1962,10 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn small', onclick: () => this.copyCode(lobby.code) }, t('lobby.copy'))),
+        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t('lobby.copy'))),
         h('div', { class: 'muted small-text' }, t('lobby.share')),
-        ...seats,
+        h('div', { class: 'muted small-text' }, isHost && lobby.seats.length > 1 ? t('lobby.orderHint') : t('lobby.order')),
+        list,
         isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
         ...settings,
         isHost
@@ -1777,6 +1977,48 @@ export class App {
     );
   }
 
+  /** Sitzordnung per Ziehen am Griff ändern (nur Gastgeber). */
+  private dragSeat(e: PointerEvent, list: HTMLElement, from: number): void {
+    e.preventDefault();
+    const rows = [...list.children] as HTMLElement[];
+    const row = rows[from];
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const heights = rows.map((r) => r.getBoundingClientRect().height);
+    const tops = rows.map((_, i) => heights.slice(0, i).reduce((a, b) => a + b, 0));
+    let to = from;
+    row.classList.add('dragging');
+    const move = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      row.style.transform = `translateY(${dy}px)`;
+      const centre = tops[from] + heights[from] / 2 + dy;
+      to = rows.findIndex((_, i) => centre < tops[i] + heights[i]);
+      if (to < 0) to = rows.length - 1;
+      rows.forEach((r, i) => {
+        if (i === from) return;
+        const shift = from < to && i > from && i <= to ? -heights[from] : from > to && i >= to && i < from ? heights[from] : 0;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      rows.forEach((r) => (r.style.transform = ''));
+      row.classList.remove('dragging');
+      if (to !== from) {
+        const order = rows.map((r) => Number(r.dataset.pid));
+        const [moved] = order.splice(from, 1);
+        order.splice(to, 0, moved);
+        this.net?.reorder(order);
+      }
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
   private lobbyBotButtons(seat: LobbyInfo['seats'][number]): HTMLElement {
     const [lv, st] = (seat.botLabel ?? 'random/random').split('/') as [BotChoice['level'], BotChoice['style']];
     const cycle = <T extends string>(list: readonly T[], cur: T | 'random'): T | 'random' => {
@@ -1784,10 +2026,14 @@ export class App {
       return all[(all.indexOf(cur) + 1) % all.length];
     };
     return h(
-      'span',
-      { class: 'row' },
-      h('button', { class: `btn small${lv === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: cycle(LEVELS, lv), style: st } }) }, lv === 'random' ? t('setup.random') : t(`level.${lv}`)),
-      h('button', { class: `btn small${st === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: lv, style: cycle(STYLES, st) } }) }, st === 'random' ? t('setup.random') : t(`style.${st}`)),
+      'div',
+      { class: 'option' },
+      h(
+        'div',
+        { class: 'choices' },
+        h('button', { class: `btn${lv === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: cycle(LEVELS, lv), style: st } }) }, `${t('setup.level')}: ${lv === 'random' ? t('setup.randomShort') : t(`level.${lv}`)}`),
+        h('button', { class: `btn${st === 'random' ? '' : ' primary'}`, onclick: () => this.net?.send({ type: 'lobby', op: 'botChoice', pid: seat.pid, choice: { level: lv, style: cycle(STYLES, st) } }) }, `${t('setup.style')}: ${st === 'random' ? t('setup.randomShort') : t(`style.${st}`)}`),
+      ),
     );
   }
 
@@ -1837,20 +2083,22 @@ export class App {
 
   private nextRoundButton(): HTMLElement {
     const s = this.state!;
-    if (this.online && !s.finished) {
-      // Jeder Mensch bestätigt die Auswertung; erst wenn alle bestätigt haben, geht es weiter.
-      const flags = s.round.nextReady ?? [];
-      const mine = !!flags[this.me];
-      const waiting = s.players.filter((p) => !flags[p.id] && p.id !== this.me && !p.isBot).map((p) => p.name);
-      return h(
-        'div',
-        { class: 'next-round' },
-        h('button', { class: 'btn primary', disabled: mine, onclick: () => this.nextRound() }, t('btn.nextRound')),
-        mine && waiting.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: waiting.join(', ') })) : null,
-      );
+    if (this.online) {
+      // Jeder Mensch bestätigt die Auswertung (auch das Spielende); erst wenn alle bestätigt haben, geht es weiter.
+      const mine = !!(s.round.nextReady ?? [])[this.me];
+      return h('button', { class: 'btn primary', disabled: mine, onclick: () => this.nextRound() }, t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound'));
     }
-    const label = this.online ? t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound') : t(s.finished ? 'btn.endGame' : 'btn.nextRound');
-    return h('button', { class: 'btn primary', onclick: () => this.nextRound() }, label);
+    return h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound'));
+  }
+
+  /** Online: Hinweis, auf wen noch gewartet wird, nachdem man selbst bestätigt hat. */
+  private waitHint(): HTMLElement | null {
+    const s = this.state!;
+    if (!this.online) return null;
+    const flags = s.round.nextReady ?? [];
+    if (!flags[this.me]) return null;
+    const waiting = s.players.filter((p) => !flags[p.id] && p.id !== this.me && !p.isBot).map((p) => p.name);
+    return waiting.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: waiting.join(', ') })) : null;
   }
 
   private renderEndBar(): HTMLElement {
@@ -1953,17 +2201,22 @@ export class App {
         ),
         s.finished ? this.renderRoundsTable(ordered.map((p) => p.id)) : null,
         h(
-          'button',
-          {
-            class: 'btn',
-            onclick: () => {
-              this.peekTable = true;
-              this.render();
+          'div',
+          { class: 'btn-row' },
+          h(
+            'button',
+            {
+              class: 'btn',
+              onclick: () => {
+                this.peekTable = true;
+                this.render();
+              },
             },
-          },
-          t('btn.peekTable'),
+            t('btn.peekTable'),
+          ),
+          this.nextRoundButton(),
         ),
-        this.nextRoundButton(),
+        this.waitHint(),
       ),
     );
   }

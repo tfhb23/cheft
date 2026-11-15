@@ -238,11 +238,97 @@ describe('Räume', () => {
   it('eine Einstellung ändern lässt die anderen unberührt', () => {
     const room = new Rooms(18).create();
     room.addHuman('A');
-    expect(room.updateSettings({ rounds: 11, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
-    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: true, speed: 'normal' });
+    expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true });
     room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: false, speed: undefined });
-    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: false, speed: 'normal' });
-    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast' });
-    expect(room.settings).toEqual({ rounds: 11, firstTurnOpenAllowed: false, speed: 'fast' });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast', seating: 'random', peekDiscards: false });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'fast', seating: 'random', peekDiscards: false });
+    expect(room.updateSettings({ rounds: 11 }).ok).toBe(false); // nur 3, 5, 7, 9
+  });
+
+  it('Sitzordnung: umsortieren, auslosen, nur vor dem Start', () => {
+    const room = new Rooms(21).create();
+    room.addHuman('Anna');
+    room.addHuman('Ben');
+    room.addBot({ level: 'random', style: 'random' });
+    const tokens = room.seats.map((x) => x.token);
+    // Bot nach vorn, Anna rutscht auf Platz 1; Gastgeber (Anna) wandert mit
+    const r = room.reorder([2, 0, 1]);
+    expect('map' in r && r.map).toEqual([1, 2, 0]);
+    expect(room.seats.map((x) => x.name)).toEqual(['Bot 2', 'Anna', 'Ben']);
+    expect(room.seats.map((x) => x.pid)).toEqual([0, 1, 2]);
+    expect(room.seats[1].token).toBe(tokens[0]);
+    expect(room.hostPid).toBe(1);
+    expect(room.findByToken(tokens[1]!)!.pid).toBe(2);
+    // Ungültige Eingaben
+    expect('ok' in room.reorder([0, 0, 1])).toBe(true);
+    expect(room.reorder([0, 1]).hasOwnProperty('map')).toBe(false);
+    // Auslosen behält alle Spieler und ordnet Plätze passend zu
+    const names = room.seats.map((x) => x.name).sort();
+    const map = room.shuffleSeats();
+    expect(room.seats.map((x) => x.name).sort()).toEqual(names);
+    expect(room.seats.every((x, i) => x.pid === i)).toBe(true);
+    expect(map.slice().sort()).toEqual([0, 1, 2]);
+    expect(room.seats[room.hostPid].name).toBe('Anna');
+    room.start();
+    const late = room.reorder([0, 1, 2]);
+    expect('ok' in late && late.ok).toBe(false);
+  });
+
+  it('Startspieler wird ausgelost', () => {
+    const starters = new Set<number>();
+    for (let seed = 1; seed <= 24; seed++) {
+      const room = new Rooms(seed).create();
+      room.addHuman('A');
+      room.addHuman('B');
+      room.addBot({ level: 'random', style: 'random' });
+      room.start();
+      starters.add(room.state!.round.starter);
+    }
+    expect(starters.size).toBeGreaterThan(1);
+  });
+
+  it('nach dem letzten Spiel geht es erst in die Lobby, wenn alle bestätigt haben', () => {
+    const room = new Rooms(22).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.updateSettings({ rounds: 3 });
+    room.start();
+    room.setConnected(0, false);
+    room.setConnected(1, false);
+    room.resume();
+    for (const pid of [0, 1]) room.seats[pid].disconnectedAt = Date.now() - 60000;
+    let guard = 0;
+    while (!(room.state!.finished && room.state!.round.ended) && guard++ < 20000) room.autoStep(room.autoSeat()!);
+    expect(room.state!.finished).toBe(true);
+    room.setConnected(0, true);
+    room.setConnected(1, true);
+    expect(room.nextRound(0).ok).toBe(true);
+    expect(room.started).toBe(true); // B und der Bot fehlen noch: Auswertung bleibt für alle stehen
+    expect(room.nextRound(1).ok).toBe(true);
+    expect(room.started).toBe(true); // der Bot bestätigt von selbst
+    expect(room.autoSeat()).toBe(2);
+    room.autoStep(2);
+    expect(room.started).toBe(false); // alle bestätigt: zurück in die Lobby
+    expect(room.seats.length).toBe(3);
+  });
+
+  it('Abwürfe werden mit Spieler protokolliert (für den Rückblick)', () => {
+    const room = new Rooms(23).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    room.setConnected(0, false);
+    room.setConnected(1, false);
+    room.resume();
+    for (const pid of [0, 1]) room.seats[pid].disconnectedAt = Date.now() - 60000;
+    for (let i = 0; i < 40 && !room.state!.round.ended; i++) room.autoStep(room.autoSeat()!);
+    const log = room.state!.round.discardLog!;
+    expect(log.length).toBeGreaterThan(3);
+    expect(log.length).toBeLessThanOrEqual(8);
+    expect(log.every((e) => e.player >= 0 && e.player < 3 && e.card.id >= 0)).toBe(true);
   });
 });
