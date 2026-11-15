@@ -27,6 +27,7 @@ export const de: Record<string, string> = {
   'save.prompt': 'Spielstand-Code hier einfügen:',
   'save.imported': 'Spielstand geladen.',
   'save.invalid': 'Das ist kein gültiger Spielstand-Code.',
+  'save.broken': 'Der Code ist unvollständig oder beschädigt. Bitte den ganzen Code neu kopieren.',
   'save.show': 'Kopieren nicht möglich. Code zum Abschreiben:',
   'settings.speed': 'Bot-Tempo',
   'settings.speed.normal': 'normal',

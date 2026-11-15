@@ -33,6 +33,7 @@ import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } f
 import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
 import { randomForgottenName } from './names';
+import { packSave, unpackSave } from './savecode';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
@@ -339,9 +340,9 @@ export class App {
       /* ignorieren */
     }
   }
-  private exportSave(): void {
+  private async exportSave(): Promise<void> {
     if (!this.state) return;
-    const code = btoa(unescape(encodeURIComponent(JSON.stringify({ state: this.state, order: this.order }))));
+    const code = await packSave({ state: this.state, order: this.order });
     const show = () => this.askDialog({ title: t('btn.exportSave'), text: t('save.show'), input: { value: code, readonly: true }, buttons: [{ label: t('btn.close'), primary: true }] });
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code).then(
@@ -360,10 +361,18 @@ export class App {
         {
           label: t('btn.load'),
           primary: true,
-          onClick: (code) => {
+          onClick: async (code) => {
             if (!code.trim()) return;
+            let raw: string;
             try {
-              const raw = decodeURIComponent(escape(atob(code.trim())));
+              raw = await unpackSave(code);
+              JSON.parse(raw);
+            } catch {
+              // Nicht lesbar: meist wurde der Code nicht ganz kopiert
+              this.toast(t('save.broken'), true);
+              return;
+            }
+            try {
               const s = this.parseSave(raw);
               if (!s) throw new Error('invalid');
               this.state = s.state;
