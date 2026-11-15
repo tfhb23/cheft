@@ -52,7 +52,7 @@ der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kan
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
-- **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzordnung: zufällig“ ein. Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
+- **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein (auch im Solospiel). Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
 - **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
 - **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
 - **Bildschirm anlassen:** Im Zahnrad-Menü (Standard: an) hält die App den Bildschirm während des Spiels wach, sofern der Browser das
@@ -69,6 +69,11 @@ genügt „New → Blueprint“ mit diesem Repo; der kostenlose Plan reicht zum 
 Pages verbindet sich mit dem Server, dessen Adresse als Repository-Variable `CHEFT_SERVER_URL`
 (z. B. `wss://cheft.onrender.com/ws`) hinterlegt oder in der App unter „Server-Adresse“ eingetragen wird.
 Läuft die App direkt vom Server (eigene Domain), ist keine Einstellung nötig.
+
+**Eigene Domain (z. B. https://cheft.beigi.eu):** Im Render-Dienst unter Settings, Custom Domains die Domain eintragen und beim DNS-Anbieter einen
+CNAME-Eintrag auf die `onrender.com`-Adresse des Dienstes setzen. Der Docker-Build lädt die Dateien absolut ab `/` (Umgebungsvariable `CHEFT_BASE=/`),
+dadurch öffnen Raumlinks wie `https://cheft.beigi.eu/232` den Raum direkt. App und Server laufen unter derselben Adresse, `CHEFT_SERVER_URL`
+wird dann nicht gebraucht. Jeder Push auf `main` wird von Render automatisch neu gebaut und veröffentlicht.
 
 ## Aufbau
 

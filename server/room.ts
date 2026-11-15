@@ -23,6 +23,8 @@ export interface LobbySettings {
   seating: Seating;
   /** Rückblick auf die letzten Abwürfe erlaubt. */
   peekDiscards: boolean;
+  /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
+  sortedDeal: boolean;
 }
 
 export interface Seat {
@@ -96,7 +98,7 @@ export class Room {
   readonly code: string;
   seats: Seat[] = [];
   hostPid = 0;
-  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true };
+  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
@@ -275,7 +277,7 @@ export class Room {
     });
     this.hostPid = snap.hostPid;
     // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
-    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true };
+    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
     this.rev = snap.rev;
@@ -290,6 +292,7 @@ export class Room {
     if (this.started) return fail('net.alreadyStarted');
     if (patch.rounds !== undefined && !ROUND_OPTIONS.includes(patch.rounds)) return fail('net.badSettings');
     if (patch.peekDiscards !== undefined && typeof patch.peekDiscards !== 'boolean') return fail('net.badSettings');
+    if (patch.sortedDeal !== undefined && typeof patch.sortedDeal !== 'boolean') return fail('net.badSettings');
     if (patch.seating !== undefined && patch.seating !== 'manual' && patch.seating !== 'random') return fail('net.badSettings');
     // Nur gesetzte Werte übernehmen: Ein fehlender Wert darf die bestehende Einstellung nicht überschreiben.
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
@@ -311,7 +314,7 @@ export class Room {
       s.bot = { level: b.level, style: b.style };
       return { id: s.pid, name: b.name, isBot: true, bot: s.bot };
     });
-    const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw', peekDiscards: this.settings.peekDiscards };
+    const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw', peekDiscards: this.settings.peekDiscards, sortedDeal: this.settings.sortedDeal };
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
     const dealer = Math.floor(this.rng() * players.length);
     this.state = newGame(players, settings, Math.floor(this.rng() * 2147483647), dealer);

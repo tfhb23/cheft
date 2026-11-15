@@ -2,13 +2,14 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
+  // './' für GitHub Pages in einem Unterordner; auf einer eigenen Domain (Docker-Build) '/', damit Links wie /232 funktionieren.
+  base: process.env.CHEFT_BASE ?? './',
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Cheft – Das Familienkartenspiel',
+        name: 'Cheft',
         short_name: 'Cheft',
         description: 'Rommé und Cheft-Paare im Pixel-Look, allein gegen Bots oder mit Freunden.',
         lang: 'de',

@@ -75,7 +75,7 @@ type ClientMsg =
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
   | { type: 'lobby'; op: 'removeSeat'; pid: number }
-  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; speed?: Speed; seating?: Seating; peekDiscards?: boolean }
+  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; speed?: Speed; seating?: Seating; peekDiscards?: boolean; sortedDeal?: boolean }
   | { type: 'lobby'; op: 'reorder'; order: number[] }
   | { type: 'lobby'; op: 'botChoice'; pid: number; choice: BotChoice }
   | { type: 'lobby'; op: 'start' }
@@ -268,7 +268,7 @@ function handle(c: Conn, msg: ClientMsg): void {
           remap(room, (p) => rr.map[p]);
           r = { ok: true };
         } else r = rr;
-      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, speed: msg.speed, seating: msg.seating, peekDiscards: msg.peekDiscards });
+      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, speed: msg.speed, seating: msg.seating, peekDiscards: msg.peekDiscards, sortedDeal: msg.sortedDeal });
       else if (msg.op === 'start') {
         // Zufällige Sitzordnung wird erst beim Start ausgelost.
         if (room.settings.seating === 'random' && !room.started && room.seats.length >= MIN_PLAYERS) {

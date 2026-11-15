@@ -28,6 +28,8 @@ export interface Settings {
   direction: 'cw' | 'ccw';
   /** Hand automatisch nach Farbe sortieren (nur Oberfläche). */
   autoSort?: boolean;
+  /** Karten zu Rundenbeginn nach Farbe sortiert austeilen (nur Oberfläche, Standard: ja). */
+  sortedDeal?: boolean;
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) erlaubt. Nicht regelkonform, aber hilfreich gegen Bots. */
   peekDiscards?: boolean;
 }

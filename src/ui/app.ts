@@ -31,6 +31,7 @@ import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } from '../net/client';
 import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
+import { randomForgottenName } from './names';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
@@ -53,6 +54,20 @@ interface Prefs {
   keepAwake: boolean;
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
   peekDiscards: boolean;
+  /** Sitzordnung der Bots: wie eingestellt oder zufällig. */
+  seating: 'manual' | 'random';
+  /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
+  sortedDeal: boolean;
+}
+
+/** Die Einstellungen eines Spiels, wie Solo-Setup und Lobby sie anzeigen. */
+interface SettingValues {
+  seating: 'manual' | 'random';
+  speed: 'normal' | 'fast';
+  firstTurnOpenAllowed: boolean;
+  sortedDeal: boolean;
+  peekDiscards: boolean;
+  rounds: number;
 }
 
 interface SaveFile {
@@ -125,11 +140,20 @@ export class App {
     serverUrl: '',
     keepAwake: true,
     peekDiscards: true,
+    seating: 'manual',
+    sortedDeal: true,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
   private online: { room: string; pid: number; token: string; lobby: LobbyInfo | null; status: 'connecting' | 'open' | 'closed' } | null = null;
   private joinCode = '';
+  /** Raumcode aus dem Link, solange die Verbindung aufgebaut wird. */
+  private linkRoom: string | null = null;
+  /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
+  private forgottenName = randomForgottenName();
+  private playerName(): string {
+    return this.prefs.name.trim() || this.forgottenName;
+  }
   /** Laufendes Spiel: Plätze, die der Beitretende übernehmen kann. */
   private claimChoice: { room: string; seats: ClaimableSeat[] } | null = null;
   private wakeLock: WakeLockSentinel | null = null;
@@ -173,7 +197,45 @@ export class App {
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
     document.addEventListener('visibilitychange', () => void this.syncWakeLock());
     this.prewarm();
+    const linked = this.pathRoomCode();
+    if (linked) this.openRoomLink(linked);
     this.render();
+  }
+
+  /** Raumcode aus der Adresse, z. B. https://cheft.beigi.eu/232 */
+  private pathRoomCode(): string | null {
+    const m = location.pathname.match(/^\/(\d{3,4})\/?$/);
+    return m ? m[1] : null;
+  }
+
+  /** Raumlink geöffnet: direkt beitreten, ohne etwas einzugeben (bei schlafendem Server dauert das bis zu einer Minute). */
+  private openRoomLink(code: string): void {
+    const stored = this.storedOnline();
+    if (stored && stored.room === code) {
+      history.replaceState(null, '', '/');
+      this.resumeOnline(); // Seite neu geladen, du warst schon in diesem Raum
+      return;
+    }
+    const url = this.serverUrl();
+    if (!url) return;
+    this.linkRoom = code;
+    this.screen = 'online';
+    const net = this.ensureNet();
+    net.connect(url);
+    const t0 = Date.now();
+    const wait = () => {
+      if (this.linkRoom !== code) return; // abgebrochen oder schon drin
+      if (net.connected) {
+        history.replaceState(null, '', '/');
+        net.join(code, this.playerName());
+      } else if (Date.now() - t0 < 90000) setTimeout(wait, 200);
+      else {
+        this.linkRoom = null;
+        this.toast(t('net.disconnected'), true);
+        this.render();
+      }
+    };
+    wait();
   }
 
   /** Weckt einen schlafenden Gratis-Server schon beim Start der App, damit er beim Beitreten bereit ist. */
@@ -182,7 +244,6 @@ export class App {
     if (!url) return;
     try {
       const u = new URL(url);
-      if (u.host === location.host) return; // gleiche Herkunft: Die Seite selbst hat den Server schon geweckt
       void fetch(`${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}/healthz`, { mode: 'no-cors', cache: 'no-store' }).catch(() => undefined);
     } catch {
       /* ungültige Adresse ignorieren */
@@ -387,6 +448,35 @@ export class App {
     );
   }
 
+  /** Die Spieleinstellungen in fester Reihenfolge, im Solo-Setup und in der Lobby gleich. */
+  private settingChoices(v: SettingValues, set: (patch: Partial<SettingValues>) => void): HTMLElement[] {
+    const yesNo = [
+      { v: true, label: t('setup.yes') },
+      { v: false, label: t('setup.no') },
+    ];
+    return [
+      this.choice(t('setup.seating'), [{ v: 'manual', label: t('setup.seating.manual') }, { v: 'random', label: t('setup.seating.random') }], () => v.seating, (x) => set({ seating: x as SettingValues['seating'] })),
+      this.choice(t('settings.speed'), [{ v: 'normal', label: t('settings.speed.normal') }, { v: 'fast', label: t('settings.speed.fast') }], () => v.speed, (x) => set({ speed: x as SettingValues['speed'] })),
+      this.choice(t('setup.firstTurn'), yesNo, () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x as boolean })),
+      this.choice(t('setup.sortedDeal'), [{ v: true, label: t('setup.sortedDeal.yes') }, { v: false, label: t('setup.sortedDeal.no') }], () => v.sortedDeal, (x) => set({ sortedDeal: x as boolean })),
+      this.choice(t('setup.peek'), yesNo, () => v.peekDiscards, (x) => set({ peekDiscards: x as boolean })),
+      this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => v.rounds, (x) => set({ rounds: x as number })),
+    ];
+  }
+
+  /** Dieselben Einstellungen für Mitspieler ohne Rechte: eine Zeile je Einstellung, gleiche Reihenfolge. */
+  private settingSummary(v: SettingValues): HTMLElement[] {
+    const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'muted' }, label), h('span', null, value));
+    return [
+      row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
+      row(t('settings.speed'), t(`settings.speed.${v.speed}`)),
+      row(t('setup.firstTurn'), t(v.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')),
+      row(t('setup.sortedDeal'), t(v.sortedDeal ? 'setup.sortedDeal.yes' : 'setup.sortedDeal.no')),
+      row(t('setup.peek'), t(v.peekDiscards ? 'setup.yes' : 'setup.no')),
+      row(t('setup.rounds'), String(v.rounds)),
+    ];
+  }
+
   private renderSetup(): HTMLElement {
     const nameInput = h('input', {
       class: 'text',
@@ -421,24 +511,16 @@ export class App {
           },
           t('setup.allRandom'),
         ),
-        this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => this.prefs.rounds, (v) => (this.prefs.rounds = v as number)),
-        this.choice(
-          t('setup.firstTurn'),
-          [
-            { v: true, label: t('setup.yes') },
-            { v: false, label: t('setup.no') },
-          ],
-          () => this.prefs.firstTurn,
-          (v) => (this.prefs.firstTurn = v as boolean),
-        ),
-        this.choice(
-          t('setup.peek'),
-          [
-            { v: true, label: t('setup.yes') },
-            { v: false, label: t('setup.no') },
-          ],
-          () => this.prefs.peekDiscards,
-          (v) => (this.prefs.peekDiscards = v as boolean),
+        ...this.settingChoices(
+          { seating: this.prefs.seating, speed: this.prefs.speed, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
+          (patch) => {
+            if (patch.seating !== undefined) this.prefs.seating = patch.seating;
+            if (patch.speed !== undefined) this.prefs.speed = patch.speed;
+            if (patch.firstTurnOpenAllowed !== undefined) this.prefs.firstTurn = patch.firstTurnOpenAllowed;
+            if (patch.sortedDeal !== undefined) this.prefs.sortedDeal = patch.sortedDeal;
+            if (patch.peekDiscards !== undefined) this.prefs.peekDiscards = patch.peekDiscards;
+            if (patch.rounds !== undefined) this.prefs.rounds = patch.rounds;
+          },
         ),
         h('div', { class: 'muted small-text' }, t('setup.directionCcw')),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
@@ -502,11 +584,18 @@ export class App {
 
   // ------------------------------------------------------------ Spielsteuerung
   private startGame(): void {
-    const name = this.prefs.name.trim() || t('you');
+    const name = this.playerName();
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
+    if (this.prefs.seating === 'random') {
+      // Zufällige Sitzordnung: Die Bots werden neu auf die Plätze verteilt, du sitzt unten.
+      for (let i = bots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [bots[i], bots[j]] = [bots[j], bots[i]];
+      }
+    }
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style } }));
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards };
+    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
     this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length));
     this.order = [];
@@ -878,7 +967,7 @@ export class App {
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    if (this.order.length === 0) this.order = sortBySuit(me.hand).map((c) => c.id);
+    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).map((c) => c.id);
     else this.order.push(...added);
     if (myTurn) {
       for (const id of added) {
@@ -1629,14 +1718,20 @@ export class App {
         this.online = { room: info.room, pid: info.pid, token: info.token, lobby: this.online?.lobby ?? null, status: 'open' };
         this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token, snap: this.storedOnline()?.snap });
         this.claimChoice = null;
+        this.linkRoom = null;
       },
       onClaimable: (room, seats) => {
+        this.linkRoom = null;
         this.claimChoice = { room, seats };
         this.render();
       },
       onUpdate: (u) => this.onServerUpdate(u),
       onError: (error, params) => {
         this.toast(t(error, params), true);
+        if (this.linkRoom) {
+          this.linkRoom = null;
+          this.render();
+        }
         if (error === 'net.seatTaken' || error === 'net.noFreeSeat') {
           this.claimChoice = null;
           this.render();
@@ -1678,7 +1773,7 @@ export class App {
   }
 
   private createRoom(): void {
-    const name = this.prefs.name.trim() || t('you');
+    const name = this.playerName();
     this.connectOnline(() => this.net!.create(name));
   }
 
@@ -1688,7 +1783,7 @@ export class App {
       this.toast(t('net.noRoom'), true);
       return;
     }
-    const name = this.prefs.name.trim() || t('you');
+    const name = this.playerName();
     this.claimChoice = null;
     this.connectOnline(() => this.net!.join(code, name));
   }
@@ -1821,6 +1916,32 @@ export class App {
       },
     });
     if (this.claimChoice) return this.renderClaim(this.claimChoice);
+    if (this.linkRoom) {
+      return h(
+        'div',
+        { class: 'menu' },
+        h('h2', null, t('lobby.title', { code: this.linkRoom })),
+        h(
+          'div',
+          { class: 'panel' },
+          h('p', null, t('online.connecting')),
+          h('div', { class: 'muted small-text' }, t('online.wake')),
+          h(
+            'button',
+            {
+              class: 'btn',
+              onclick: () => {
+                this.linkRoom = null;
+                this.net?.close();
+                this.net = null;
+                this.goto('menu');
+              },
+            },
+            t('btn.cancel'),
+          ),
+        ),
+      );
+    }
     return h(
       'div',
       { class: 'menu' },
@@ -1839,7 +1960,7 @@ export class App {
 
   /** Spiel läuft schon: einen Bot-Platz oder den Platz eines länger Abwesenden übernehmen. */
   private renderClaim(c: { room: string; seats: ClaimableSeat[] }): HTMLElement {
-    const name = this.prefs.name.trim() || t('you');
+    const name = this.playerName();
     return h(
       'div',
       { class: 'menu' },
@@ -1902,53 +2023,15 @@ export class App {
       if (handle) handle.addEventListener('pointerdown', (e) => this.dragSeat(e as PointerEvent, list, index));
       list.appendChild(row);
     });
-    const settings = isHost
-      ? [
-          this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => lobby.settings.rounds, (v) => this.net?.settings({ rounds: v as number })),
-          this.choice(
-            t('setup.firstTurn'),
-            [
-              { v: true, label: t('setup.yes') },
-              { v: false, label: t('setup.no') },
-            ],
-            () => lobby.settings.firstTurnOpenAllowed,
-            (v) => this.net?.settings({ firstTurnOpenAllowed: v as boolean }),
-          ),
-          this.choice(
-            t('setup.seating'),
-            [
-              { v: 'manual', label: t('setup.seating.manual') },
-              { v: 'random', label: t('setup.seating.random') },
-            ],
-            () => lobby.settings.seating,
-            (v) => this.net?.settings({ seating: v as 'manual' | 'random' }),
-          ),
-          this.choice(
-            t('setup.peek'),
-            [
-              { v: true, label: t('setup.yes') },
-              { v: false, label: t('setup.no') },
-            ],
-            () => lobby.settings.peekDiscards,
-            (v) => this.net?.settings({ peekDiscards: v as boolean }),
-          ),
-          this.choice(
-            t('settings.speed'),
-            [
-              { v: 'normal', label: t('settings.speed.normal') },
-              { v: 'fast', label: t('settings.speed.fast') },
-            ],
-            () => lobby.settings.speed,
-            (v) => this.net?.settings({ speed: v as 'normal' | 'fast' }),
-          ),
-        ]
-      : [
-          h(
-            'div',
-            { class: 'muted small-text' },
-            `${t('setup.rounds')}: ${lobby.settings.rounds} · ${t('setup.firstTurn')}: ${t(lobby.settings.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')} · ${t('setup.seating')}: ${t(`setup.seating.${lobby.settings.seating}`)} · ${t('setup.peek')}: ${t(lobby.settings.peekDiscards ? 'setup.yes' : 'setup.no')}`,
-          ),
-        ];
+    const values: SettingValues = {
+      seating: lobby.settings.seating,
+      speed: lobby.settings.speed,
+      firstTurnOpenAllowed: lobby.settings.firstTurnOpenAllowed,
+      sortedDeal: lobby.settings.sortedDeal ?? true,
+      peekDiscards: lobby.settings.peekDiscards,
+      rounds: lobby.settings.rounds,
+    };
+    const settings = isHost ? this.settingChoices(values, (patch) => this.net?.settings(patch)) : this.settingSummary(values);
     return h(
       'div',
       { class: 'menu' },
@@ -1956,7 +2039,7 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t('lobby.copy'))),
+        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'))),
         list,
         isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
         ...settings,
@@ -2018,9 +2101,16 @@ export class App {
   }
 
 
+  /** Auf einer eigenen Domain lässt sich der Raum per Link teilen (https://domain/232); auf GitHub Pages nur der Code. */
+  private canShareLink(): boolean {
+    return !/github\.io$/.test(location.hostname);
+  }
+
   private copyCode(code: string): void {
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(() => this.toast(t('lobby.copied')), () => prompt(t('lobby.copy'), code));
-    else prompt(t('lobby.copy'), code);
+    const text = this.canShareLink() ? `${location.origin}/${code}` : code;
+    const label = t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => this.toast(t(this.canShareLink() ? 'lobby.copied' : 'lobby.copiedCode')), () => prompt(label, text));
+    else prompt(label, text);
   }
 
   private renderChooser(): HTMLElement {

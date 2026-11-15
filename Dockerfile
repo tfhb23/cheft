@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Eigene Domain: Dateien absolut ab / laden, damit auch Raumlinks wie /232 funktionieren
+ENV CHEFT_BASE=/
 RUN npm run build
 
 FROM node:22-alpine
