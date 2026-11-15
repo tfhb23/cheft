@@ -179,7 +179,8 @@ input.text {
 .table { overflow-x: hidden; }
 .own { grid-column: 1 / 4; grid-row: 3; min-height: calc(var(--card-h) * 0.5); padding: calc(3px * var(--s)) 0 calc(2px * var(--s)); }
 .own.drop { outline: calc(2px * var(--s)) dashed var(--orange); outline-offset: calc(-2px * var(--s)); background: var(--orange-pale); }
-.own-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); margin-bottom: var(--px); }
+.own-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); margin-bottom: var(--px); text-align: center; }
+.own .melds { justify-content: center; }
 .seat-inner { transform-origin: top left; display: flex; flex-direction: column; gap: calc(2px * var(--s)); }
 .seat-top .seat-inner { align-items: center; width: 100%; }
 .seat-top .flip180 { max-width: 100%; }
