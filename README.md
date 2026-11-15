@@ -18,7 +18,7 @@ npm run preview    # Build lokal ansehen
 
 Für die Installation am Handy muss die App über HTTPS erreichbar sein. Der Workflow
 `.github/workflows/pages.yml` veröffentlicht jeden Push auf `main` automatisch auf GitHub Pages:
-https://tobiasfmueller.github.io/cheft/ . Dort im Handy-Browser öffnen und
+https://tfhb23.github.io/cheft/ . Dort im Handy-Browser öffnen und
 „Zum Startbildschirm hinzufügen“ wählen.
 
 ## Bedienung und Speichern
