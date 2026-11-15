@@ -21,6 +21,14 @@ Für die Installation am Handy muss die App über HTTPS erreichbar sein. Der Wor
 https://tobiasfmueller.github.io/cheft/ . Dort im Handy-Browser öffnen und
 „Zum Startbildschirm hinzufügen“ wählen.
 
+## Bedienung und Speichern
+
+- Karten in der Hand per Drag & Drop sortieren, auf die Ablage ziehen (abwerfen), auf eine Kombination ziehen (anlegen oder Joker klauen) oder markiert in die eigene Auslage ziehen (auslegen). Alles geht auch per Antippen und Knopf.
+- Die gezogene Karte erscheint rechts in der Hand und ist grün markiert.
+- Gegner sitzen links, oben und rechts; ihre Auslagen liegen aus ihrer Blickrichtung. Am PC sind zusätzlich ihre verdeckten Handkarten zu sehen.
+- Der Spielstand wird nach jedem Zug im Browserspeicher des Geräts gesichert (localStorage, ohne Login). „Weiterspielen“ im Menü nimmt ihn wieder auf. Über das Zahnrad lässt sich ein Spielstand-Code kopieren, der im Menü eines anderen Geräts eingefügt werden kann.
+- Einstellungen: Bot-Tempo, Vibration, Sounds.
+
 ## Aufbau
 
 ```

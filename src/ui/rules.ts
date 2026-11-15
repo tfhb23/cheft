@@ -80,11 +80,13 @@ export const RULES_DE: RuleSection[] = [
   {
     title: 'Bedienung',
     items: [
-      'Ziehen: Auf Stapel, Ablage oder Teppichkarte tippen.',
-      'Auslegen: Karten antippen, dann „Auslegen“. Die App teilt die Auswahl automatisch in gültige Kombinationen auf.',
-      'Anlegen: Eine Karte wählen und auf eine Kombination am Tisch tippen (oder „Anlegen“).',
-      'Joker klauen: Die passende Karte wählen und auf die Kombination mit dem Joker tippen.',
-      'Abwerfen: Eine Karte wählen und auf die Ablage tippen (oder „Abwerfen“).',
+      'Ziehen: Auf den Stapel, die oberste Ablagekarte oder die Teppichkarte tippen. Die neue Karte erscheint rechts in der Hand und ist grün markiert.',
+      'Hand sortieren: Karten mit dem Finger an eine beliebige Stelle ziehen. Die Reihenfolge bleibt erhalten.',
+      'Auslegen: Karten antippen und dann „Auslegen“ drücken, oder die markierten Karten gemeinsam in die eigene Auslage ziehen. Die App teilt die Auswahl automatisch in gültige Kombinationen auf.',
+      'Anlegen: Eine Karte auf eine Kombination am Tisch ziehen, oder markieren und auf die Kombination tippen.',
+      'Joker klauen: Die passende Karte auf die Kombination mit dem Joker ziehen. Der Joker landet markiert in der Hand und muss sofort angelegt werden.',
+      'Abwerfen: Eine Karte auf die Ablage ziehen, oder markieren und „Abwerfen“ drücken.',
+      'Speichern: Der Spielstand wird automatisch auf dem Gerät gesichert. Über das Zahnrad lässt sich ein Spielstand-Code kopieren und im Menü auf einem anderen Gerät einfügen.',
     ],
   },
 ];

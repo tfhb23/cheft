@@ -9,15 +9,20 @@ export const CARD_H = 44;
 const COLS = 8;
 
 export const PALETTE = {
-  ink: '#1c120d',
-  cream: '#f6ecd6',
-  creamDark: '#d9c9a6',
-  red: '#c9311c',
-  orange: '#e8521f',
-  orangeDark: '#a8330f',
+  ink: '#23201f',
+  inkLight: '#b9b3ad',
+  cream: '#fbf6ea',
+  creamDark: '#d9cdb3',
+  red: '#d2362a',
+  redLight: '#f2b9ad',
+  orange: '#f06a2d',
+  orangeDark: '#b94718',
   orangeLight: '#ffb27a',
   gold: '#f2b53a',
-  felt: '#2e1d16',
+  sand: '#efe2c6',
+  skin: '#f3cfae',
+  white: '#ffffff',
+  mouth: '#d05a4a',
 };
 
 const GLYPHS: Record<string, string[]> = {
@@ -61,7 +66,83 @@ const STAR = [
   '.............',
 ];
 
-const CROWN = ['#.#.#.#.#', '#.#.#.#.#', '#########', '#########', '.#######.'];
+
+/** Bildkarten-Figuren 16×19. S Haut, H Haar, G Gold, R Robe, W Weiß, K Kontur, E Auge, M Mund, B Bart, F Feder, L Robe hell */
+const KING = [
+  '..G.G.G.G.G.G...',
+  '..GGGGGGGGGGG...',
+  '..GGGKGGGKGGG...',
+  '...KSSSSSSSK....',
+  '...KSSSSSSSK....',
+  '...KSESSSESK....',
+  '...KSSSSSSSK....',
+  '...KSSSMMSSK....',
+  '...KBBSSSSBK....',
+  '...KBBBBBBBK....',
+  '....KBBBBBK.....',
+  '.....KBBBK......',
+  '.RRRWWKKKKWWRRR.',
+  'RRRRRWWWWWWRRRRR',
+  'RRRRRRRWWRRRRRRR',
+  'RRRGRRRRRRRRGRRR',
+  'RRRRRRRGGRRRRRRR',
+  'RRRRRRRRRRRRRRRR',
+  'RRRRRRRRRRRRRRRR',
+];
+const QUEEN = [
+  '.....G.G.G......',
+  '....GGGGGGG.....',
+  '...HHHGGGHHH....',
+  '..HHHSSSSSHHH...',
+  '..HHKSSSSSKHH...',
+  '..HHKSESSESKHH..',
+  '..HHKSSSSSSKHH..',
+  '..HHKSSMMSSKHH..',
+  '..HHHKSSSSKHHH..',
+  '..HHH.KSSK.HHH..',
+  '..HHH..KK..HHH..',
+  '.HHHRRWWWWRRHHH.',
+  '.HHRRRRWWRRRRHH.',
+  '.HRRRRRRRRRRRRH.',
+  '.RRRRRGRRGRRRRR.',
+  '.RRRRRRGGRRRRRR.',
+  'RRRRRRRRRRRRRRRR',
+  'RRRRRRRRRRRRRRRR',
+  'RRRRRRRRRRRRRRRR',
+];
+const JACK = [
+  '.......FF.......',
+  '......FF........',
+  '..RRRRRRRRRRR...',
+  '.RRRRRRRRRRRRR..',
+  '..HHHHHHHHHHH...',
+  '...KSSSSSSSK....',
+  '...KSSSSSSSK....',
+  '...KSESSSESK....',
+  '...KSSSSSSSK....',
+  '...KSSSMMSSK....',
+  '....KSSSSSK.....',
+  '.....KSSSK......',
+  '..RRRWKKKKWRRR..',
+  '.RRRRRWWWWRRRRR.',
+  '.RRRRRRWWRRRRRR.',
+  '.RRLRRRRRRRRLRR.',
+  '.RRRRRRRRRRRRRR.',
+  '.RRRRRRRRRRRRRR.',
+  '.RRRRRRRRRRRRRR.',
+];
+const HAIR: Record<Suit, string> = { H: '#6b3f22', D: '#e8b23a', C: '#2b2b2b', S: '#8a4a2a' };
+const BEARD: Record<Suit, string> = { H: '#4e2c16', D: '#b3832a', C: '#1a1a1a', S: '#6a3620' };
+
+function shapeMap(ctx: Ctx, rows: string[], x: number, y: number, map: Record<string, string>): void {
+  rows.forEach((row, ry) => {
+    for (let rx = 0; rx < row.length; rx++) {
+      const c = map[row[rx]];
+      if (c) px(ctx, x + rx, y + ry, c);
+    }
+  });
+}
+
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -125,20 +206,27 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
   text(ctx, rt, x + CARD_W - 3 - w, y + CARD_H - 10, color);
   shape(ctx, SUIT_SHAPES[suit], x + CARD_W - 10, y + CARD_H - 18, color);
   if (rank >= 11) {
-    // Bildkarte: Rahmen, Krone, Buchstabe
-    const fx = x + 10;
-    const fy = y + 12;
-    ctx.fillStyle = color;
-    ctx.fillRect(fx, fy, 12, 20);
+    // Bildkarte: heller Rahmen, Figur in Kartenfarbe
+    const light = color === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
+    ctx.fillStyle = light;
+    ctx.fillRect(x + 7, y + 12, 18, 21);
     ctx.fillStyle = PALETTE.cream;
-    ctx.fillRect(fx + 1, fy + 1, 10, 18);
-    ctx.fillStyle = rank === 13 ? PALETTE.gold : rank === 12 ? PALETTE.orangeLight : PALETTE.creamDark;
-    ctx.fillRect(fx + 1, fy + 1, 10, 18);
-    shape(ctx, CROWN, fx + 2, fy + 2, rank === 11 ? color : PALETTE.orangeDark);
-    shape(ctx, GLYPHS[rt], fx + 4, fy + 9, color);
-    // Schultern
-    ctx.fillStyle = color;
-    ctx.fillRect(fx + 2, fy + 17, 8, 2);
+    ctx.fillRect(x + 8, y + 13, 16, 19);
+    const fig = rank === 13 ? KING : rank === 12 ? QUEEN : JACK;
+    const map: Record<string, string> = {
+      S: PALETTE.skin,
+      H: HAIR[suit],
+      G: PALETTE.gold,
+      R: color,
+      W: PALETTE.white,
+      K: PALETTE.ink,
+      E: PALETTE.ink,
+      M: PALETTE.mouth,
+      B: rank === 13 ? BEARD[suit] : color,
+      F: PALETTE.orange,
+      L: light,
+    };
+    shapeMap(ctx, fig, x + 8, y + 13, map);
   } else {
     shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, color, 2);
   }
@@ -175,7 +263,7 @@ function drawSlot(ctx: Ctx, x: number, y: number): void {
   for (let yy = 0; yy < CARD_H; yy++) {
     for (let xx = 0; xx < CARD_W; xx++) {
       const edge = xx === 0 || yy === 0 || xx === CARD_W - 1 || yy === CARD_H - 1;
-      if (edge && (xx + yy) % 2 === 0) px(ctx, x + xx, y + yy, PALETTE.creamDark);
+      if (edge && (xx + yy) % 2 === 0) px(ctx, x + xx, y + yy, PALETTE.ink);
     }
   }
 }
