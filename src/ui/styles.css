@@ -131,6 +131,8 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .card.glow { outline: calc(2px * var(--s)) solid var(--orange); outline-offset: var(--px); box-shadow: 0 0 0 calc(4px * var(--s)) var(--orange-pale); }
 .card.fresh { outline: calc(2px * var(--s)) solid var(--green); outline-offset: var(--px); }
 .card.dim { opacity: 0.45; }
+/* Vorgewählt (erstes Tippen beim Ziehen): kräftiger Rahmen, noch einmal tippen zieht */
+.card.armed { outline: calc(3px * var(--s)) solid var(--orange-dark); outline-offset: var(--px); box-shadow: 0 0 0 calc(6px * var(--s)) var(--gold); }
 .card.hidden-anim { visibility: hidden; }
 .fly { position: fixed; z-index: 50; pointer-events: none; margin: 0; left: 0; top: 0; }
 
@@ -219,8 +221,10 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .meld.clickable { cursor: pointer; }
 
 /* Stapel */
-.piles { display: flex; align-items: center; justify-content: center; gap: calc(16px * var(--s)); }
-.pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
+.piles { display: grid; grid-template-columns: auto auto; align-items: center; justify-content: center; column-gap: calc(16px * var(--s)); row-gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
+/* Beschriftungen in einer Reihe; "Stapel" mittig unter der Stapelkarte, nicht unter Stapel und Teppichkarte zusammen */
+.pile-label { text-align: center; }
+.pile-label.stock-label { width: var(--card-w); margin-left: calc(14px * var(--s)); justify-self: start; }
 .stock-wrap { position: relative; margin-left: calc(14px * var(--s)); }
 .stock-wrap .count-on-card { pointer-events: none; position: absolute; left: calc(9px * var(--s)); top: calc(15px * var(--s)); width: calc(14px * var(--s)); height: calc(14px * var(--s)); background: var(--cream); border: var(--px) solid var(--ink); color: var(--ink); font-size: calc(11px * var(--s)); line-height: calc(12px * var(--s)); text-align: center; z-index: 2; }
 .carpet { position: absolute; top: 0; left: calc(-12px * var(--s)); transform: rotate(-90deg); transform-origin: center; z-index: 0; }

@@ -55,6 +55,8 @@ interface Prefs {
   keepAwake: boolean;
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
   peekDiscards: boolean;
+  /** Ziehen mit Bestätigung: Gibt es mehrere Möglichkeiten, wählt das erste Tippen nur aus. */
+  safeDraw: boolean;
   /** Sitzordnung der Bots: wie eingestellt oder zufällig. */
   seating: 'manual' | 'random';
   /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
@@ -151,6 +153,7 @@ export class App {
     peekDiscards: true,
     seating: 'manual',
     sortedDeal: true,
+    safeDraw: true,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
@@ -162,6 +165,9 @@ export class App {
   private dialog: DialogSpec | null = null;
   private dialogInput = '';
   private lastDiscardTap = 0;
+  /** Beim Ziehen vorgewählter Stapel (erstes Tippen); das zweite Tippen zieht. */
+  private armed: 'stock' | 'discard' | 'carpet' | null = null;
+  private armedTimer: number | null = null;
   /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
   private forgottenName = randomForgottenName();
   private playerName(): string {
@@ -868,6 +874,7 @@ export class App {
   }
 
   private act(action: Action): boolean {
+    if (action.kind === 'draw') this.disarm();
     const s = this.state!;
     const before = snapshot(this.root);
     const appearFrom = action.kind === 'draw' ? this.pileRect(action.source) : null;
@@ -1057,6 +1064,7 @@ export class App {
     const me = r.players[this.me];
     const myTurn = current(s) === this.me && !r.ended;
     const drawPhase = myTurn && r.turn.phase === 'draw';
+    if (!drawPhase && this.armed) this.disarm();
     const playPhase = myTurn && r.turn.phase === 'play';
 
     // Handreihenfolge abgleichen
@@ -1157,14 +1165,14 @@ export class App {
       'div',
       { class: 'stock-wrap' },
       r.carpet
-        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet, dim: drawPhase && !canCarpet, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'carpet' }) : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
+        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: (drawPhase && !canCarpet) || (this.armed !== null && this.armed !== 'carpet' && canCarpet), onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
       this.stockEl(canStock, drawPhase),
       r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
     );
     // Die ganze Ablage bleibt sichtbar; ältere Karten verschwinden nicht plötzlich.
     const discardCards = r.discard;
-    const topClick = drawPhase ? () => this.onDiscardDrawTap() : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined;
+    const topClick = drawPhase ? () => this.pileTap('discard') : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined;
     const discard = h(
       'div',
       { class: 'discard' },
@@ -1176,7 +1184,9 @@ export class App {
         const dx = ((hsh >> 6) % 15) - 5;
         const dy = ((hsh >> 11) % 15) - 7;
         const el = this.cardEl(c, {
-          glow: top && canDiscardDraw,
+          glow: top && canDiscardDraw && this.armed !== 'discard',
+          cls: top && this.armed === 'discard' ? 'armed' : undefined,
+          dim: top && this.armed !== null && this.armed !== 'discard' && canDiscardDraw,
           // Nach einem langen Drücken (Rückblick) löst das Loslassen keinen Klick aus.
           onClick:
             top && topClick
@@ -1195,7 +1205,7 @@ export class App {
     const center = h(
       'div',
       { class: 'center' },
-      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard')))),
+      h('div', { class: 'piles' }, stockWrap, discard, h('span', { class: 'pile-label stock-label' }, t('stock')), h('span', { class: 'pile-label' }, t('discard'))),
     );
     table.appendChild(center);
 
@@ -1218,7 +1228,7 @@ export class App {
     } else if (!myTurn) {
       const last = r.log[r.log.length - 1];
       msg = last && last.player !== undefined ? this.logText(last) : t('turn.bot', { name: s.players[current(s)].name });
-    } else if (drawPhase) msg = r.finalTurn ? t('turn.you.final') : t('turn.you.draw');
+    } else if (drawPhase) msg = this.armed ? t('turn.you.confirmDraw', { pile: t(this.armed === 'stock' ? 'stock' : this.armed === 'discard' ? 'discard' : 'carpet') }) : r.finalTurn ? t('turn.you.final') : t('turn.you.draw');
     else if (r.turn.pendingJokerId !== null) msg = t('turn.you.joker');
     else if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.mustOpen');
     else if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.carpet');
@@ -1230,6 +1240,7 @@ export class App {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
     }
+    if (this.armed) info = ''; // Platz für den Hinweis zum Bestätigen
     const status = h('div', { class: 'status' }, h('span', { class: 'msg' }, msg), h('span', { class: 'info' }, info));
 
     // Hand
@@ -1277,7 +1288,7 @@ export class App {
   private stockEl(glow: boolean, clickable: boolean): HTMLElement {
     const r = this.state!.round;
     const n = r.stock.length;
-    const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { glow, onClick: clickable ? () => this.act({ kind: 'draw', source: 'stock' }) : undefined });
+    const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { glow: glow && this.armed !== 'stock', cls: this.armed === 'stock' ? 'armed' : undefined, dim: this.armed !== null && this.armed !== 'stock' && glow, onClick: clickable ? () => this.pileTap('stock') : undefined });
     if (n > 0) {
       const s = this.scale();
       const layers = Math.min(7, Math.ceil(n / 8));
@@ -1701,6 +1712,37 @@ export class App {
     });
   }
 
+  /**
+   * Tippen auf einen Stapel beim Ziehen. Gibt es nur eine Möglichkeit, zieht das Tippen sofort. Gibt es mehrere
+   * (z. B. Stapel und Ablage), wählt das erste Tippen nur aus und das zweite zieht. So landet ein zu dicker Finger
+   * oder ein kurzes Tippen statt langem Drücken nicht versehentlich auf der falschen Karte.
+   */
+  private pileTap(source: 'stock' | 'discard' | 'carpet'): void {
+    const s = this.state!;
+    const options = (['stock', 'discard', 'carpet'] as const).filter((x) => checkDraw(s, this.me, x).ok);
+    const ambiguous = this.prefs.safeDraw && options.length > 1 && options.includes(source);
+    if (ambiguous && this.armed !== source) {
+      this.armed = source;
+      if (this.armedTimer) clearTimeout(this.armedTimer);
+      this.armedTimer = window.setTimeout(() => {
+        this.armed = null;
+        this.render();
+      }, 5000);
+      vibrate(10, this.prefs.vibration);
+      this.render();
+      return;
+    }
+    this.disarm();
+    if (source === 'discard') this.onDiscardDrawTap();
+    else this.act({ kind: 'draw', source });
+  }
+
+  private disarm(): void {
+    this.armed = null;
+    if (this.armedTimer) clearTimeout(this.armedTimer);
+    this.armedTimer = null;
+  }
+
   /** Tippen auf die Ablage beim Ziehen. Zweimal kurz nacheinander (wenn die Karte als Rommé-Spieler nicht erlaubt ist) bietet Cheft an. */
   private onDiscardDrawTap(): void {
     const s = this.state!;
@@ -1796,6 +1838,18 @@ export class App {
           (v) => {
             this.prefs.keepAwake = v as boolean;
             void this.syncWakeLock();
+          },
+        ),
+        this.choice(
+          t('settings.safeDraw'),
+          [
+            { v: true, label: t('settings.safeDraw.yes') },
+            { v: false, label: t('settings.safeDraw.no') },
+          ],
+          () => this.prefs.safeDraw,
+          (v) => {
+            this.prefs.safeDraw = v as boolean;
+            this.disarm();
           },
         ),
         h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')),
