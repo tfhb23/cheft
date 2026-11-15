@@ -2,7 +2,7 @@
  * Oberfläche: Menü, Spielfeld mit Sitzordnung, Drag & Drop, Animationen, Einstellungen.
  * Reines DOM ohne Framework.
  */
-import { Card, isJoker } from '../engine/cards';
+import { Card, isJoker, sortBySuit } from '../engine/cards';
 import { Action, applyAction } from '../engine/actions';
 import {
   GameState,
@@ -18,11 +18,11 @@ import {
   thresholdFor,
   winnerOfGame,
 } from '../engine/game';
-import { ALL_TYPES, ROMME_TYPES, Meld, findPartition, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
+import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
 import { decideAction } from '../bot/bot';
 import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
-import { Atlas, buildAtlas, atlasOffset } from './sprites';
+import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
@@ -40,6 +40,7 @@ interface Prefs {
   speed: 'normal' | 'fast';
   vibration: boolean;
   sound: boolean;
+  autoSort: boolean;
 }
 
 interface SaveFile {
@@ -96,7 +97,7 @@ export class App {
   private atlas: Atlas;
   private screen: Screen = 'menu';
   private state: GameState | null = null;
-  private prefs: Prefs = { name: '', bots: 3, rounds: 7, firstTurn: true, speed: 'normal', vibration: true, sound: false };
+  private prefs: Prefs = { name: '', bots: 3, rounds: 7, firstTurn: true, speed: 'normal', vibration: true, sound: false, autoSort: false };
   private order: number[] = [];
   private fresh = new Set<number>();
   private selected = new Set<number>();
@@ -106,6 +107,8 @@ export class App {
   private botsRunning = false;
   private dealing = false;
   private showSettings = false;
+  private peekTable = false;
+  private chooser: { groups: number[][]; shapes: MeldShape[]; augen: number }[] | null = null;
   private toastTimer: number | null = null;
   private rulesFrom: Screen = 'menu';
 
@@ -120,7 +123,11 @@ export class App {
       this.state = save.state;
       this.order = save.order;
     }
-    window.addEventListener('resize', () => this.render());
+    window.addEventListener('resize', () => {
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      this.render();
+    });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
     this.render();
   }
@@ -219,7 +226,7 @@ export class App {
   }
 
   private cardEl(
-    card: Card | 'back' | 'slot',
+    card: Card | 'back' | 'back2' | 'slot',
     opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string } = {},
   ): HTMLElement {
     const off = atlasOffset(this.atlas.index(card));
@@ -315,6 +322,15 @@ export class App {
           () => this.prefs.firstTurn,
           (v) => (this.prefs.firstTurn = v as boolean),
         ),
+        this.choice(
+          t('setup.sort'),
+          [
+            { v: false, label: t('setup.sort.manual') },
+            { v: true, label: t('setup.sort.auto') },
+          ],
+          () => this.prefs.autoSort,
+          (v) => (this.prefs.autoSort = v as boolean),
+        ),
         h('div', { class: 'muted small-text' }, `${t('setup.direction')}: ${t('setup.ccw')}`),
         h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
         h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
@@ -348,7 +364,7 @@ export class App {
     const name = this.prefs.name.trim() || t('you');
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     for (let i = 1; i <= this.prefs.bots; i++) players.push({ id: i, name: t('bot.name', { n: i }), isBot: true });
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw' };
+    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', autoSort: this.prefs.autoSort };
     this.state = newGame(players, settings);
     this.order = [];
     this.fresh.clear();
@@ -367,6 +383,8 @@ export class App {
     this.targetMode = false;
     this.botGen++;
     this.goto('game');
+    this.fresh.clear();
+    this.render();
     void this.runBots();
   }
 
@@ -379,7 +397,7 @@ export class App {
     const hand = this.root.querySelector('.hand');
     if (hand) targets.push(hand.getBoundingClientRect());
     const s = this.scale();
-    await dealAnimation(stock ? stock.getBoundingClientRect() : null, targets, 5, 32 * s, 44 * s);
+    await dealAnimation(stock ? stock.getBoundingClientRect() : null, targets, 7, 32 * s, 44 * s);
     this.dealing = false;
     play('card');
     this.render();
@@ -450,7 +468,7 @@ export class App {
   }
 
   private botDelay(): number {
-    return this.prefs.speed === 'fast' ? 260 : 650;
+    return this.prefs.speed === 'fast' ? 650 : 1300;
   }
 
   private async runBots(): Promise<void> {
@@ -485,7 +503,8 @@ export class App {
         if (action.kind === 'draw') {
           play('card');
           if (stockRect && seat) {
-            const ghost = this.cardEl('back');
+            const botHand = this.state.round.players[pid].hand;
+            const ghost = this.cardEl(botHand.length ? backOf(botHand[botHand.length - 1]) : 'back');
             ghost.classList.add('fly');
             document.body.appendChild(ghost);
             const to = new DOMRect(seat.left + seat.width / 2 - stockRect.width / 2, seat.top + seat.height / 2 - stockRect.height / 2, stockRect.width, stockRect.height);
@@ -497,6 +516,8 @@ export class App {
           if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
         }
         if (this.state.round.ended) this.onRoundEnded();
+        // Nach einem Abwurf etwas länger zeigen, was liegt.
+        if (action.kind === 'discard') await sleep(this.prefs.speed === 'fast' ? 250 : 700);
       }
     } finally {
       this.botsRunning = false;
@@ -516,6 +537,8 @@ export class App {
     this.fresh.clear();
     this.order = [];
     this.targetMode = false;
+    this.peekTable = false;
+    this.chooser = null;
     this.save();
     void this.startRoundWithDeal();
   }
@@ -539,8 +562,8 @@ export class App {
     const n = s.players.length;
     const others: number[] = [];
     for (let i = 1; i < n; i++) others.push((HUMAN + i) % n);
-    if (n === 4) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'top' }, { pid: others[2], pos: 'left' }];
-    if (n === 3) return [{ pid: others[0], pos: 'right' }, { pid: others[1], pos: 'left' }];
+    if (n === 4) return [{ pid: others[0], pos: 'left' }, { pid: others[1], pos: 'top' }, { pid: others[2], pos: 'right' }];
+    if (n === 3) return [{ pid: others[0], pos: 'left' }, { pid: others[1], pos: 'right' }];
     return [{ pid: others[0], pos: 'top' }];
   }
 
@@ -559,6 +582,7 @@ export class App {
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
     this.order.push(...added);
+    if (s.settings.autoSort) this.order = sortBySuit(me.hand).map((c) => c.id);
     if (myTurn) for (const id of added) this.fresh.add(id);
     for (const id of [...this.fresh]) if (!have.has(id)) this.fresh.delete(id);
 
@@ -619,13 +643,14 @@ export class App {
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
-      const inner = h(
-        'div',
-        { class: 'seat-inner' },
-        h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true))),
-        h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`),
-        showFan ? h('div', { class: 'fan' }, ...pr.hand.map(() => this.cardEl('back', { small: true }))) : null,
-      );
+      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)));
+      const label = h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`);
+      const reveal = r.ended && pr.hand.length ? h('div', { class: 'reveal' }, ...pr.hand.map((c) => this.cardEl(c, { small: true }))) : null;
+      const fan = !r.ended && showFan ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      const inner =
+        seat.pos === 'top'
+          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl), label, reveal)
+          : h('div', { class: 'seat-inner' }, meldsEl, label, fan, reveal);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
     }
@@ -640,10 +665,10 @@ export class App {
       r.carpet
         ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet, dim: drawPhase && !canCarpet, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'carpet' }) : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
-      this.cardEl(r.stock.length ? 'back' : 'slot', { glow: canStock, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'stock' }) : undefined }),
+      this.cardEl(r.stock.length ? backOf(r.stock[r.stock.length - 1]) : 'slot', { glow: canStock, onClick: drawPhase ? () => this.act({ kind: 'draw', source: 'stock' }) : undefined }),
       h('div', { class: 'count' }, String(r.stock.length)),
     );
-    const discardCards = r.discard.slice(-5);
+    const discardCards = r.discard.slice(-6);
     const discard = h(
       'div',
       { class: 'discard' },
@@ -651,9 +676,9 @@ export class App {
       ...discardCards.map((c, i) => {
         const top = i === discardCards.length - 1;
         const hsh = hash(c.id);
-        const rot = (hsh % 19) - 9;
-        const dx = ((hsh >> 5) % 5) - 2;
-        const dy = ((hsh >> 9) % 5) - 2;
+        const rot = (hsh % 45) - 22;
+        const dx = ((hsh >> 6) % 19) - 9;
+        const dy = ((hsh >> 11) % 15) - 7;
         const el = this.cardEl(c, {
           glow: top && canDiscardDraw,
           onClick: top ? (drawPhase ? () => this.act({ kind: 'draw', source: 'discard' }) : playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined) : undefined,
@@ -731,7 +756,8 @@ export class App {
     );
 
     const game = h('div', { class: 'game' }, header, opponents, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
-    if (r.ended) game.appendChild(this.renderRoundEnd());
+    if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
+    else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
     return game;
   }
@@ -771,26 +797,46 @@ export class App {
     return t(e.key, params);
   }
 
-  /** Sitzgrößen: gedrehte Auslagen brauchen vertauschte Breite/Höhe. */
+  /** Sitzgrößen: gedrehte Auslagen brauchen vertauschte Breite/Höhe; Gegnerkarten schrumpfen nur bei Platzmangel. */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
     if (!table) return;
     const s = this.scale();
+    const seats = Array.from(table.querySelectorAll<HTMLElement>('.seat'));
+    if (seats.length === 0) return;
+    const sides = seats.filter((e) => e.classList.contains('seat-left') || e.classList.contains('seat-right'));
     const top = table.querySelector('.seat-top') as HTMLElement | null;
     const own = table.querySelector('.own') as HTMLElement | null;
-    const sides = Array.from(table.querySelectorAll<HTMLElement>('.seat-left, .seat-right'));
-    if (sides.length === 0) return;
+    const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
-    const topH = top ? top.offsetHeight : 0;
-    const ownH = own ? own.offsetHeight : 0;
-    const minMid = 44 * s + 24 * s;
-    const M = Math.max(minMid, H - topH - ownH);
-    for (const side of sides) {
-      const inner = side.querySelector('.seat-inner') as HTMLElement;
-      inner.style.width = `${M}px`;
-      const depth = inner.offsetHeight;
-      side.style.width = `${depth}px`;
-      side.style.height = `${M}px`;
+    const pilesMin = (32 + 12 + 10 + 32 + 26 + 10) * s;
+    const minMid = (44 + 28) * s;
+    const small = Math.max(1, s - 1);
+    const setScale = (el: HTMLElement, v: number) => el.style.setProperty('--so', String(v));
+    seats.forEach((e) => setScale(e, s));
+    const layoutSides = () => {
+      const topH = top ? top.offsetHeight : 0;
+      const ownH = own ? own.offsetHeight : 0;
+      const M = Math.max(minMid, H - topH - ownH);
+      let depth = 0;
+      for (const side of sides) {
+        const inner = side.querySelector('.seat-inner') as HTMLElement;
+        inner.style.width = `${M}px`;
+        const d = inner.offsetHeight;
+        side.style.width = `${d}px`;
+        side.style.height = `${M}px`;
+        depth += d;
+      }
+      return { M, depth, free: H - topH - ownH };
+    };
+    let g = layoutSides();
+    if (sides.length && W - g.depth < pilesMin) {
+      sides.forEach((e) => setScale(e, small));
+      g = layoutSides();
+    }
+    if (top && g.free < minMid) {
+      setScale(top, small);
+      g = layoutSides();
     }
   }
 
@@ -880,7 +926,7 @@ export class App {
     const wrapRect = (handEl.parentElement as HTMLElement).getBoundingClientRect();
     const inHand = e.clientY >= wrapRect.top - 10 && e.clientY <= wrapRect.bottom + 10;
     this.setOver(null);
-    if (inHand) {
+    if (inHand && !this.state?.settings.autoSort) {
       const g = this.handGeometry();
       if (!g) return;
       const x = e.clientX - hr.left;
@@ -899,6 +945,8 @@ export class App {
         this.order.splice(idx, 0, d.id);
         this.layoutHand();
       }
+    } else if (inHand) {
+      /* automatische Sortierung: nur Ablegen auf Ziele */
     } else {
       const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const zone = target ? (target.closest('.discard, .meld, .own') as HTMLElement | null) : null;
@@ -984,12 +1032,21 @@ export class App {
     attempts.push({ types: ALL_TYPES });
     let firstError: { error: string; params?: Record<string, string | number> } | null = null;
     for (const opts of attempts) {
-      const part = findPartition(cards, opts);
-      if (!part) continue;
-      const groups = part.melds.map((m) => m.cards.map((c) => c.id));
-      const chk = checkLay(s, HUMAN, groups);
-      if (chk.ok) return this.act({ kind: 'lay', groups });
-      if (!firstError) firstError = { error: chk.error, params: chk.params };
+      const parts = findAllPartitions(cards, opts, 8);
+      if (parts.length === 0) continue;
+      const valid: { groups: number[][]; shapes: MeldShape[]; augen: number }[] = [];
+      for (const part of parts) {
+        const groups = part.melds.map((m) => m.cards.map((c) => c.id));
+        const chk = checkLay(s, HUMAN, groups);
+        if (chk.ok) valid.push({ groups, shapes: part.melds, augen: part.augen });
+        else if (!firstError) firstError = { error: chk.error, params: chk.params };
+      }
+      if (valid.length === 1) return this.act({ kind: 'lay', groups: valid[0].groups });
+      if (valid.length > 1) {
+        this.chooser = valid;
+        this.render();
+        return true;
+      }
     }
     if (!firstError && interpretMeld(cards, ALL_TYPES)) {
       const chk = checkLay(s, HUMAN, [cards.map((c) => c.id)]);
@@ -1123,6 +1180,65 @@ export class App {
     );
   }
 
+  private renderChooser(): HTMLElement {
+    const options = this.chooser ?? [];
+    return h(
+      'div',
+      { class: 'overlay' },
+      h(
+        'div',
+        { class: 'panel dialog' },
+        h('h2', null, t('choose.title')),
+        h('p', { class: 'muted small-text' }, t('choose.hint')),
+        ...options.map((o) =>
+          h(
+            'div',
+            {
+              class: 'choose-option',
+              onclick: () => {
+                this.chooser = null;
+                this.act({ kind: 'lay', groups: o.groups });
+              },
+            },
+            h('div', { class: 'choose-melds' }, ...o.shapes.map((m) => h('div', { class: 'choose-meld' }, ...m.cards.map((c) => this.cardEl(c, { mini: true }))))),
+            h('div', { class: 'muted small-text' }, t('choose.augen', { n: o.augen })),
+          ),
+        ),
+        h(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              this.chooser = null;
+              this.render();
+            },
+          },
+          t('btn.cancel'),
+        ),
+      ),
+    );
+  }
+
+  private renderEndBar(): HTMLElement {
+    const s = this.state!;
+    return h(
+      'div',
+      { class: 'endbar' },
+      h(
+        'button',
+        {
+          class: 'btn',
+          onclick: () => {
+            this.peekTable = false;
+            this.render();
+          },
+        },
+        t('btn.showResult'),
+      ),
+      h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound')),
+    );
+  }
+
   private renderRoundEnd(): HTMLElement {
     const s = this.state!;
     const r = s.round;
@@ -1171,6 +1287,17 @@ export class App {
           { class: 'scores' },
           h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
           h('tbody', null, ...rows),
+        ),
+        h(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              this.peekTable = true;
+              this.render();
+            },
+          },
+          t('btn.peekTable'),
         ),
         h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound')),
       ),

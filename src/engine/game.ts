@@ -26,6 +26,8 @@ export interface Settings {
   rounds: number;
   firstTurnOpenAllowed: boolean;
   direction: 'cw' | 'ccw';
+  /** Hand automatisch nach Farbe sortieren (nur Oberfläche). */
+  autoSort?: boolean;
 }
 
 export interface PlayerInfo {

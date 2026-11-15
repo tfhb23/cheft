@@ -27,6 +27,9 @@ https://tobiasfmueller.github.io/cheft/ . Dort im Handy-Browser öffnen und
 - Die gezogene Karte erscheint rechts in der Hand und ist grün markiert.
 - Gegner sitzen links, oben und rechts; ihre Auslagen liegen aus ihrer Blickrichtung. Am PC sind zusätzlich ihre verdeckten Handkarten zu sehen.
 - Der Spielstand wird nach jedem Zug im Browserspeicher des Geräts gesichert (localStorage, ohne Login). „Weiterspielen“ im Menü nimmt ihn wieder auf. Über das Zahnrad lässt sich ein Spielstand-Code kopieren, der im Menü eines anderen Geräts eingefügt werden kann.
+- Beim Start wählbar: Handkarten selbst sortieren (Drag & Drop) oder automatisch nach Farbe einsortieren.
+- Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
+- Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Aufbau

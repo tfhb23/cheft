@@ -405,3 +405,90 @@ function subsetsOf(items: number[]): number[][] {
   }
   return out;
 }
+
+/**
+ * Alle unterschiedlichen exakten Aufteilungen der Karten (für die Auswahl in der Oberfläche).
+ * Begrenzt auf `limit` Ergebnisse; Joker werden an echte Karten gebunden.
+ */
+export function findAllPartitions(cards: Card[], opts: PartitionOptions, limit = 8): Partition[] {
+  const n = cards.length;
+  if (n > 16) return [];
+  const types = opts.types;
+  const pairCounts = opts.pairCounts ? new Set(opts.pairCounts) : null;
+  const jokerIdx = cards.map((c, i) => (isJoker(c) ? i : -1)).filter((i) => i >= 0);
+  const realIdx = cards.map((c, i) => (isJoker(c) ? -1 : i)).filter((i) => i >= 0);
+  const results: Partition[] = [];
+  const seen = new Set<string>();
+  let steps = 0;
+
+  const candidates = (first: number, mask: number): { shape: MeldShape; bits: number }[] => {
+    const out: { shape: MeldShape; bits: number }[] = [];
+    const fc = cards[first];
+    const availJokers = jokerIdx.filter((i) => mask & (1 << i));
+    const jokerSubsets: number[][] = [[]];
+    for (let k = 1; k <= availJokers.length; k++) jokerSubsets.push(availJokers.slice(0, k));
+    const tryShape = (idxs: number[], type: MeldType) => {
+      const cs = idxs.map((i) => cards[i]);
+      const shape = type === 'run' ? asRun(cs) : type === 'set' ? asSet(cs) : asPair(cs);
+      if (!shape) return;
+      let bits = 0;
+      for (const i of idxs) bits |= 1 << i;
+      out.push({ shape, bits });
+    };
+    if (types.includes('pair')) {
+      for (const i of realIdx) if (i !== first && mask & (1 << i) && sameCard(cards[i], fc)) { tryShape([first, i], 'pair'); break; }
+      if (availJokers.length > 0) tryShape([first, availJokers[0]], 'pair');
+    }
+    if (types.includes('set')) {
+      const same = realIdx.filter((i) => i !== first && mask & (1 << i) && cards[i].rank === fc.rank && cards[i].suit !== fc.suit);
+      for (const sub of subsetsOf(same)) {
+        if (new Set(sub.map((i) => cards[i].suit)).size !== sub.length) continue;
+        for (const js of jokerSubsets) {
+          const size = 1 + sub.length + js.length;
+          if (size >= 3 && size <= 4) tryShape([first, ...sub, ...js], 'set');
+        }
+      }
+    }
+    if (types.includes('run')) {
+      const same = realIdx.filter((i) => i !== first && mask & (1 << i) && cards[i].suit === fc.suit);
+      for (const sub of subsetsOf(same.slice(0, 12))) {
+        for (const js of jokerSubsets) {
+          const size = 1 + sub.length + js.length;
+          if (size >= 3 && size <= 14) tryShape([first, ...sub, ...js], 'run');
+        }
+      }
+    }
+    return out;
+  };
+
+  const rec = (mask: number, acc: MeldShape[], pairs: number): void => {
+    if (results.length >= limit || steps++ > 20000) return;
+    const first = realIdx.find((i) => mask & (1 << i));
+    if (first === undefined) {
+      const js = jokerIdx.filter((i) => mask & (1 << i));
+      let melds = acc;
+      let p = pairs;
+      if (js.length === 2 && types.includes('pair')) {
+        melds = [...acc, asPair([cards[js[0]], cards[js[1]]])!];
+        p++;
+      } else if (js.length > 0) return;
+      if (pairCounts && !pairCounts.has(p)) return;
+      const sig = melds
+        .map((m) => m.cards.map((c) => c.id).sort((a, b) => a - b).join('-'))
+        .sort()
+        .join('|');
+      if (seen.has(sig)) return;
+      seen.add(sig);
+      results.push({ melds, augen: melds.reduce((s, m) => s + meldAugen(m), 0), used: n });
+      return;
+    }
+    for (const { shape, bits } of candidates(first, mask)) {
+      const np = pairs + (shape.type === 'pair' ? 1 : 0);
+      if (np > 7) continue;
+      rec(mask & ~bits, [...acc, shape], np);
+    }
+  };
+  rec((1 << n) - 1, [], 0);
+  results.sort((a, b) => b.augen - a.augen);
+  return results;
+}

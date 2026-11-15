@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeDeck, penaltyValue } from './cards';
-import { asRun, asSet, asPair, meldAugen, findPartition, addToMeld, jokerRepresents, maxPairs, Meld, ROMME_TYPES, ALL_TYPES } from './melds';
+import { asRun, asSet, asPair, meldAugen, findPartition, findAllPartitions, addToMeld, jokerRepresents, maxPairs, Meld, ROMME_TYPES, ALL_TYPES } from './melds';
 import { CardPool } from './testutil';
 
 describe('Deck', () => {
@@ -169,5 +169,22 @@ describe('Anlegen und Joker klauen', () => {
     expect(jokerRepresents(pair, 1)).toEqual({ suit: 'C', rank: 7 });
     const jj: Meld = { ...asPair(p.takeAll('J', 'J'))!, id: 2, owner: 0 };
     expect(jokerRepresents(jj, 0)).toBeNull();
+  });
+});
+
+describe('Mehrere Aufteilungen', () => {
+  it('4-5-6 in drei Farben: drei Folgen oder drei Sätze', () => {
+    const p = new CardPool();
+    const cards = p.takeAll('H4', 'H5', 'H6', 'S4', 'S5', 'S6', 'D4', 'D5', 'D6');
+    const parts = findAllPartitions(cards, { types: ROMME_TYPES });
+    expect(parts.length).toBe(2);
+    expect(parts.every((x) => x.augen === 45)).toBe(true);
+    const kinds = parts.map((x) => x.melds.map((m) => m.type).join(',')).sort();
+    expect(kinds).toEqual(['run,run,run', 'set,set,set']);
+  });
+  it('eindeutige Aufteilung liefert genau ein Ergebnis', () => {
+    const p = new CardPool();
+    const parts = findAllPartitions(p.takeAll('H4', 'H5', 'H6', 'SK', 'DK', 'CK'), { types: ROMME_TYPES });
+    expect(parts.length).toBe(1);
   });
 });

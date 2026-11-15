@@ -23,6 +23,8 @@ export const PALETTE = {
   skin: '#f3cfae',
   white: '#ffffff',
   mouth: '#d05a4a',
+  teal: '#2f8a8f',
+  tealDark: '#1d5a5e',
 };
 
 const GLYPHS: Record<string, string[]> = {
@@ -241,22 +243,22 @@ function drawJoker(ctx: Ctx, x: number, y: number): void {
   px(ctx, x + 15, y + 19, PALETTE.cream);
 }
 
-function drawBack(ctx: Ctx, x: number, y: number): void {
-  cardBase(ctx, x, y, PALETTE.orange);
+function drawBack(ctx: Ctx, x: number, y: number, main: string, dark: string): void {
+  cardBase(ctx, x, y, main);
   ctx.fillStyle = PALETTE.cream;
   ctx.fillRect(x + 2, y + 2, CARD_W - 4, CARD_H - 4);
-  ctx.fillStyle = PALETTE.orange;
+  ctx.fillStyle = main;
   ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
   for (let yy = 3; yy < CARD_H - 3; yy++) {
     for (let xx = 3; xx < CARD_W - 3; xx++) {
-      if ((xx + yy) % 4 === 0 || (xx - yy + 400) % 4 === 0) px(ctx, x + xx, y + yy, PALETTE.orangeDark);
+      if ((xx + yy) % 4 === 0 || (xx - yy + 400) % 4 === 0) px(ctx, x + xx, y + yy, dark);
     }
   }
-  ctx.fillStyle = PALETTE.orangeDark;
+  ctx.fillStyle = dark;
   ctx.fillRect(x + 11, y + 17, 10, 10);
   ctx.fillStyle = PALETTE.cream;
   ctx.fillRect(x + 12, y + 18, 8, 8);
-  shape(ctx, ['..#..', '.###.', '#####', '.###.', '..#..'], x + 13, y + 19, PALETTE.orange);
+  shape(ctx, ['..#..', '.###.', '#####', '.###.', '..#..'], x + 13, y + 19, main);
 }
 
 function drawSlot(ctx: Ctx, x: number, y: number): void {
@@ -272,11 +274,11 @@ export interface Atlas {
   url: string;
   width: number;
   height: number;
-  index(card: Card | 'back' | 'slot'): number;
+  index(card: Card | 'back' | 'back2' | 'slot'): number;
 }
 
 export function buildAtlas(): Atlas {
-  const cells = 55;
+  const cells = 56;
   const rows = Math.ceil(cells / COLS);
   const canvas = document.createElement('canvas');
   canvas.width = COLS * CARD_W;
@@ -294,9 +296,11 @@ export function buildAtlas(): Atlas {
   let p = at(i++);
   drawJoker(ctx, p.x, p.y);
   p = at(i++);
-  drawBack(ctx, p.x, p.y);
+  drawBack(ctx, p.x, p.y, PALETTE.orange, PALETTE.orangeDark);
   p = at(i++);
   drawSlot(ctx, p.x, p.y);
+  p = at(i++);
+  drawBack(ctx, p.x, p.y, PALETTE.teal, PALETTE.tealDark);
   return {
     url: canvas.toDataURL('image/png'),
     width: canvas.width,
@@ -304,6 +308,7 @@ export function buildAtlas(): Atlas {
     index(card) {
       if (card === 'back') return 53;
       if (card === 'slot') return 54;
+      if (card === 'back2') return 55;
       if (isJoker(card)) return 52;
       return suits.indexOf(card.suit as Suit) * 13 + (card.rank - 1);
     },
@@ -313,4 +318,11 @@ export function buildAtlas(): Atlas {
 /** CSS-Hintergrundposition für eine Atlas-Zelle bei Skalierung s. */
 export function atlasOffset(idx: number): { x: number; y: number } {
   return { x: (idx % COLS) * CARD_W, y: Math.floor(idx / COLS) * CARD_H };
+}
+
+/** Zwei gemischte Decks: Karten des zweiten Decks haben eine andere Rückseite. */
+export function backOf(card: Card): 'back' | 'back2' {
+  if (card.id === 104) return 'back';
+  if (card.id === 105) return 'back2';
+  return card.id >= 52 ? 'back2' : 'back';
 }

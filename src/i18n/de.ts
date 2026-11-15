@@ -49,6 +49,14 @@ export const de: Record<string, string> = {
   'setup.ccw': 'gegen den Uhrzeigersinn',
   'setup.cw': 'im Uhrzeigersinn',
   'setup.online': 'Online-Mehrspieler folgt in Phase 2.',
+  'setup.sort': 'Handkarten',
+  'setup.sort.manual': 'selbst sortieren',
+  'setup.sort.auto': 'nach Farbe sortiert',
+  'choose.title': 'Wie auslegen?',
+  'choose.hint': 'Die gewählten Karten lassen sich unterschiedlich kombinieren.',
+  'choose.augen': '{n} Augen',
+  'btn.peekTable': 'Tisch ansehen',
+  'btn.showResult': 'Auswertung',
 
   // Spielfeld
   'you': 'Du',

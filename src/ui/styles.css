@@ -118,8 +118,8 @@ input.text {
   position: relative;
 }
 .card.o {
-  width: var(--card-wo);
-  height: var(--card-ho);
+  width: calc(32px * var(--so));
+  height: calc(44px * var(--so));
   background-size: calc(256px * var(--so)) calc(308px * var(--so));
 }
 .card.clickable { cursor: pointer; }
@@ -180,16 +180,21 @@ input.text {
 .own.drop { outline: calc(2px * var(--s)) dashed var(--orange); outline-offset: calc(-2px * var(--s)); background: var(--orange-pale); }
 .own-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); margin-bottom: var(--px); }
 .seat-inner { transform-origin: top left; display: flex; flex-direction: column; gap: calc(2px * var(--s)); }
-.seat-top .seat-inner { transform: rotate(180deg); transform-origin: center; }
+.seat-top .seat-inner { align-items: center; }
+.flip180 { transform: rotate(180deg); }
+.reveal { display: flex; flex-wrap: wrap; justify-content: center; }
+.reveal .card { margin-left: calc(-20px * var(--so)); }
+.reveal .card:first-child { margin-left: 0; }
 .seat-left .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(90deg) translateY(-100%); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }
-.seat-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); white-space: nowrap; }
+.seat-label { font-size: calc(7px * var(--s)); color: var(--ink-soft); white-space: nowrap; text-align: center; }
 .seat.current .seat-label { color: var(--orange-dark); font-weight: bold; }
-.fan { display: flex; height: calc(var(--card-ho) * 0.55); overflow: hidden; }
+.fan { display: flex; height: calc(44px * var(--so) * 0.55); overflow: hidden; }
 .fan .card { margin-left: calc(-26px * var(--so)); }
 .fan .card:first-child { margin-left: 0; }
 .melds { display: flex; flex-wrap: wrap; gap: calc(2px * var(--s)) calc(4px * var(--s)); align-content: flex-start; }
-.seat-top .melds { justify-content: center; }
+.seat-top .melds, .seat-left .melds, .seat-right .melds, .seat-left .reveal, .seat-right .reveal { justify-content: center; }
+.seat-left .seat-inner, .seat-right .seat-inner { justify-content: center; }
 .melds.rev { flex-wrap: wrap-reverse; }
 .meld { display: flex; padding: var(--px); }
 .meld .card { margin-left: calc(-18px * var(--s)); }
@@ -205,15 +210,15 @@ input.text {
 /* Stapel */
 .piles { display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--s)); }
 .pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--px); font-size: calc(7px * var(--s)); color: var(--ink-soft); }
-.stock-wrap { position: relative; margin-left: calc(20px * var(--s)); }
+.stock-wrap { position: relative; margin-left: calc(14px * var(--s)); }
 .stock-wrap .count { pointer-events: none; position: absolute; left: 0; right: 0; top: calc(16px * var(--s)); text-align: center; color: var(--cream); font-size: calc(11px * var(--s)); text-shadow: var(--px) var(--px) 0 var(--ink); z-index: 2; }
-.carpet { position: absolute; top: calc(6px * var(--s)); left: calc(-22px * var(--s)); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
+.carpet { position: absolute; top: 0; left: calc(-12px * var(--s)); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
 .carpet .card { box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
 .stock-wrap > .card { position: relative; z-index: 1; box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
-.discard { position: relative; width: calc(var(--card-w) + 10px * var(--s)); height: calc(var(--card-h) + 8px * var(--s)); }
-.discard .card { position: absolute; left: calc(5px * var(--s)); top: calc(4px * var(--s)); box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
+.discard { position: relative; width: calc(var(--card-w) + 24px * var(--s)); height: calc(var(--card-h) + 18px * var(--s)); }
+.discard .card { position: absolute; left: calc(12px * var(--s)); top: calc(9px * var(--s)); box-shadow: var(--px) var(--px) 0 var(--sand-dark); }
 .discard.drop .card:last-child { outline: calc(2px * var(--s)) dashed var(--orange); }
-.discard .slot-hint { position: absolute; inset: calc(4px * var(--s)) calc(5px * var(--s)); }
+.discard .slot-hint { position: absolute; left: calc(12px * var(--s)); top: calc(9px * var(--s)); }
 
 /* ---------- Status, Hand, Aktionen */
 .status { padding: calc(2px * var(--s)) calc(5px * var(--s)); font-size: calc(9px * var(--s)); flex-wrap: nowrap; background: var(--panel); border-top: var(--px) solid var(--ink); border-bottom: var(--px) solid var(--ink); min-height: calc(13px * var(--s)); display: flex; justify-content: space-between; gap: calc(4px * var(--s)); align-items: center; }
@@ -247,3 +252,13 @@ table.scores tr.winner td { color: var(--orange-dark); font-weight: bold; }
 
 .toast { position: fixed; left: 50%; bottom: calc(90px * var(--s)); transform: translateX(-50%); background: var(--panel); color: var(--ink); padding: calc(3px * var(--s)) calc(5px * var(--s)); max-width: 90vw; border: var(--px) solid var(--ink); box-shadow: calc(2px * var(--s)) calc(2px * var(--s)) 0 var(--sand-dark); z-index: 20; font-size: calc(9px * var(--s)); text-align: center; }
 .toast.error { border-color: var(--red); color: var(--red); }
+
+/* ---------- Auswahl der Kombination, Rundenende mit Blick auf den Tisch */
+.choose-option { border: var(--px) solid var(--ink); padding: calc(3px * var(--s)); cursor: pointer; background: var(--cream); display: flex; justify-content: space-between; align-items: center; gap: calc(3px * var(--s)); }
+.choose-option:active { background: var(--orange-pale); }
+.choose-melds { display: flex; flex-wrap: wrap; gap: calc(3px * var(--s)); }
+.choose-meld { display: flex; }
+.choose-meld .card { margin-left: -18px; }
+.choose-meld .card:first-child { margin-left: 0; }
+.endbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: calc(3px * var(--s)); padding: calc(3px * var(--s)) calc(4px * var(--s)); padding-bottom: max(calc(3px * var(--s)), env(safe-area-inset-bottom)); background: var(--panel); border-top: var(--px) solid var(--ink); z-index: 60; }
+.endbar .btn { flex: 1; text-align: center; }
