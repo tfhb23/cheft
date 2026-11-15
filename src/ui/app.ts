@@ -822,11 +822,17 @@ export class App {
 
     // Tisch
     const table = h('div', { class: 'table' });
+    // Offene Startkarte: liegt im Auslagebereich des Startspielers (dort ist in dieser Phase noch nichts ausgelegt).
+    const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
+    const openCardEl = (): HTMLElement | null =>
+      starterCard
+        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
+        : null;
     const showFan = window.innerWidth >= 900;
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
-      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)));
+      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
       const label = h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`);
       const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
@@ -870,14 +876,10 @@ export class App {
         return el;
       }),
     );
-    const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
-    const openCard = starterCard
-      ? h('div', { class: 'pile' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
-      : null;
     const center = h(
       'div',
       { class: 'center' },
-      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard'))), openCard),
+      h('div', { class: 'piles' }, h('div', { class: 'pile' }, stockWrap, h('span', null, t('stock'))), h('div', { class: 'pile' }, discard, h('span', null, t('discard')))),
     );
     table.appendChild(center);
 
@@ -887,7 +889,7 @@ export class App {
       'div',
       { class: 'own', dataset: { seat: String(this.me) } },
       h('div', { class: 'own-label' }, myMelds.length ? `${t('you')} (${t(`mode.${me.mode}`)})` : playPhase && selectedCards.length >= 2 ? t('drop.lay') : ''),
-      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false))),
+      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false)), this.me === r.starter ? openCardEl() : null),
     );
     table.appendChild(own);
 
