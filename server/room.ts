@@ -47,6 +47,8 @@ export interface LobbyView {
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' wenn niemand verbunden ist oder der Raum wiederhergestellt wurde. */
   paused: PauseKind | null;
+  /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
+  resumed: number[];
   settings: LobbySettings;
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
 }
@@ -101,6 +103,8 @@ export class Room {
   settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
+  /** Wer die Pause beenden will; es geht erst weiter, wenn alle aktiven Menschen bestätigt haben. */
+  private resumeVotes = new Set<number>();
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
   rev = 0;
   /** Zeitpunkt, an dem der Raum aus einer Kopie wiederhergestellt wurde. */
@@ -185,11 +189,13 @@ export class Room {
     if (!seat) return;
     seat.connected = connected;
     seat.disconnectedAt = connected ? undefined : Date.now();
-    if (this.state && !this.state.finished) {
-      // Ist niemand mehr da, wartet das Spiel, statt dass Bots allein weiterspielen.
+    if (this.state) {
+      // Ist niemand mehr da, wartet das Spiel (auch die Endauswertung), statt dass Bots allein weiterspielen.
       if (!connected && !this.paused && !this.humans().some((s) => s.connected)) this.paused = 'auto';
       // Eine automatische Pause endet, sobald alle Menschen wieder da sind.
       if (connected && this.paused === 'auto' && this.humans().every((s) => s.connected)) this.resume();
+      // Wer wegfällt, blockiert die Bestätigung der anderen nicht.
+      if (!connected) this.checkResumeVotes();
     }
     this.touch();
   }
@@ -211,13 +217,32 @@ export class Room {
     if (!this.state) return fail('net.notStarted');
     if (this.state.finished) return fail('net.notEnded');
     this.paused = 'manual';
+    this.resumeVotes.clear();
     this.touch();
     return ok;
+  }
+
+  /** Ein Spieler tippt auf „Weiter“. Die Pause endet erst, wenn alle verbundenen Menschen bestätigt haben. */
+  requestResume(pid: number): Result {
+    if (!this.paused) return ok;
+    const seat = this.seats[pid];
+    if (!seat || seat.isBot) return fail('net.noSuchSeat');
+    this.resumeVotes.add(pid);
+    this.touch();
+    this.checkResumeVotes();
+    return ok;
+  }
+
+  private checkResumeVotes(): void {
+    if (!this.paused) return;
+    const active = this.humans().filter((s) => s.connected);
+    if (active.length > 0 && active.every((s) => this.resumeVotes.has(s.pid))) this.resume();
   }
 
   resume(): Result {
     if (!this.paused) return ok;
     this.paused = null;
+    this.resumeVotes.clear();
     // Wer währenddessen weg war, bekommt die volle Wartezeit noch einmal.
     const now = Date.now();
     for (const s of this.seats) if (!s.isBot && !s.connected) s.disconnectedAt = now;
@@ -298,7 +323,8 @@ export class Room {
     this.state = snap.state;
     this.rev = snap.rev;
     // Nach dem Wiederherstellen warten alle, bis die Menschen wieder verbunden sind.
-    this.paused = this.state && !this.state.finished ? (this.paused ?? snap.paused ?? 'auto') : null;
+    this.paused = this.state ? (this.paused ?? snap.paused ?? 'auto') : null;
+    this.resumeVotes.clear();
     if (this.paused === 'auto' && this.humans().every((s) => s.connected)) this.paused = null;
     this.restoredAt = Date.now();
     this.lastActivity = Date.now();
@@ -461,6 +487,7 @@ export class Room {
       hostPid: host,
       started: this.started,
       paused: this.paused,
+      resumed: [...this.resumeVotes],
       settings: this.settings,
       seats: this.seats.map((s) => ({
         pid: s.pid,

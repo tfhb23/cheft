@@ -1833,6 +1833,10 @@ export class App {
   private renderPause(lobby: LobbyInfo): HTMLElement {
     const away = lobby.seats.filter((s) => !s.isBot && !s.connected).map((s) => s.name);
     const waiting = lobby.paused === 'auto' && away.length > 0;
+    // Weiter geht es erst, wenn alle verbundenen Menschen auf „Weiter“ getippt haben
+    const voted = new Set(lobby.resumed ?? []);
+    const mine = voted.has(this.me);
+    const missing = lobby.seats.filter((s) => !s.isBot && s.connected && !voted.has(s.pid) && s.pid !== this.me).map((s) => s.name);
     return h(
       'div',
       { class: 'overlay' },
@@ -1841,7 +1845,8 @@ export class App {
         { class: 'panel dialog' },
         h('h2', null, t('pause.title')),
         h('p', null, waiting ? t('pause.waiting', { names: away.join(', ') }) : t('pause.text')),
-        h('button', { class: 'btn primary', onclick: () => this.net?.pause(false) }, waiting ? t('pause.resumeAnyway') : t('pause.resume')),
+        h('button', { class: 'btn primary', disabled: mine, onclick: () => this.net?.pause(false) }, waiting ? t('pause.resumeAnyway') : t('pause.resume')),
+        mine && missing.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: missing.join(', ') })) : null,
       ),
     );
   }

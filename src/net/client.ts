@@ -11,6 +11,8 @@ export interface LobbyInfo {
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' solange nicht alle Menschen verbunden sind. */
   paused: 'manual' | 'auto' | null;
+  /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
+  resumed: number[];
   settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
 }

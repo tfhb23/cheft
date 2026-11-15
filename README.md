@@ -45,8 +45,8 @@ der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kan
 - **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt oder
   deren Spieler länger als 45 Sekunden weg ist, und spielt mit der aktuellen Hand weiter. Das gilt für alle, auch für den Gastgeber.
   Ist der Gastgeber weg, übernimmt der nächste verbundene Spieler die Gastgeber-Rechte, bis er zurück ist.
-- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten, jeder kann es wieder fortsetzen. Sind alle Menschen getrennt, pausiert das Spiel
-  von selbst und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
+- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten. Es geht erst weiter, wenn alle verbundenen Spieler auf „Weiter“ getippt haben. Sind alle Menschen getrennt, pausiert das Spiel
+  von selbst (auch die Endauswertung) und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.

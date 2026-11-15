@@ -244,7 +244,7 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'pause': {
       const room = c.room;
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      const r = msg.on ? room.pause() : room.resume();
+      const r = msg.on ? room.pause() : room.requestResume(c.pid);
       if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
       broadcast(room);
       scheduleBots(room);

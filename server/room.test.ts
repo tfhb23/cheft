@@ -140,7 +140,7 @@ describe('Räume', () => {
     expect(room.state!.round.no).toBe(no + 1);
   });
 
-  it('Pause stoppt Aktionen und Autopilot, automatische Pause endet bei Rückkehr aller', () => {
+  it('Pause stoppt Aktionen und Autopilot; alle aktiven Spieler müssen sie beenden', () => {
     const rooms = new Rooms(13);
     const room = rooms.create();
     room.addHuman('A');
@@ -153,17 +153,70 @@ describe('Räume', () => {
     const act = room.act(room.state!.round.turn.player, { kind: 'ready' });
     expect(act.ok).toBe(false);
     if (!act.ok) expect(act.error).toBe('net.paused');
-    expect(room.resume().ok).toBe(true);
+    // A tippt auf Weiter: B fehlt noch
+    expect(room.requestResume(0).ok).toBe(true);
+    expect(room.paused).toBe('manual');
+    expect(room.lobbyView().resumed).toEqual([0]);
+    expect(room.requestResume(1).ok).toBe(true);
     expect(room.paused).toBeNull();
-    // Beide gehen: automatische Pause; erst wenn beide wieder da sind, geht es weiter
+    expect(room.lobbyView().resumed).toEqual([]);
+    // Fällt der Unbestätigte weg, blockiert er die anderen nicht
+    room.pause();
+    room.requestResume(0);
+    expect(room.paused).toBe('manual');
+    room.setConnected(1, false);
+    expect(room.paused).toBeNull();
+  });
+
+  it('Alle weg: das Spiel pausiert von selbst, auch bei der Endauswertung; manuelle Pause bleibt manuell', () => {
+    const rooms = new Rooms(14);
+    const room = rooms.create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    // Manuelle Pause, dann gehen beide (Handys gesperrt): bleibt manuell, jeder muss danach bestätigen
+    room.pause();
     room.setConnected(0, false);
-    expect(room.paused).toBeNull(); // B ist noch da
+    room.setConnected(1, false);
+    expect(room.paused).toBe('manual');
+    room.setConnected(0, true);
+    room.setConnected(1, true);
+    expect(room.paused).toBe('manual');
+    room.requestResume(0);
+    expect(room.paused).toBe('manual');
+    room.requestResume(1);
+    expect(room.paused).toBeNull();
+    // Automatische Pause endet von selbst, wenn alle wieder da sind
+    room.setConnected(0, false);
     room.setConnected(1, false);
     expect(room.paused).toBe('auto');
+    expect(room.autoSeat()).toBeNull(); // Bots spielen nicht allein weiter
     room.setConnected(0, true);
     expect(room.paused).toBe('auto');
     room.setConnected(1, true);
     expect(room.paused).toBeNull();
+  });
+
+  it('Auch nach dem letzten Spiel bleibt die Auswertung stehen, wenn niemand mehr da ist', () => {
+    const room = new Rooms(15).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.updateSettings({ rounds: 3 });
+    room.start();
+    room.setConnected(0, false);
+    room.setConnected(1, false);
+    room.resume();
+    for (const pid of [0, 1]) room.seats[pid].disconnectedAt = Date.now() - 60000;
+    let guard = 0;
+    while (!(room.state!.finished && room.state!.round.ended) && guard++ < 20000) room.autoStep(room.autoSeat()!);
+    // Beide sind weiter weg: erst jetzt fällt die Verbindung weg
+    room.setConnected(0, true);
+    room.setConnected(0, false);
+    expect(room.paused).toBe('auto');
+    expect(room.autoSeat()).toBeNull(); // niemand bestätigt für die Abwesenden: die Punkteübersicht bleibt
+    expect(room.started).toBe(true);
   });
 
   it('Spielleiter wechselt auf den nächsten verbundenen Menschen und zurück', () => {
