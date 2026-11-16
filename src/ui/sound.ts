@@ -104,10 +104,26 @@ export function play(name: SoundName): void {
   }
 }
 
+/** iPhone-Safari kennt navigator.vibrate nicht; ab iOS 18 löst das Umschalten eines Schalters einen Haptik-Impuls aus (nur direkt nach einer Berührung). */
+function iosTick(): void {
+  const label = document.createElement('label');
+  label.setAttribute('aria-hidden', 'true');
+  label.style.cssText = 'position:fixed;left:-100px;top:-100px;opacity:0;pointer-events:none';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.setAttribute('switch', '');
+  label.appendChild(input);
+  document.body.appendChild(label);
+  label.click();
+  label.remove();
+}
+
+/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 30 ms. */
 export function vibrate(ms: number, on: boolean): void {
   if (!on) return;
   try {
-    if ('vibrate' in navigator) navigator.vibrate(ms);
+    if ('vibrate' in navigator) navigator.vibrate(Math.max(30, ms * 2));
+    else iosTick();
   } catch {
     /* ignorieren */
   }

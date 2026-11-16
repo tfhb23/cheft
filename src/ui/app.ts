@@ -1917,7 +1917,10 @@ export class App {
             { v: false, label: t('settings.off') },
           ],
           () => this.prefs.vibration,
-          (v) => (this.prefs.vibration = v as boolean),
+          (v) => {
+            this.prefs.vibration = v as boolean;
+            vibrate(40, this.prefs.vibration); // Probe direkt beim Einschalten
+          },
         ),
         this.choice(
           t('settings.sound'),
