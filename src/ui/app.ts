@@ -1813,7 +1813,7 @@ export class App {
   private pileTap(source: 'stock' | 'discard' | 'carpet'): void {
     const s = this.state!;
     const options = (['stock', 'discard', 'carpet'] as const).filter((x) => checkDraw(s, this.me, x).ok);
-    const ambiguous = this.prefs.safeDraw && options.length > 1 && options.includes(source);
+    const ambiguous = this.prefs.safeDraw && options.includes(source);
     if (ambiguous && this.armed !== source) {
       this.armed = source;
       if (this.armedTimer) clearTimeout(this.armedTimer);
