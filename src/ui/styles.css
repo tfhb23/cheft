@@ -57,6 +57,8 @@ h1, h2, h3 { font-family: var(--font-head); font-weight: 600; margin: 0; letter-
 h1 { font-size: calc(22px * var(--s)); color: var(--orange); text-shadow: var(--px) var(--px) 0 var(--sand-dark); }
 h2 { font-size: calc(12px * var(--s)); color: var(--orange-dark); }
 h3 { font-size: calc(10px * var(--s)); color: var(--orange-dark); }
+/* Haupt-Überschriften stehen überall mittig (nur die Zwischenüberschriften der Regeln bleiben linksbündig) */
+h1, h2, .dialog h3 { text-align: center; }
 p { margin: 0 0 calc(4px * var(--s)); }
 
 /* ---------- Bedienelemente */
@@ -71,6 +73,7 @@ p { margin: 0 0 calc(4px * var(--s)); }
   cursor: pointer;
   line-height: 1.2;
   white-space: nowrap;
+  text-align: center;
 }
 .btn:active, .btn.active { box-shadow: none; transform: translate(var(--px), var(--px)); }
 .btn:disabled { background: var(--gray); color: var(--ink-soft); border-color: var(--ink-soft); box-shadow: none; cursor: default; transform: none; }
@@ -171,7 +174,8 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .topbar > * { pointer-events: auto; }
 .topbar .round-no { margin-top: calc(2px * var(--s)); }
 @media (max-width: 520px) { .topbar .rl { display: none; } }
-.rules-bar { position: static; align-items: center; background: var(--panel); border-bottom: var(--px) solid var(--ink); }
+.rules-bar h2 { position: absolute; left: 0; right: 0; pointer-events: none; }
+.rules-bar { position: relative; align-items: center; background: var(--panel); border-bottom: var(--px) solid var(--ink); }
 .topbar .accent { white-space: nowrap; }
 .topbar .icons { margin-left: auto; display: flex; gap: calc(2px * var(--s)); }
 .game { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
