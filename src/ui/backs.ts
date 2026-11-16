@@ -47,19 +47,6 @@ const FORMULA_DESIGNS: BackDesign[] = [
     },
   },
   {
-    id: 'raute',
-    name: 'Raute',
-    // Kleine Raute (Gold, Creme, Dunkel, Creme) mit Luft darum, im Hintergrund ein Rautengitter alle 6 Pixel.
-    // Nur dx, dy: dadurch an beiden Achsen perfekt gespiegelt.
-    paint: ({ dx, dy }) => {
-      const m6 = (n: number) => ((n % 6) + 6) % 6;
-      const d = dx + dy;
-      if (d <= 4) return (['gold', 'cream', 'dark', 'cream'] as const)[Math.max(0, Math.min(3, Math.ceil(d) - 1))];
-      if (d <= 6) return null;
-      return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
-    },
-  },
-  {
     id: 'stern',
     name: 'Stern',
     // Achtzackiger Stern mit Schachbrett-Kern; im Hintergrund wachsen seine Konturen in dunklen Linien weiter (alle 3 Pixel),
@@ -86,9 +73,9 @@ const FORMULA_DESIGNS: BackDesign[] = [
   {
     id: 'raute-ecken',
     name: 'Raute mit Ecken',
-    // Große Raute (7 Ringe) im Diagonalgitter, dunkler Rand und Eck-Klammern in Creme, die an die weiße Kontur stoßen.
+    // Große Raute (7 Ringe) im Rautengitter (alle 6 Pixel), dunkler Rand und Eck-Klammern in Creme, die an die weiße Kontur stoßen.
     paint: ({ dx, dy }) => {
-      const m4 = (n: number) => ((n % 4) + 4) % 4;
+      const m6 = (n: number) => ((n % 6) + 6) % 6;
       const a = Math.floor(12.5 - dx);
       const b = Math.floor(18.5 - dy);
       if ((a === 1 && b <= 7) || (b === 1 && a <= 7)) return 'cream';
@@ -96,7 +83,7 @@ const FORMULA_DESIGNS: BackDesign[] = [
       const d = dx + dy;
       if (d <= 7) return (['gold', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream'] as const)[Math.max(0, Math.ceil(d) - 1)];
       if (d <= 8.5) return null;
-      return m4(d) === 0 || m4(dx - dy) === 0 ? 'dark' : null;
+      return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
     },
   },
   {
@@ -220,29 +207,27 @@ export function backDetail(d: BackDesign): number {
 }
 
 /**
- * Reihenfolge in den Einstellungen: ähnliche Designs stehen nebeneinander (Familien), die Familien grob von einfach zu
- * detailreich und prunkvoll. Innerhalb einer Familie stehen die Favoriten zuerst, danach Kandidaten zum Entfernen. Von Hand sortiert; backDetail dient dabei nur als Anhaltspunkt für
+ * Reihenfolge in den Einstellungen: Designs mit ähnlichen Elementen stehen nebeneinander (Gruppen A–H), die Gruppen grob von
+ * einfach zu detailreich und prunkvoll. Innerhalb einer Gruppe stehen die Favoriten zuerst, danach Kandidaten zum Entfernen. Von Hand sortiert; backDetail dient dabei nur als Anhaltspunkt für
  * das dichte Ende. Ein neues Design bekommt hier seinen Platz (der Test erzwingt das).
  */
 export const BACK_ORDER = [
-  // Raute-Familie
-  'classic', 'raute', 'raute-ecken',
-  // Kreis und Stern in der Mitte
-  'ring', 'lotus', 'sonne', 'rosette', 'stern',
-  // Strahlenkranz, Achtecke, Schach
-  'strahlen-1', 'strahlen-2', 'achtecke-2', 'achtecke-1', 'medaillon-schach',
-  // Fächer-Ränder
-  'faecher-1', 'faecher-3', 'faecher-2', 'faecher-4',
-  // Arabesken auf dunklem Grund
-  'kartusche-1', 'ranken-1', 'kartusche-2', 'kartusche-3', 'kartusche-4', 'ranken-2',
-  'zwei-kreise', 'stern-rahmen',
-  // Guilloche
+  // A: kaum Elemente, vor allem ein Hintergrundmuster
+  'classic', 'raute-ecken', 'ring',
+  // B: eine runde Blüte oder ein Stern in der Mitte, ruhiger Hintergrund
+  'lotus', 'sonne', 'rosette', 'stern',
+  // C: große Scheibe oder Medaillon in der Mitte
+  'strahlen-1', 'medaillon-schach',
+  // D: Rahmen mit Schachbrett- oder Punktfläche innen
+  'faecher-3', 'faecher-4', 'stern-rahmen', 'faecher-2',
+  // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
+  'kartusche-1', 'ranken-1', 'kartusche-2', 'kartusche-3', 'kartusche-4', 'ranken-2', 'zwei-kreise',
+  // F: Wellenlinien-Rosetten
   'guilloche-3', 'guilloche-1', 'guilloche-2',
-  // Einzelstücke
-  'loewe-sonne', 'schlacht', 'herati',
-  // Gitter und Geometrie (am dichtesten)
-  'gitter-1', 'gitter-4', 'gitter-2', 'gitter-3',
-  'geometrie-3', 'geometrie-5', 'geometrie-1', 'geometrie-2', 'geometrie-4',
+  // G: Randbilder
+  'loewe-sonne', 'schlacht',
+  // H: flächendeckende Muster (am dichtesten)
+  'herati', 'achtecke-1', 'gitter-1', 'gitter-4', 'geometrie-3', 'geometrie-5', 'gitter-2', 'gitter-3', 'geometrie-1', 'geometrie-2', 'geometrie-4',
 ];
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
