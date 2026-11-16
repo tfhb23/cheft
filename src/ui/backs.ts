@@ -193,22 +193,11 @@ export function backDetail(d: BackDesign): number {
  * das dichte Ende. Ein neues Design bekommt hier seinen Platz (der Test erzwingt das).
  */
 export const BACK_ORDER = [
-  // A: kaum Elemente, vor allem ein Hintergrundmuster
-  'classic', 'raute', 'ring',
-  // B: eine runde Blüte oder ein Stern in der Mitte, ruhiger Hintergrund
-  'lotus', 'rosette', 'stern',
-  // C: große Scheibe oder Medaillon in der Mitte
-  'mond', 'medaillon',
-  // D: Fächer-Rand mit Innenfläche
-  'faecher', 'muschel',
-  // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
-  'arabeske', 'ranke', 'schnoerkel', 'zwilling',
-  // F: Wellenlinien-Rosetten
-  'bluete', 'kristall',
-  // G: Randbilder
-  'sonne', 'garten',
-  // H: flächendeckende Muster (am dichtesten)
-  'juwel', 'retro', 'geflecht', 'mosaik', 'teppich',
+  // einfach (wenig Weiß) → komplex (viel Weiß, viele Details)
+  'classic', 'ring', 'stern', 'lotus', 'raute', 'rosette',
+  'geflecht', 'garten', 'juwel', 'bluete', 'teppich', 'sonne',
+  'medaillon', 'mond', 'retro', 'arabeske', 'faecher', 'ranke',
+  'mosaik', 'kristall', 'schnoerkel', 'zwilling', 'muschel',
 ];
 
 /** Frühere Kennungen (gespeicherte Einstellungen) auf die heutigen Namen abbilden. */
