@@ -158,7 +158,8 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .bot-col .btn { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Regeln */
-.rules { flex: 1; overflow: auto; padding: calc(6px * var(--s)); max-width: calc(260px * var(--s)); margin: 0 auto; width: 100%; }
+/* Lesespalte von etwa 65 Zeichen; die Scrollleiste sitzt am Fensterrand, nicht an der Textspalte */
+.rules { flex: 1; overflow: auto; width: 100%; padding: calc(6px * var(--s)) max(calc(6px * var(--s)), calc((100% - 360px * var(--s)) / 2)); }
 .rules h3 { margin: calc(6px * var(--s)) 0 calc(2px * var(--s)); }
 .rules ul { margin: 0; padding-left: calc(8px * var(--s)); }
 .rules li { margin-bottom: calc(2px * var(--s)); }
