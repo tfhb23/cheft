@@ -118,13 +118,23 @@ function iosTick(): void {
   label.remove();
 }
 
-/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 30 ms. Gibt zurück, ob der Browser den Impuls angenommen hat. */
+const isIos = (): boolean => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/** Unterstützt dieses Gerät die Vibration überhaupt (Android-Browser mit Vibration API oder iPhone mit Haptik-Fallback)? */
+export function vibrationSupported(): boolean {
+  return 'vibrate' in navigator || isIos();
+}
+
+/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 40 ms. Gibt zurück, ob der Impuls ausgelöst werden konnte. */
 export function vibrate(ms: number, on: boolean): boolean {
   if (!on) return true;
   try {
-    if ('vibrate' in navigator) return navigator.vibrate(Math.max(30, ms * 2));
-    iosTick();
-    return true;
+    if ('vibrate' in navigator) return navigator.vibrate(Math.max(40, ms * 2));
+    if (isIos()) {
+      iosTick();
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }

@@ -1921,7 +1921,7 @@ export class App {
           (v) => {
             this.prefs.vibration = v as boolean;
             // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
-            if (!vibrate(40, this.prefs.vibration)) this.toast(t('settings.vibration.fail'), true);
+            if (this.prefs.vibration && !vibrate(150, true)) this.toast(t('settings.vibration.fail'), true);
           },
         ),
         this.choice(
