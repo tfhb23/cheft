@@ -509,6 +509,7 @@ export class App {
     }
     const demo = this.logoCards;
     const hasSave = !!this.state && !this.state.finished;
+    const hasRoom = !!this.storedOnline();
     return h(
       'div',
       { class: 'menu' },
@@ -520,14 +521,14 @@ export class App {
           'div',
           { class: 'menu-group' },
           hasSave && h('button', { class: 'btn primary', onclick: () => this.continueGame() }, t('btn.continue')),
-          h('button', { class: `btn${hasSave ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
+          h('button', { class: `btn${hasSave || hasRoom ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
           h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
         ),
         h(
           'div',
           { class: 'menu-group' },
           h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
-          this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
+          hasRoom ? h('button', { class: 'btn primary', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
         ),
         h(
           'div',
