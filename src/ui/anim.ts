@@ -3,6 +3,11 @@
  * Vor einer Änderung Positionen merken, nach dem Neuzeichnen Klone fliegen lassen.
  */
 
+import { CARD_PX, EASE_FLY, MOTION } from './tokens';
+
+/** Zelle des Kartenrückens (A) im Atlas. */
+const BACK_CELL = 53;
+
 export type RectMap = Map<number, DOMRect>;
 
 export function snapshot(root: HTMLElement): RectMap {
@@ -30,7 +35,7 @@ const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').match
 
 export function flip(root: HTMLElement, before: RectMap, opts: FlipOptions = {}): Promise<void> {
   if (reduce()) return Promise.resolve();
-  const duration = opts.duration ?? 260;
+  const duration = opts.duration ?? MOTION.fly;
   const after = snapshot(root);
   const promises: Promise<unknown>[] = [];
   const byId = new Map<number, HTMLElement>();
@@ -55,8 +60,8 @@ export function flip(root: HTMLElement, before: RectMap, opts: FlipOptions = {})
       ghost.className = 'card fly';
       ghost.style.width = `${from.width}px`;
       ghost.style.height = `${from.height}px`;
-      ghost.style.backgroundSize = `${(from.width / 32) * 256}px ${(from.height / 44) * 308}px`;
-      ghost.style.backgroundPosition = `${-(53 % 8) * from.width}px ${-Math.floor(53 / 8) * from.height}px`;
+      ghost.style.backgroundSize = `${(from.width / CARD_PX.w) * CARD_PX.atlasW}px ${(from.height / CARD_PX.h) * CARD_PX.atlasH}px`;
+      ghost.style.backgroundPosition = `${-(BACK_CELL % CARD_PX.cols) * from.width}px ${-Math.floor(BACK_CELL / CARD_PX.cols) * from.height}px`;
       document.body.appendChild(ghost);
       const pr = flyClone(ghost, from, opts.disappearTo, duration, true, 0, 0);
       ghost.remove();
@@ -108,7 +113,7 @@ export function flyClone(el: HTMLElement, from: DOMRect, to: DOMRect, duration: 
       { transform: `translate(${fx}px, ${fy}px) rotate(${rotFrom}deg)`, opacity: 1 },
       { transform: `translate(${tx}px, ${ty}px) rotate(${rotTo}deg)`, opacity: fade ? 0 : 1 },
     ],
-    { duration, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' },
+    { duration, easing: EASE_FLY, fill: 'forwards' },
   );
   return new Promise((resolve) => {
     const done = () => {
@@ -133,20 +138,20 @@ export function dealAnimation(stock: DOMRect | null, targets: DOMRect[], perTarg
       ghost.className = 'card fly';
       ghost.style.width = `${cardW}px`;
       ghost.style.height = `${cardH}px`;
-      ghost.style.backgroundSize = `${(cardW / 32) * 256}px ${(cardH / 44) * 308}px`;
-      ghost.style.backgroundPosition = `${-(53 % 8) * cardW}px ${-Math.floor(53 / 8) * cardH}px`;
+      ghost.style.backgroundSize = `${(cardW / CARD_PX.w) * CARD_PX.atlasW}px ${(cardH / CARD_PX.h) * CARD_PX.atlasH}px`;
+      ghost.style.backgroundPosition = `${-(BACK_CELL % CARD_PX.cols) * cardW}px ${-Math.floor(BACK_CELL / CARD_PX.cols) * cardH}px`;
       const to = new DOMRect(t.left + t.width / 2 - cardW / 2, t.top + t.height / 2 - cardH / 2, cardW, cardH);
       const d = delay;
       promises.push(
         new Promise((resolve) => {
           setTimeout(() => {
             document.body.appendChild(ghost);
-            flyClone(ghost, stock, to, 280, true, 0, 0).then(resolve);
+            flyClone(ghost, stock, to, MOTION.dealFly, true, 0, 0).then(resolve);
             ghost.remove();
           }, d);
         }),
       );
-      delay += 70;
+      delay += MOTION.dealStep;
     }
   }
   return Promise.all(promises).then(() => undefined);

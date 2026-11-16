@@ -3,7 +3,40 @@ export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'd
 
 let ctx: AudioContext | null = null;
 let enabled = false;
+/** Nur während einer Hör-Probe im Design Guide: spielt auch bei ausgeschaltetem Sound. */
+let forced = false;
 let master: AudioNode | null = null;
+
+/** Alle Töne des Spiels mit Nummer, Wirkung und Rezept (Kapitel 9 im Design Guide). */
+export const SOUND_CATALOG: { id: string; name: SoundName; label: string; use: string; recipe: string }[] = [
+  { id: '9.01', name: 'card', label: 'Austeilen', use: 'Nach dem Austeilen; bei Stapel-Zug von Mitspielern', recipe: 'Rechteck 880 Hz, 50 ms' },
+  { id: '9.02', name: 'drawStock', label: 'Ziehen vom Stapel', use: 'Eigener und fremder Zug vom Stapel', recipe: 'Rechteck 880 Hz, 50 ms (wie Austeilen)' },
+  { id: '9.03', name: 'drawDiscard', label: 'Ziehen von der Ablage', use: 'Eigener und fremder Zug von der Ablage', recipe: 'Rechteck 659 Hz, 60 ms (tiefer, weicher als Stapel)' },
+  { id: '9.04', name: 'drawCarpet', label: 'Ziehen der Teppichkarte', use: 'Die besondere Karte', recipe: 'Zwei Rechtecktöne aufwärts: 784 Hz, 1047 Hz' },
+  { id: '9.05', name: 'discard', label: 'Abwerfen', use: 'Eigenes und fremdes Abwerfen', recipe: 'Dreieck 440 Hz, dann 330 Hz abwärts' },
+  { id: '9.06', name: 'lay', label: 'Auslegen / Anlegen', use: 'Auslegen, Anlegen, Joker klauen; Testton beim Einschalten der Sounds', recipe: 'Drei Rechtecktöne aufwärts: 523, 659, 784 Hz' },
+  { id: '9.07', name: 'win', label: 'Rundensieg', use: 'Du gewinnst die Runde', recipe: 'Vier Rechtecktöne aufwärts: 523, 659, 784, 1047 Hz' },
+  { id: '9.08', name: 'lose', label: 'Niederlage', use: 'Jemand anderes gewinnt die Runde', recipe: 'Dreieck 330 Hz, dann 262 Hz abwärts' },
+  { id: '9.09', name: 'error', label: 'Fehler', use: 'Unerlaubte Aktion', recipe: 'Sägezahn 180 Hz, 120 ms' },
+  { id: '9.10', name: 'tick', label: 'Tick', use: 'Karte vorwählen, Bereit, Zurücklegen, Markieren', recipe: 'Rechteck 1320 Hz, 20 ms, sehr leise' },
+  { id: '9.11', name: 'cheft', label: 'Cheft!', use: 'Jemand sagt Cheft an', recipe: 'Pauke, Sägezahn-Akkord, Lauf aufwärts, zweiter Einschlag mit Becken' },
+];
+
+/** Vibrationsmuster in Millisekunden (Pause/Impuls im Wechsel). Unter 30 ms spüren viele Android-Geräte nichts. */
+export const VIB = {
+  short: 30,
+  error: [30, 60, 30] as number[],
+  win: [40, 60, 40, 60, 80] as number[],
+  cheft: 250,
+  probe: 300,
+};
+export const VIBRATION_CATALOG: { id: string; label: string; pattern: number | number[]; use: string }[] = [
+  { id: '9.21', label: 'Kurz', pattern: VIB.short, use: 'Jede eigene Aktion, Vorwahl, Rückblick' },
+  { id: '9.22', label: 'Fehler', pattern: VIB.error, use: 'Unerlaubte Aktion' },
+  { id: '9.23', label: 'Sieg', pattern: VIB.win, use: 'Du gewinnst die Runde' },
+  { id: '9.24', label: 'Cheft', pattern: VIB.cheft, use: 'Du sagst Cheft an' },
+  { id: '9.25', label: 'Probe', pattern: VIB.probe, use: 'Testimpuls beim Einschalten der Vibration' },
+];
 
 /** Gesamtlautstärke; der Kompressor verhindert Übersteuern bei den lauteren Effekten. */
 const MASTER_GAIN = 1.7;
@@ -24,7 +57,7 @@ export function setSoundEnabled(on: boolean): void {
 }
 
 export function unlockAudio(): void {
-  if (!enabled) return;
+  if (!enabled && !forced) return;
   try {
     if (!ctx) {
       ctx = new AudioContext();
@@ -86,8 +119,18 @@ function crash(dur: number, gain = 0.07, delay = 0): void {
   src.start(t);
 }
 
+/** Hör-Probe für den Design Guide: spielt unabhängig von der Einstellung „Sounds“. */
+export function preview(name: SoundName): void {
+  forced = true;
+  try {
+    play(name);
+  } finally {
+    forced = false;
+  }
+}
+
 export function play(name: SoundName): void {
-  if (!enabled) return;
+  if (!enabled && !forced) return;
   unlockAudio();
   if (!ctx) return;
   switch (name) {

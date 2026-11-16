@@ -84,9 +84,34 @@ src/net/      WebSocket-Client
 src/engine/view.ts  Spieler-Sicht mit maskierten Karten
 server/       Mehrspieler-Server (Räume, Protokoll, Bots)
 src/i18n/     Texte (de.ts; weitere Sprachen als eigene Datei mit gleichen Schlüsseln)
-src/ui/       Oberfläche: Sprite-Atlas (Pixelkarten per Canvas), Spielfeld, Menü, Regeln
-scripts/      Icon-Generator
+src/ui/       Oberfläche
+  tokens.ts     Design-Tokens: Farben, Schriften, Abstände, Maße, Ebenen, Zeiten (einzige Quelle, nummeriert)
+  styles.css    Stile, nur mit Variablen aus tokens.ts (ein Test prüft das)
+  components.ts Gemeinsame Bausteine: Buttons, „Zurück“, Fenster, Toast, Sitz-Beschriftung, Kombination
+  icons.ts      Pixel-Piktogramme
+  sprites.ts    Sprite-Atlas (Pixelkarten per Canvas)
+  sound.ts      Töne und Vibration samt Katalog
+  guide.ts      Design Guide (Menü → „Design Guide“)
+  app.ts        Menü, Spielfeld, Dialoge, Einstellungen
+scripts/      Icon-Generator (liest die Farben aus tokens.ts)
 ```
+
+## Design Guide und Design-Tokens
+
+Im Menü zwischen „Regeln“ und „Einstellungen“ liegt der **Design Guide**. Er zeigt alle Elemente der App mit fester
+Nummer (Kapitel.Zähler, z. B. `4.02` = Button Primär): Farben, Schriften, Abstände, Buttons, alle Karten und Grafiken,
+Spielfeld-Elemente, Fenster, Seiten, Töne und Vibrationen, dazu die Navigationslogik und eine Liste, welcher Abstand wo
+wirkt. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ erscheinen die
+Nummern als gelbe Etiketten über Menü und Spielfeld, damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
+
+- **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
+  auf sie zeigen; eine Rolle (`1.4x`–`1.7x`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
+  der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.37` geben ihnen Bedeutung. `styles.css` enthält
+  keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht.
+- **Neues Element:** Baustein in `components.ts` (oder Klasse in `styles.css`) anlegen und in `guide.ts` unter `chapters()`
+  mit neuer Nummer eintragen; mit `sel` findet es auch die Etiketten-Anzeige.
+- **Zurück:** Es gibt genau einen Weg, ein Fenster oder eine Seite zu verlassen: `App.back()`. Der Knopf „Zurück“
+  (`backBtn`), ein Tipp neben ein Anzeige-Fenster und die Esc-Taste rufen sie auf. „Abbrechen“ verwirft eine offene Entscheidung.
 
 ## Umgesetzte Regeln (Regelwerk V6 + Vereinbarungen)
 

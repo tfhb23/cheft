@@ -1,6 +1,10 @@
 // Erzeugt die PWA-Icons (PNG) ohne externe Abhängigkeiten: Pixelbild hochskaliert.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
+import { color } from '../src/ui/tokens.ts';
+
+// Farben aus den Design-Tokens (Kapitel 1): Hülle 1.17, Kontur 1.34, Orange 1.35, Gold 1.13, Papier 1.36. Ausführen mit: npx tsx scripts/make-icons.mjs
+const rgb = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), 255];
 
 const ART = [
   '................................',
@@ -36,8 +40,8 @@ const ART = [
   '....#######################.....',
   '................................',
 ];
-const COLORS = { '.': [0x2e, 0x1d, 0x16, 255], '#': [0x1c, 0x12, 0x0d, 255], 'O': [0xe8, 0x52, 0x1f, 255], 'G': [0xf2, 0xb5, 0x3a, 255] };
-const BG = [0xf6, 0xec, 0xd6, 255];
+const COLORS = { '.': rgb(color('shell')), '#': rgb(color('icon-line')), O: rgb(color('icon-orange')), G: rgb(color('gold')) };
+const BG = rgb(color('icon-paper'));
 
 function crc32(buf) {
   let c, crc = 0xffffffff;

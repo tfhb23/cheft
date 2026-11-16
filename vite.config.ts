@@ -1,10 +1,15 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { color } from './src/ui/tokens';
+
+/** Farbe der Browser-Leiste und des Ladebilds kommt aus den Design-Tokens (1.17). */
+const SHELL = color('shell');
 
 export default defineConfig({
   // './' für GitHub Pages in einem Unterordner; auf einer eigenen Domain (Docker-Build) '/', damit Links wie /232 funktionieren.
   base: process.env.CHEFT_BASE ?? './',
   plugins: [
+    { name: 'cheft-shell-color', transformIndexHtml: (html: string) => html.replace('%SHELL_COLOR%', SHELL) },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
@@ -13,8 +18,8 @@ export default defineConfig({
         short_name: 'Cheft',
         description: 'Rommé und Cheft-Paare im Pixel-Look, allein gegen Bots oder mit Freunden.',
         lang: 'de',
-        theme_color: '#2e1d16',
-        background_color: '#2e1d16',
+        theme_color: SHELL,
+        background_color: SHELL,
         display: 'standalone',
         orientation: 'any',
         start_url: './',
