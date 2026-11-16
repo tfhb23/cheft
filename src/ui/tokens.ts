@@ -173,6 +173,8 @@ export const BREAKPOINTS = {
   compact: 520,
   /** Ab hier sieht man die verdeckten Handkarten der Mitspieler als Fächer. */
   fan: 900,
+  /** Im flachen Querformat (Handy) überlagert der Fächer die Symbole in den Ecken, darum erst ab dieser Höhe. */
+  fanHeight: 520,
 };
 export const BREAKPOINT_TOKENS: ValueToken[] = [
   { id: '3.05', css: '--bp-compact', name: 'Kompakt', value: `${BREAKPOINTS.compact}px`, use: 'Darunter: „Runde“ in der Kopfzeile ausgeblendet, nur „1/7“' },
