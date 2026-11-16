@@ -16,7 +16,7 @@ export const SOUND_CATALOG: { id: string; name: SoundName; label: string; use: s
   { id: '9.05', name: 'discard', label: 'Abwerfen', use: 'Eigenes und fremdes Abwerfen', recipe: 'Dreieck 440 Hz, dann 330 Hz abwärts' },
   { id: '9.06', name: 'lay', label: 'Auslegen / Anlegen', use: 'Auslegen, Anlegen, Joker klauen; Testton beim Einschalten der Sounds', recipe: 'Drei Rechtecktöne aufwärts: 523, 659, 784 Hz' },
   { id: '9.07', name: 'win', label: 'Rundensieg', use: 'Du gewinnst die Runde', recipe: 'Vier Rechtecktöne aufwärts: 523, 659, 784, 1047 Hz' },
-  { id: '9.08', name: 'lose', label: 'Niederlage', use: 'Jemand anderes gewinnt die Runde', recipe: 'Dreieck 330 Hz, dann 262 Hz abwärts' },
+  { id: '9.08', name: 'lose', label: 'Niederlage', use: 'Jemand anderes gewinnt die Runde', recipe: 'Vier Rechtecktöne abwärts in Moll: 523, 392, 311, 262 Hz; der letzte sackt ab' },
   { id: '9.09', name: 'error', label: 'Fehler', use: 'Unerlaubte Aktion', recipe: 'Sägezahn 180 Hz, 120 ms' },
   { id: '9.10', name: 'tick', label: 'Tick', use: 'Karte vorwählen, Bereit, Zurücklegen, Markieren', recipe: 'Rechteck 1320 Hz, 20 ms, sehr leise' },
   { id: '9.11', name: 'cheft', label: 'Cheft!', use: 'Jemand sagt Cheft an', recipe: 'Pauke, Sägezahn-Akkord, Lauf aufwärts, zweiter Einschlag mit Becken' },
@@ -39,7 +39,7 @@ export const VIBRATION_CATALOG: { id: string; label: string; pattern: number | n
 ];
 
 /** Gesamtlautstärke; der Kompressor verhindert Übersteuern bei den lauteren Effekten. */
-const MASTER_GAIN = 1.7;
+const MASTER_GAIN = 4.5;
 
 function out(): AudioNode {
   if (master) return master;
@@ -47,6 +47,12 @@ function out(): AudioNode {
   const gain = c.createGain();
   gain.gain.value = MASTER_GAIN;
   const comp = c.createDynamicsCompressor();
+  // Früh und kräftig regeln: so lässt sich die Gesamtlautstärke anheben, ohne dass die Spitzen übersteuern
+  comp.threshold.value = -16;
+  comp.knee.value = 8;
+  comp.ratio.value = 10;
+  comp.attack.value = 0.002;
+  comp.release.value = 0.12;
   gain.connect(comp).connect(c.destination);
   master = gain;
   return gain;
@@ -76,6 +82,22 @@ function blip(freq: number, dur: number, type: OscillatorType, gain = 0.08, dela
   const g = ctx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(out());
+  o.start(t);
+  o.stop(t + dur);
+}
+
+/** Ton, dessen Höhe während der Dauer von `from` nach `to` gleitet (für den „absackenden“ Schlusston der Niederlage). */
+function slide(from: number, to: number, dur: number, type: OscillatorType, gain = 0.08, delay = 0): void {
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(from, t);
+  o.frequency.exponentialRampToValueAtTime(to, t + dur);
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   o.connect(g).connect(out());
@@ -151,8 +173,9 @@ export function play(name: SoundName): void {
       blip(1320, 0.02, 'square', 0.012);
       break;
     case 'lose':
-      blip(330, 0.12, 'triangle', 0.05);
-      blip(262, 0.2, 'triangle', 0.05, 0.11);
+      // Spiegelbild des Rundensiegs: vier Töne abwärts in Moll, der letzte sackt ab; gleiche Länge (ca. 0,5 s)
+      [523, 392, 311].forEach((f, i) => blip(f, 0.12, 'square', 0.06, i * 0.1));
+      slide(262, 196, 0.22, 'square', 0.06, 0.3);
       break;
     case 'discard':
       blip(440, 0.07, 'triangle', 0.07);

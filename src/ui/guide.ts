@@ -1019,7 +1019,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       groups: [
         { title: 'Töne', specs: soundSpecs },
         { title: 'Vibration', specs: vibSpecs },
-        { title: 'Lautstärke', node: () => table(['Nr.', 'Name', 'Wert'], [[idChip('9.30'), 'Gesamtlautstärke', '1,7 mit Kompressor gegen Übersteuern (sound.ts › MASTER_GAIN)']]) },
+        { title: 'Lautstärke', node: () => table(['Nr.', 'Name', 'Wert'], [[idChip('9.30'), 'Gesamtlautstärke', '4,5 mit Kompressor (Schwelle −16 dB) gegen Übersteuern (sound.ts › MASTER_GAIN)']]) },
       ],
     },
     {
