@@ -38,6 +38,8 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 
 ## Bot-Gedächtnis
 
+Eine Übersicht über Aufbau, Beschlüsse, Messungen und offene Punkte der Bots steht in [docs/BOTS.md](docs/BOTS.md).
+
 Die Stufe eines Bots ist sein Gedächtnis. Sie setzt keine Spielregler, nur diese Werte (`src/bot/memory.ts`). Alles wird bei jeder Entscheidung deterministisch aus dem Spielzustand abgeleitet (Seed, Runde, Spieler, Karte, eigener Zug): derselbe Zustand ergibt immer dieselbe Wahrnehmung, auch nach einem Neustart des Servers.
 
 | Regler | Bedeutung |

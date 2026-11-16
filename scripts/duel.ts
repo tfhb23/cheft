@@ -54,6 +54,7 @@ function run(job: Job): Out {
       seats,
       rounds: job.rounds,
       dealer,
+      firstTurnOpenAllowed: process.env.FIRST_TURN === 'open',
       visit: (g) => {
         if (g.round.no !== lastNo) {
           if (cur) logs.push({ log: [...cur], plies: curPlies });

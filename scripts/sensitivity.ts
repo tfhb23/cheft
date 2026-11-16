@@ -51,7 +51,7 @@ function run(job: Job): Out {
       style: 'balanced' as const,
       opts: { memory: s === subject ? { ...PERFECT, ...job.override } : undefined },
     }));
-    const res = simulate({ seed: 12000 + i, seats, rounds: job.rounds, dealer: Math.floor(i / 4) % 4 });
+    const res = simulate({ seed: 12000 + i, seats, rounds: job.rounds, dealer: Math.floor(i / 4) % 4, firstTurnOpenAllowed: process.env.FIRST_TURN === 'open' });
     out.games++;
     out.rounds += res.state.history.length;
     out.penalty += res.totals[subject];

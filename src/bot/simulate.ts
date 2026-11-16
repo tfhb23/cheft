@@ -18,6 +18,8 @@ export interface SimOptions {
   seats: SimSeat[];
   /** Rundenzahl des Spiels (3, 5, 7 oder 9 wie in der App). */
   rounds?: number;
+  /** Darf man im ersten eigenen Zug rauskommen? Standard der Simulation: ja; die App spielt standardmäßig mit „gesperrt“. */
+  firstTurnOpenAllowed?: boolean;
   /** Wer die erste Runde austeilt; Standard: aus dem Seed, damit kein Platz dauerhaft bevorzugt ist. */
   dealer?: number;
   /** Wird vor jeder Entscheidung aufgerufen. */
@@ -40,7 +42,7 @@ export interface SimResult {
 export function simulate(o: SimOptions): SimResult {
   const n = o.seats.length;
   const players = o.seats.map((s, i) => ({ id: i, name: `Bot${i}`, isBot: true, bot: { level: s.level, style: s.style } }));
-  const g = newGame(players, { rounds: o.rounds ?? 3, firstTurnOpenAllowed: true, direction: 'ccw' }, o.seed, o.dealer ?? o.seed % n);
+  const g = newGame(players, { rounds: o.rounds ?? 3, firstTurnOpenAllowed: o.firstTurnOpenAllowed ?? true, direction: 'ccw' }, o.seed, o.dealer ?? o.seed % n);
   g.round.waiting = false;
   g.round.ready = g.round.ready.map(() => true);
   const max = o.maxSteps ?? 40000;

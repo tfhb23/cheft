@@ -7,6 +7,9 @@
  *   npm run calibrate -- 256 5 balanced full  vierter Wert: Variante
  *   npm run calibrate -- 960 5 balanced full 4000  fünfter Wert: Startindex der Spiele (unabhängige Wiederholung)
  *
+ * Die Erstzug-Regel ist wie in der App standardmäßig GESPERRT (Rauskommen im ersten eigenen Zug verboten); mit der Umgebungsvariable
+ * FIRST_TURN=open wird sie erlaubt. Die App spielt standardmäßig 7 Runden: `npm run calibrate -- 960 7`.
+ *
  * Varianten (wozu trägt welcher Regler bei?):
  *   full         alles wie in der App
  *   memory       nur das Gedächtnis (Spanne, Streuung, Genauigkeit, Beobachtung, Tagesform), ohne Übersehen
@@ -73,7 +76,7 @@ function runShard(job: Job): ShardResult {
     const dealer = Math.floor(i / 4) % 4;
     // Platz s bekommt Stufe (s + rot) mod 4: über vier Spiele sitzt jede Stufe einmal auf jedem Platz
     const seats = Array.from({ length: 4 }, (_, s) => ({ level: LEVELS[(s + rot) % 4], style: job.style, opts: optsFor(job.variant, LEVELS[(s + rot) % 4]) }));
-    const res = simulate({ seed: 9000 + i, seats, rounds: job.rounds, dealer });
+    const res = simulate({ seed: 9000 + i, seats, rounds: job.rounds, dealer, firstTurnOpenAllowed: process.env.FIRST_TURN === 'open' });
     rounds += res.state.history.length;
     seats.forEach((seat, s) => {
       const t = tally[seat.level];
