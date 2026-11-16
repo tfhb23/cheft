@@ -204,15 +204,15 @@ export const BACK_ORDER = [
   // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
   'arabeske', 'ranke', 'schnoerkel', 'zwilling',
   // F: Wellenlinien-Rosetten
-  'wirbel', 'kristall',
+  'bluete', 'kristall',
   // G: Randbilder
   'sonne', 'garten',
   // H: flächendeckende Muster (am dichtesten)
-  'juwel', 'retro', 'geflecht', 'mosaik', 'gitter',
+  'juwel', 'retro', 'geflecht', 'mosaik', 'teppich',
 ];
 
 /** Frühere Kennungen (gespeicherte Einstellungen) auf die heutigen Namen abbilden. */
-const LEGACY_IDS: Record<string, string> = { 'raute-ecken': 'raute', herati: 'juwel', 'strahlen-1': 'mond', kranz: 'mond', 'medaillon-schach': 'medaillon', 'faecher-4': 'faecher', 'faecher-3': 'muschel', 'faecher-stern': 'muschel', 'stern-rahmen': 'muschel', 'kartusche-1': 'arabeske', 'ranken-1': 'ranke', 'kartusche-4': 'schnoerkel', 'zwei-kreise': 'zwilling', 'guilloche-3': 'wirbel', 'guilloche-2': 'kristall', 'loewe-sonne': 'sonne', schlacht: 'garten', 'achtecke-1': 'retro', wabe: 'retro', 'geometrie-3': 'geflecht', 'geometrie-4': 'mosaik', 'gitter-2': 'gitter' };
+const LEGACY_IDS: Record<string, string> = { 'raute-ecken': 'raute', herati: 'juwel', 'strahlen-1': 'mond', kranz: 'mond', 'medaillon-schach': 'medaillon', 'faecher-4': 'faecher', 'faecher-3': 'muschel', 'faecher-stern': 'muschel', 'stern-rahmen': 'muschel', 'kartusche-1': 'arabeske', 'ranken-1': 'ranke', 'kartusche-4': 'schnoerkel', 'zwei-kreise': 'zwilling', 'guilloche-3': 'bluete', wirbel: 'bluete', 'guilloche-2': 'kristall', 'loewe-sonne': 'sonne', schlacht: 'garten', 'achtecke-1': 'retro', wabe: 'retro', 'geometrie-3': 'geflecht', 'geometrie-4': 'mosaik', 'gitter-2': 'teppich', gitter: 'teppich' };
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
 
