@@ -3,6 +3,21 @@ export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'd
 
 let ctx: AudioContext | null = null;
 let enabled = false;
+let master: AudioNode | null = null;
+
+/** Gesamtlautstärke; der Kompressor verhindert Übersteuern bei den lauteren Effekten. */
+const MASTER_GAIN = 1.7;
+
+function out(): AudioNode {
+  if (master) return master;
+  const c = ctx!;
+  const gain = c.createGain();
+  gain.gain.value = MASTER_GAIN;
+  const comp = c.createDynamicsCompressor();
+  gain.connect(comp).connect(c.destination);
+  master = gain;
+  return gain;
+}
 
 export function setSoundEnabled(on: boolean): void {
   enabled = on;
@@ -11,7 +26,10 @@ export function setSoundEnabled(on: boolean): void {
 export function unlockAudio(): void {
   if (!enabled) return;
   try {
-    ctx = ctx ?? new AudioContext();
+    if (!ctx) {
+      ctx = new AudioContext();
+      master = null;
+    }
     if (ctx.state === 'suspended') void ctx.resume();
   } catch {
     ctx = null;
@@ -27,7 +45,7 @@ function blip(freq: number, dur: number, type: OscillatorType, gain = 0.08, dela
   o.frequency.setValueAtTime(freq, t);
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g).connect(ctx.destination);
+  o.connect(g).connect(out());
   o.start(t);
   o.stop(t + dur);
 }
@@ -43,7 +61,7 @@ function boom(freq: number, dur: number, gain = 0.2, delay = 0): void {
   o.frequency.exponentialRampToValueAtTime(freq * 0.45, t + dur);
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g).connect(ctx.destination);
+  o.connect(g).connect(out());
   o.start(t);
   o.stop(t + dur);
 }
@@ -64,7 +82,7 @@ function crash(dur: number, gain = 0.07, delay = 0): void {
   const g = ctx.createGain();
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  src.connect(hp).connect(g).connect(ctx.destination);
+  src.connect(hp).connect(g).connect(out());
   src.start(t);
 }
 
