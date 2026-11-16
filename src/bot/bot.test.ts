@@ -204,9 +204,9 @@ describe('Das Gedächtnis ändert Entscheidungen', () => {
     expect(a.kind).toBe('discard');
     if (a.kind === 'discard') expect(a.cardId).not.toBe(H7);
   });
-  it('mit der Stufe statt einer Überschreibung: der Mastermind erinnert sich, Gemütlich vergisst die alten Abwürfe', () => {
+  it('mit der Stufe statt einer Überschreibung: der Mastermind erinnert sich, Vergesslich vergisst die alten Abwürfe', () => {
     const { g, me } = scenario(PILE_IDS);
-    // Der Stapel ist 31 und 32 Züge alt (4 Spieler: ~8 Runden), weit jenseits der Spanne von Gemütlich und Normal
+    // Der Stapel ist 31 und 32 Züge alt (4 Spieler: ~8 Runden), weit jenseits der Spanne von Vergesslich und Normal
     g.players[me].bot = { level: 'master', style: 'balanced' };
     expect(decideAction(g, me)).toEqual({ kind: 'discard', cardId: H7 });
     for (const level of ['easy', 'normal'] as const) {

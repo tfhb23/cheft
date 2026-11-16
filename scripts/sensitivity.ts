@@ -24,11 +24,11 @@ const CASES: [string, Partial<MemoryParams>][] = [
   ['Handüberblick 50 %', { handMiss: 0.5 }],
   ['Tisch übersehen 6 % (1 bis 3 Züge)', { tableMiss: 0.06, missExtra: 2 }],
   ['Tisch übersehen 20 % (1 bis 3 Züge)', { tableMiss: 0.2, missExtra: 2 }],
-  ['Gedächtnis wie Gemütlich (ohne Übersehen)', { ...MEMORY.easy, ...NO_PERCEPTION }],
+  ['Gedächtnis wie Vergesslich (ohne Übersehen)', { ...MEMORY.easy, ...NO_PERCEPTION }],
   ['Gar kein Gedächtnis (Spanne 0, nichts beobachtet)', NO_MEMORY],
-  ['Gemütlich komplett', { ...MEMORY.easy }],
+  ['Vergesslich komplett', { ...MEMORY.easy }],
   ['Normal komplett', { ...MEMORY.normal }],
-  ['Gerissen komplett', { ...MEMORY.hard }],
+  ['Scharfsinnig komplett', { ...MEMORY.hard }],
 ];
 
 interface Job {
