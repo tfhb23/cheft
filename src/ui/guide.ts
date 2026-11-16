@@ -618,9 +618,9 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'App-Icon',
       where: 'Homescreen (PWA), Apple Touch Icon, Manifest',
       code: 'public/icon-192.png, icon-512.png · scripts/make-icons.mjs, make-favicon.mjs (Sonne der Rückseite „sonne“ auf Orange, Farben aus tokens.ts)',
-      stage: () => [h('img', { src: `${import.meta.env.BASE_URL}icon-192.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } }), h('img', { src: `${import.meta.env.BASE_URL}icon-512.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } })],
+      stage: () => [h('img', { src: `${import.meta.env.BASE_URL}icon-192.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } }), h('img', { src: `${import.meta.env.BASE_URL}icon-maskable-512.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } })],
       stageCls: 'flat',
-      facts: [['Größen', '192 × 192 und 512 × 512 (maskable, Vollfläche ohne eigene Rundung); Favicon 16, 32, 48, 96 (abgerundete Ecken) und favicon.ico (16/32/48); Apple Touch Icon 180 × 180 (Vollfläche)']],
+      facts: [['App-Icon', '192 und 512 „any“ (abgerundet) · 192 und 512 „maskable“ (Vollfläche, Sonne in der Safe Zone) · Apple Touch 180 (Vollfläche)'], ['Favicon', 'favicon.svg (Vektor) · favicon.ico (16/32/48) · PNG 16, 32, 48, 96'], ['Teilen', 'og-image.png 1200 × 630']],
     },
     {
       id: '5.32',

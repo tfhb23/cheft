@@ -27,3 +27,16 @@ const entries = sizes.map((s, i) => {
 });
 writeFileSync('public/favicon.ico', Buffer.concat([head, ...entries, ...images]));
 console.log('Favicons erzeugt.');
+
+// favicon.svg: Pixel-Sonne als Vektor (scharf in jeder Größe, bevorzugt von modernen Browsern). 64 × 64, Sonne 3 Einheiten je Pixel.
+import { COL as C, SUN, sunPixel } from './sun-art.mjs';
+const hex = (c) => '#' + c.slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('');
+const paths = new Map();
+for (let y = 0; y < SUN; y++) for (let x = 0; x < SUN; x++) {
+  const c = sunPixel(x, y);
+  if (c === C.main) continue;
+  const k = hex(c);
+  paths.set(k, (paths.get(k) ?? '') + `M${8 + x * 3} ${8 + y * 3}h3v3h-3z`);
+}
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="${hex(C.main)}"/>${[...paths].map(([k, d]) => `<path fill="${k}" shape-rendering="crispEdges" d="${d}"/>`).join('')}</svg>\n`;
+writeFileSync('public/favicon.svg', svg);
