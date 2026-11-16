@@ -3,7 +3,7 @@ import { Card, SUITS } from '../engine/cards';
 import { GameState } from '../engine/game';
 import { CardPool, setHand, testGame } from '../engine/testutil';
 import { Unseen } from './memory';
-import { DEFAULT_TUNING, ambition, growth, isBold, standing, weighOpening } from './strategy';
+import { DEFAULT_TUNING, ambition, growth, handChance, isBold, roundProgress, standing, weighOpening } from './strategy';
 
 /** Alle Karten noch unbekannt (2 Kopien je Karte, 2 Joker): das Äußerste an Ungewissheit. */
 function allUnseen(copies = 2): Unseen {
@@ -162,7 +162,7 @@ describe('growth: Wie gut kann die Erstmeldung noch wachsen?', () => {
   });
 });
 
-describe('weighOpening: jetzt legen oder noch warten?', () => {
+describe('weighOpening (v1, getrennte Regeln): jetzt legen oder noch warten?', () => {
   /** 15 Karten: König-Satz (30), Folge Herz 7 bis 9 (24) = 54 Augen, dazu unverbundene Karten. Alle liegen gleichauf, der Ehrgeiz ist 0,4. */
   function world() {
     const g = game([0, 0, 0, 0]);
@@ -175,7 +175,8 @@ describe('weighOpening: jetzt legen oder noch warten?', () => {
     const ids = (a: number, b: number) => hand.slice(a, b).map((c) => c.id);
     return { g, me, hand, groups: [ids(0, 3), ids(3, 6)] };
   }
-  const weigh = (w: ReturnType<typeof world>, extra: object = {}) => weighOpening(w.g, w.me, { base: 0.4, groups: w.groups, hand: w.hand, unseen: allUnseen(), ...extra });
+  const weigh = (w: ReturnType<typeof world>, extra: { tuning?: object; [k: string]: unknown } = {}) =>
+    weighOpening(w.g, w.me, { base: 0.4, groups: w.groups, hand: w.hand, unseen: allUnseen(), ...extra, tuning: { mode: 'v1' as const, draws: 1, ...(extra.tuning ?? {}) } });
   /** Wie der Test oben, aber ohne die Wachstumsprüfung und ohne mutigen Modus: Es soll nur der Wille zum Warten zählen. */
   const eager = { tuning: { ignoreGrowth: true, boldHold: false } };
 
@@ -240,7 +241,7 @@ describe('weighOpening: jetzt legen oder noch warten?', () => {
     setHand(w.g, w.me, [...w.hand.slice(0, 9), ...extra]);
     const hand = w.g.round.players[w.me].hand;
     const ids = hand.map((c) => c.id);
-    const r = weighOpening(w.g, w.me, { base: 0.4, hand, unseen: allUnseen(), groups: [ids.slice(0, 3), ids.slice(3, 6), ids.slice(9, 12), ids.slice(12, 15)], ...eager });
+    const r = weighOpening(w.g, w.me, { base: 0.4, hand, unseen: allUnseen(), groups: [ids.slice(0, 3), ids.slice(3, 6), ids.slice(9, 12), ids.slice(12, 15)], tuning: { mode: 'v1', ...eager.tuning } });
     expect(r.augen).toBeGreaterThanOrEqual(r.target);
     expect(r).toMatchObject({ hold: false, why: 'high-enough' });
   });
@@ -289,5 +290,220 @@ describe('weighOpening: jetzt legen oder noch warten?', () => {
     expect(r.ambition).toBeCloseTo(0.4, 9);
     expect(r.augen).toBe(54);
     expect(r.target).toBeCloseTo(51 + 10 + 40 * 0.4, 9);
+  });
+});
+
+describe('handChance: Wie wahrscheinlich ist eine Hand?', () => {
+  const p = new CardPool();
+  // Zwölf Karten in vier Kombinationen (König-Satz, Folge Pik 5 bis 8, Folge Herz 9 bis Bube, Folge Karo 2 bis 4) = 13 Karten,
+  // zwei bleiben übrig: Kreuz 9 und Karo Dame.
+  const hand: Card[] = p.takeAll('SK', 'HK', 'DK', 'S5', 'S6', 'S7', 'S8', 'H9', 'H10', 'HB', 'D2', 'D3', 'D4', 'C9', 'DD');
+  const g = (a: number, b: number) => hand.slice(a, b).map((c) => c.id);
+  const groups = [g(0, 3), g(3, 7), g(7, 10), g(10, 13)];
+  const only = (keys: Record<string, number>): Unseen => {
+    const m = new Map(Object.entries(keys));
+    return { copies: m, total: [...m.values()].reduce((a, b) => a + b, 0) };
+  };
+
+  it('ist schon eine Hand, wenn höchstens eine Karte übrig bleibt (Chance 1)', () => {
+    // 15 von 15 Karten verplant (die letzte Gruppe hat nur zwei Karten, hier zählt nur, wie viele Karten verplant sind)
+    expect(handChance(hand, [g(0, 3), g(3, 7), g(7, 10), g(10, 13), g(13, 15)], allUnseen())).toBe(1);
+    // 13 von 14 Karten: ein Rest, der abgeworfen wird
+    expect(handChance(hand.slice(0, 14), groups, allUnseen())).toBe(1);
+  });
+  it('bei mehr als drei Restkarten ist eine Hand in den nächsten Zügen unrealistisch', () => {
+    expect(handChance(hand, [g(0, 3), g(3, 7)], allUnseen())).toBe(0); // acht Restkarten
+    expect(handChance(hand, [g(0, 3), g(3, 7), g(7, 10)], allUnseen())).toBe(0); // fünf Restkarten
+  });
+  it('mit zwei Restkarten: Die Karte, die die letzte Kombination verlängert, macht die Hand', () => {
+    // Pik 9 verlängert die Folge Pik 5 bis 8: Dann bleibt nur Kreuz 9 (der Abwurf) übrig
+    const chance = handChance(hand, groups, only({ S9: 2 }));
+    expect(chance).toBeCloseTo(2 / 8, 9); // U wird auf mindestens 8 gehoben
+    expect(handChance(hand, groups, only({ H2: 2 }))).toBe(0); // passt nirgends
+    expect(handChance(hand, groups, only({}))).toBe(0);
+  });
+  it('mehrere erwünschte Karten addieren sich (Pik 9 und der vierte König)', () => {
+    expect(handChance(hand, groups, only({ S9: 2, C13: 2 }))).toBeCloseTo(4 / 8, 9);
+  });
+  it('mehrere Züge Vorausschau erhöhen die Chance: 1 − (1 − p)^n', () => {
+    const one = handChance(hand, groups, only({ S9: 2 }), 1);
+    expect(handChance(hand, groups, only({ S9: 2 }), 3)).toBeCloseTo(1 - Math.pow(1 - one, 3), 9);
+  });
+  it('verändert weder die Hand noch die Karten im Spiel', () => {
+    const before = JSON.stringify(hand);
+    const un = allUnseen();
+    const unBefore = JSON.stringify([...un.copies]);
+    handChance(hand, groups, un, 2);
+    expect(JSON.stringify(hand)).toBe(before);
+    expect(JSON.stringify([...un.copies])).toBe(unBefore);
+  });
+  it('rechnet auch mit drei Restkarten in überschaubarer Zeit', () => {
+    const t0 = Date.now();
+    handChance(hand, [g(0, 3), g(3, 7), g(7, 10)].concat([g(10, 12)].slice(1)), allUnseen(), 2);
+    handChance(hand.slice(0, 14), [g(0, 3), g(3, 7), g(7, 10)], allUnseen(), 2);
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+});
+
+describe('roundProgress: Wie weit ist die Runde?', () => {
+  it('0 zu Beginn, 1 am Ende des sinnvollen Wartens, dazwischen steigend und begrenzt', () => {
+    for (const n of [2, 3, 4]) {
+      const g = testGame(n, 5);
+      const start = g.round.stock.length;
+      expect(roundProgress(g, 16)).toBeCloseTo(0, 5);
+      let last = -1;
+      for (const left of [start, start - 5, start - 15, 20, 16, 10, 0]) {
+        g.round.stock = g.round.stock.length >= left ? g.round.stock.slice(0, left) : g.round.stock;
+        const v = roundProgress(g, 16);
+        expect(v).toBeGreaterThanOrEqual(last);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+        last = v;
+      }
+      expect(roundProgress(g, 16)).toBe(1);
+    }
+  });
+});
+
+describe('weighOpening v2: Hand-Chance, Höhe und Zeitdruck gegeneinander', () => {
+  /**
+   * Die Hand der Hand-Chance-Tests: 13 Karten in vier Kombinationen (94 Augen), zwei Restkarten (Kreuz 9, Karo Dame).
+   * Pik 9 verlängert die Folge Pik 5 bis 8 und macht dann eine Hand: Chance 2 von (mindestens) 8 = 0,25 pro Zug.
+   */
+  function world() {
+    const g = game([0, 0, 0, 0]);
+    const p = new CardPool();
+    const me = g.round.starter;
+    const hand = p.takeAll('SK', 'HK', 'DK', 'S5', 'S6', 'S7', 'S8', 'H9', 'H10', 'HB', 'D2', 'D3', 'D4', 'C9', 'DD');
+    setHand(g, me, hand);
+    g.round.players[me].turns = 0;
+    const ids = (a: number, b: number) => hand.slice(a, b).map((c) => c.id);
+    return { g, me, hand, groups: [ids(0, 3), ids(3, 7), ids(7, 10), ids(10, 13)] };
+  }
+  const only = (keys: Record<string, number>): Unseen => {
+    const m = new Map(Object.entries(keys));
+    return { copies: m, total: [...m.values()].reduce((a, b) => a + b, 0) };
+  };
+  /** Reine Hand-Chance: Höhe der Erstmeldung zählt nicht (wBar 0, Ziel weit über den 94 Augen), nur die Hand und die Zeit. */
+  const handOnly = (extra: object = {}) => ({ mode: 'v2' as const, draws: 1, wBar: 0, t0: 60, wHand: 1.5, wTime: 0.6, holdAt0: 0.4, holdAt1: 0.3, ...extra });
+  const weigh = (w: ReturnType<typeof world>, tuning: object, unseen: Unseen = only({ S9: 2 }), extra: object = {}) =>
+    weighOpening(w.g, w.me, { base: 0.4, groups: w.groups, hand: w.hand, unseen, tuning, ...extra });
+
+  it('die Sicherheitsbremsen gelten unverändert: Pflichtzug, Paare, Hand, Gegner draußen, Cheft-Hürde, Rundenende, Geduld, hohe Erstmeldung', () => {
+    const w = world();
+    expect(weigh(w, { mode: 'v2' }, allUnseen(), { forced: true }).why).toBe('forced');
+    expect(weigh(w, { mode: 'v2' }, allUnseen(), { groups: [[w.hand[0].id, w.hand[1].id]] }).why).toBe('pairs');
+    const ids = w.hand.map((c) => c.id);
+    expect(weigh(w, { mode: 'v2' }, allUnseen(), { hand: w.hand.slice(0, 10), groups: [ids.slice(0, 3), ids.slice(3, 6), ids.slice(6, 9)] }).why).toBe('hand');
+    w.g.round.players[(w.me + 1) % 4].opened = true;
+    expect(weigh(w, handOnly()).why).toBe('opponent-open');
+    w.g.round.players[(w.me + 1) % 4].opened = false;
+    w.g.round.cheftAnnounced = true;
+    expect(weigh(w, handOnly()).why).toBe('cheft-bar');
+    w.g.round.cheftAnnounced = false;
+    const stock = w.g.round.stock;
+    w.g.round.stock = stock.slice(0, 5);
+    expect(weigh(w, handOnly()).why).toBe('endgame');
+    w.g.round.stock = stock;
+    w.g.round.players[w.me].turns = 9;
+    expect(weigh(w, handOnly()).why).toBe('patience-used');
+  });
+  it('eine hohe Erstmeldung allein ist in v2 kein Grund zum Warten, die Hand-Chance aber kann trotzdem warten lassen', () => {
+    const w = world();
+    // 94 Augen liegen über dem Ziel (77): Der Hürden-Anteil ist 0, ohne Hand-Chance wird gelegt
+    const plain = weigh(w, { mode: 'v2', draws: 1, wHand: 0 });
+    expect(plain.augen).toBeGreaterThan(plain.target);
+    expect(plain).toMatchObject({ hold: false, why: 'open-v2' });
+    // ... mit einer Hand-Chance (Pik 9) wartet er, obwohl die Erstmeldung schon hoch ist
+    const hand = weigh(w, { mode: 'v2', draws: 1, wHand: 1.5, wTime: 0.6 });
+    expect(hand.augen).toBeGreaterThan(hand.target);
+    expect(hand).toMatchObject({ hold: true, why: 'wait-v2' });
+    // v1 legt eine hohe Erstmeldung immer sofort
+    expect(weigh(w, { mode: 'v1' }).why).toBe('high-enough');
+  });
+  it('liefert die Bestandteile des Wertes (Hand-Chance, Zeitdruck, Wert), nur in v2', () => {
+    const w = world();
+    const r = weigh(w, handOnly());
+    expect(r.pHand).toBeCloseTo(0.25, 9);
+    expect(r.time).toBeGreaterThanOrEqual(0);
+    expect(r.time).toBeLessThanOrEqual(1);
+    expect(r.score).toBeCloseTo(1.5 * 0.25 - 0.6 * r.time!, 9);
+    expect(weigh(w, { mode: 'v1' }).score).toBeUndefined();
+  });
+  it('eine Hand-Chance von 25 % lässt warten, obwohl die Erstmeldung mit 94 Augen längst reichen würde', () => {
+    const w = world();
+    const r = weigh(w, handOnly());
+    expect(r).toMatchObject({ hold: true, why: 'wait-v2' });
+    expect(r.augen).toBe(94);
+  });
+  it('ohne Hand-Chance (nichts, was die Hand macht) wird sofort gelegt', () => {
+    const w = world();
+    const r = weigh(w, handOnly(), only({ H2: 2 }));
+    expect(r.pHand).toBe(0);
+    expect(r).toMatchObject({ hold: false, why: 'open-v2' });
+  });
+  it('das Gewicht der Hand-Chance entscheidet: Bei 0 wird gelegt, bei hohem Wert gewartet', () => {
+    const w = world();
+    expect(weigh(w, handOnly({ wHand: 0 })).hold).toBe(false);
+    expect(weigh(w, handOnly({ wHand: 3 })).hold).toBe(true);
+  });
+  it('Zeitdruck gegen Hand-Chance: Mit dem Rundenverlauf kippt das Warten zum Legen und kippt nie zurück', () => {
+    const w = world();
+    const full = w.g.round.stock;
+    const seq: boolean[] = [];
+    const times: number[] = [];
+    for (const left of [full.length, 44, 38, 32, 26, 22, 20, 18, 17]) {
+      w.g.round.stock = full.slice(0, Math.min(left, full.length));
+      const r = weigh(w, handOnly({ wTime: 1.5 }));
+      seq.push(r.hold);
+      times.push(r.time!);
+    }
+    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    expect(seq[0]).toBe(true); // früh: warten
+    expect(seq[seq.length - 1]).toBe(false); // spät: legen
+    // einmal "legen", immer "legen"
+    for (let i = 1; i < seq.length; i++) if (!seq[i - 1]) expect(seq[i]).toBe(false);
+  });
+  it('wer hinten liegt (hoher Ehrgeiz), wartet bei gleichem Wert früher als wer gleichauf liegt', () => {
+    // Der Wert (0,2) liegt zwischen den Schwellen für Gleichauf (0,28) und für weit hinten (0,13)
+    const tuning = handOnly({ wHand: 0.8, wTime: 0 });
+    const even = world();
+    const behind = world();
+    behind.g.totals[behind.me] = 120;
+    const a = weigh(even, tuning);
+    const b = weigh(behind, tuning);
+    expect(a.score).toBeCloseTo(b.score!, 9);
+    expect(b.ambition).toBeGreaterThan(a.ambition);
+    expect(a.hold).toBe(false);
+    expect(b.hold).toBe(true);
+  });
+  it('die Höhe der Erstmeldung zählt: Je weiter unter dem Ziel und je aussichtsreicher, desto eher wird gewartet', () => {
+    const w = world();
+    // Hand-Chance ausgeschaltet, nur die erwartete Verbesserung der Erstmeldung. Ziel 51 + 37 + 16 = 104: zehn Augen über den 94,
+    // bewertet am Weg von der Hürde (51) bis zum Ziel (53 Augen)
+    const tuning = { mode: 'v2' as const, draws: 1, wHand: 0, wTime: 0, t0: 37, wBar: 4 };
+    const lots = weigh(w, tuning, only({ S9: 2, C13: 2, H8: 2, H11: 2 }));
+    const little = weigh(w, tuning, only({ S9: 2, H2: 60 }));
+    expect(lots.score!).toBeGreaterThan(little.score!);
+    expect(lots.hold).toBe(true);
+    expect(little.hold).toBe(false);
+  });
+  it('die Standardwerte der Abwägung sind die abgestimmten (Duell: 50,7 % gegen die vorherige Fassung bei 1920 Spielen)', () => {
+    expect(DEFAULT_TUNING).toMatchObject({ mode: 'v2', draws: 2, wHand: 0.7, wBar: 0.8, wTime: 1.2, holdAt0: 0.4, holdAt1: 0.3, endgameStock: 16, boldAt: 0.7, boldHold: false, boldHand: true, boldCheft: true });
+  });
+  it('liegt die Erstmeldung schon fast am Ziel, bringt die erwartete Verbesserung kaum etwas, auch nicht für Ehrgeizige', () => {
+    const w = world();
+    w.g.totals[w.me] = 120; // Ehrgeiz 0,9: niedrige Schwelle zum Warten
+    // Ziel 51 + 10 + 36 = 97, die Erstmeldung hat 94: höchstens drei Augen gibt es noch zu holen
+    const r = weigh(w, { mode: 'v2', draws: 1, wHand: 0, wTime: 0, wBar: 0.8 }, only({ S9: 2, C13: 2, H8: 2 }));
+    expect(r.target).toBeCloseTo(97, 5);
+    expect(r.score!).toBeLessThan(0.1);
+    expect(r.hold).toBe(false);
+  });
+  it('verändert den Spielzustand nicht', () => {
+    const w = world();
+    const before = JSON.stringify(w.g);
+    weigh(w, handOnly({ draws: 3 }));
+    expect(JSON.stringify(w.g)).toBe(before);
   });
 });

@@ -434,13 +434,13 @@ describe('Handüberblick: einzelne Kombinationen werden übersehen', () => {
 describe('Wer hinten liegt, spielt mutiger (Hand, früher Cheft)', () => {
   const PERFECT = { handMiss: 0, tableMiss: 0 };
   /** Ein Bot in der Spielphase, der Erstmeldung noch nicht gelegt hat. `behind`: Strafpunkte Rückstand auf die anderen. */
-  function scene(specs: string[], behind: number, level: 'easy' | 'normal' | 'hard' | 'master' = 'master') {
+  function scene(specs: string[], behind: number, level: 'easy' | 'normal' | 'hard' | 'master' = 'master', turns = 4) {
     const g = testGame(4, 31, { rounds: 5 });
     const p = new CardPool();
     const me = g.round.starter;
     g.players[me].isBot = true;
     g.players[me].bot = { level, style: 'balanced' };
-    g.round.players[me].turns = 4;
+    g.round.players[me].turns = turns;
     g.totals = g.totals.map((_, i) => (i === me ? behind : 0));
     const hand = p.takeAll(...specs);
     setHand(g, me, hand);
@@ -473,15 +473,27 @@ describe('Wer hinten liegt, spielt mutiger (Hand, früher Cheft)', () => {
     expect(decideAction(three.g, three.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
   });
   it('wer hinten liegt und fast eine Hand hat, wartet auf die Hand, statt mit 12 von 15 Karten rauszukommen', () => {
+    // Ohne die Hand-Chance der Abwägung (wHand 0), damit nur die Hand-Jagd des mutigen Modus den Unterschied macht
+    const isolate = { tuning: { wHand: 0 } };
     const behind = scene(NEAR_HAND, 120);
-    const a = decideAction(behind.g, behind.me, { memory: PERFECT });
-    expect(a.kind).toBe('discard');
+    expect(decideAction(behind.g, behind.me, { memory: PERFECT, knobs: isolate }).kind).toBe('discard');
     // Gegenprobe: gleichauf legt er die Erstmeldung sofort (93 Augen)
-    const even = scene(NEAR_HAND, 0);
-    expect(decideAction(even.g, even.me, { memory: PERFECT }).kind).toBe('lay');
+    const even = scene(NEAR_HAND, 0, 'master', 1);
+    expect(decideAction(even.g, even.me, { memory: PERFECT, knobs: isolate }).kind).toBe('lay');
     // und ohne mutigen Modus legt auch der Zurückliegende
     const off = scene(NEAR_HAND, 120);
-    expect(decideAction(off.g, off.me, { memory: PERFECT, knobs: { bold: false } }).kind).toBe('lay');
+    expect(decideAction(off.g, off.me, { memory: PERFECT, knobs: { ...isolate, bold: false } }).kind).toBe('lay');
+  });
+  it('auch gleichauf wartet ein Bot kurz, wenn die Chance auf eine Hand den Zeitdruck überwiegt (Abwägung); ohne Gewicht auf die Hand legt er', () => {
+    // Restkarten: Kreuz 2 und das verbundene Paar Herz 9, Herz 10. Mit Herz 8 oder Herz Bube wäre alles bis auf eine Karte in Kombinationen.
+    const CONNECTED = ['SK', 'HK', 'DK', 'SD', 'HD', 'DD', 'S7', 'H7', 'D7', 'H3', 'H4', 'H5', 'C2', 'H9', 'H10'];
+    const wait = scene(CONNECTED, 0, 'master', 1);
+    expect(decideAction(wait.g, wait.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('discard');
+    const go = scene(CONNECTED, 0, 'master', 1);
+    expect(decideAction(go.g, go.me, { memory: PERFECT, knobs: { tuning: { wHand: 0 } } }).kind).toBe('lay');
+    // Ohne verbundenes Paar unter den Restkarten gibt es keine Hand-Chance: Auch mit großem Gewicht wird gelegt
+    const none = scene(NEAR_HAND, 0, 'master', 1);
+    expect(decideAction(none.g, none.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('lay');
   });
   it('hat ein Gegner schon die Erstmeldung gelegt, wartet auch der Mutige nicht auf die Hand', () => {
     const s = scene(NEAR_HAND, 120);

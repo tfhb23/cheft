@@ -17,7 +17,7 @@
  */
 import { Card, isJoker } from '../engine/cards';
 import { GameState, thresholdFor } from '../engine/game';
-import { Meld, addOptions, interpretMeld, meldAugen } from '../engine/melds';
+import { Meld, ROMME_TYPES, addOptions, findPartition, interpretMeld, meldAugen } from '../engine/melds';
 import { Unseen } from './memory';
 
 export interface Standing {
@@ -126,6 +126,10 @@ export interface OpeningWeighing {
   augen: number;
   target: number;
   chance: number;
+  /** Nur bei mode 'v2': Chance auf eine Hand, Zeitdruck 0..1 und der zusammengeführte Wert, der das Warten entscheidet. */
+  pHand?: number;
+  time?: number;
+  score?: number;
 }
 
 export interface WeighParams {
@@ -167,9 +171,56 @@ export interface Tuning {
   boldHand: boolean;
   /** Mutiger Modus: Cheft schon mit vier Paaren ansagen. */
   boldCheft: boolean;
+  /** 'v2' (Standard): Hand-Chance, Höhe der Erstmeldung und Zeitdruck in einem Wert gegeneinander abgewogen. 'v1': getrennte Regeln (nur zum Vergleichen). */
+  mode: 'v1' | 'v2';
+  /** v2: Gewicht der Hand-Chance, der erwarteten Verbesserung der Erstmeldung und des Zeitdrucks. */
+  wHand: number;
+  wBar: number;
+  wTime: number;
+  /** v2: Der Wert, ab dem gewartet wird: holdAt0 − holdAt1 × Ehrgeiz (ehrgeizige warten früher). */
+  holdAt0: number;
+  holdAt1: number;
 }
 
-export const DEFAULT_TUNING: Tuning = { endgameStock: 16, minChance: 0.25, minGain: 8, draws: 1, w0: 1, w1: 5, t0: 10, t1: 40, ignoreGrowth: false, boldAt: 0.7, boldHold: false, boldHand: true, boldCheft: true };
+export const DEFAULT_TUNING: Tuning = { endgameStock: 16, minChance: 0.25, minGain: 8, draws: 2, w0: 1, w1: 5, t0: 10, t1: 40, ignoreGrowth: false, boldAt: 0.7, boldHold: false, boldHand: true, boldCheft: true, mode: 'v2', wHand: 0.7, wBar: 0.8, wTime: 1.2, holdAt0: 0.4, holdAt1: 0.3 };
+
+
+// ---------------------------------------------------------------- Hand-Chance und Zeitdruck (v2)
+
+/**
+ * Wie wahrscheinlich ist eine Hand (alle Karten bis auf eine in Kombinationen) in den nächsten Zügen? Betrachtet wird,
+ * welche Restkarte der Bot abwirft und welche gezogene Karte danach alles aufgehen lässt. Bei mehr als drei Restkarten
+ * ist eine Hand in den nächsten Zügen unrealistisch (0). Die Wahrscheinlichkeiten kommen aus dem, was der Bot noch weiß.
+ */
+export function handChance(hand: Card[], groups: number[][], unseen: Unseen, draws = 1): number {
+  const used = new Set(groups.flat());
+  const left = hand.filter((c) => !used.has(c.id));
+  const n = hand.length;
+  if (left.length <= 1) return 1;
+  if (left.length > 3) return 0;
+  const U = Math.max(8, unseen.total);
+  let best = 0;
+  for (const drop of left) {
+    const rest = hand.filter((c) => c.id !== drop.id);
+    let p = 0;
+    for (const [key, copies] of unseen.copies) {
+      if (copies <= 0) continue;
+      const probe: Card = key === 'J' ? { id: -1000, suit: 'J', rank: 0 } : { id: -1000, suit: key[0] as Card['suit'], rank: Number(key.slice(1)) };
+      const part = findPartition([...rest, probe], { types: ROMME_TYPES, allowSkip: true });
+      if (part && part.used >= n - 1) p += Math.min(1, copies / U);
+    }
+    best = Math.max(best, Math.min(1, p));
+  }
+  return 1 - Math.pow(1 - best, Math.max(1, draws));
+}
+
+/** Wie weit ist die Runde? 0 = Rundenbeginn, 1 = der Stapel ist bis auf `endgameStock` Karten leer. */
+export function roundProgress(state: GameState, endgameStock: number): number {
+  const n = state.players.length;
+  const start = 106 - 1 - 14 * n - 1; // Stapel nach dem Austeilen
+  const left = state.round.stock.length;
+  return Math.min(1, Math.max(0, (start - left) / Math.max(1, start - endgameStock)));
+}
 
 /**
  * Soll der Bot seine mögliche Rommé-Erstmeldung jetzt legen oder noch warten und die Hürde für die anderen erhöhen?
@@ -198,8 +249,22 @@ export function weighOpening(state: GameState, pid: number, w: WeighParams): Ope
   if (r.cheftAnnounced) return out(false, 'cheft-bar');
   if (r.stock.length < t.endgameStock) return out(false, 'endgame');
   if (p.turns >= Math.round(t.w0 + t.w1 * a)) return out(false, 'patience-used');
-  if (total >= target) return out(false, 'high-enough');
+  // v1: Eine hohe Erstmeldung wird immer sofort gelegt. v2 wägt weiter ab: Bei hoher Erstmeldung fällt nur der Hürden-Anteil weg, die Hand-Chance kann noch zum Warten führen.
+  if (t.mode !== 'v2' && total >= target) return out(false, 'high-enough');
   if (t.ignoreGrowth || (t.boldHold && a >= t.boldAt)) return out(true, 'wait-no-check');
+  if (t.mode === 'v2') {
+    // Alles gegeneinander: Was bringt das Warten (Hand-Chance, höhere Erstmeldung) und was kostet es (die Runde läuft weiter)?
+    const gr = growth(hand, w.groups, w.unseen, t.minGain, t.draws);
+    const pHand = handChance(hand, w.groups, w.unseen, t.draws);
+    // Wie viel vom Weg von der Hürde bis zum Ziel würde die nächste Karte im Schnitt zurücklegen (höchstens bis zum Ziel)?
+    const need = Math.max(0, target - total);
+    const barValue = need > 0 ? Math.min(1, Math.min(gr.expected, need) / Math.max(10, target - th)) : 0;
+    const time = roundProgress(state, t.endgameStock);
+    const score = t.wBar * barValue + t.wHand * pHand - t.wTime * time;
+    const holdAt = t.holdAt0 - t.holdAt1 * a;
+    const res = out(score >= holdAt, score >= holdAt ? 'wait-v2' : 'open-v2', gr.chance);
+    return { ...res, pHand, time, score };
+  }
   const g = growth(hand, w.groups, w.unseen, t.minGain, t.draws);
   if (g.chance < t.minChance) return out(false, 'no-growth', g.chance);
   return out(true, 'wait-for-more', g.chance);
