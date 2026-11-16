@@ -121,3 +121,21 @@ describe('Design Guide', () => {
     }
   });
 });
+
+describe('Kartenrückseiten', () => {
+  it('Designs haben eindeutige Namen und liefern gültige Farbrollen', async () => {
+    const { BACK_DESIGNS, BACK_FIELD, DEFAULT_BACK, backDesign } = await import('./backs');
+    const ids = BACK_DESIGNS.map((d) => d.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain(DEFAULT_BACK);
+    expect(backDesign('gibt-es-nicht').id).toBe(DEFAULT_BACK);
+    for (const d of BACK_DESIGNS) {
+      for (let y = 0; y < BACK_FIELD.h; y++) {
+        for (let x = 0; x < BACK_FIELD.w; x++) {
+          const r = d.paint({ x, y, dx: Math.abs(x - (BACK_FIELD.w - 1) / 2), dy: Math.abs(y - (BACK_FIELD.h - 1) / 2) });
+          expect([null, 'main', 'dark', 'cream', 'gold']).toContain(r);
+        }
+      }
+    }
+  });
+});

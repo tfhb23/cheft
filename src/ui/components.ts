@@ -111,3 +111,38 @@ export function meldEl(cards: Child[], o: { pair?: boolean; target?: boolean; st
     ...cards,
   );
 }
+
+export interface RoundsRow {
+  /** Strafpunkte dieser Runde je Spalte. */
+  points: number[];
+  /** Spalte des Rundensiegers oder null. */
+  winner: number | null;
+}
+
+/**
+ * 7.07: Punkteverlauf. Eine Zeile je festgelegter Runde, nicht gespielte Runden bleiben leer (ist die Liste voll, ist das
+ * Spiel vorbei). Alle Spielerspalten sind gleich breit; `names` stehen in der Reihenfolge der Spalten.
+ */
+export function roundsTable(names: string[], played: RoundsRow[], totalRounds: number): HTMLElement {
+  const sums = names.map(() => 0);
+  const total = names.map((_, i) => played.reduce((a, r) => a + r.points[i], 0));
+  const max = Math.max(1, ...total);
+  const NBSP = '\u00a0';
+  const rows: HTMLElement[] = [];
+  for (let n = 0; n < Math.max(totalRounds, played.length); n++) {
+    const r = played[n];
+    rows.push(
+      h(
+        'tr',
+        { class: r ? undefined : 'pending' },
+        ...names.map((_, i) => {
+          if (!r) return h('td', { class: 'num cell' }, h('span', { class: 'sum' }, NBSP), h('span', { class: 'delta' }, NBSP));
+          sums[i] += r.points[i];
+          const bar = h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } });
+          return h('td', { class: `num cell${r.winner === i ? ' win' : ''}` }, bar, h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, r.points[i] ? `+${r.points[i]}` : '·'));
+        }),
+      ),
+    );
+  }
+  return h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, ...names.map((n) => h('th', { class: 'num' }, n)))), h('tbody', null, ...rows));
+}

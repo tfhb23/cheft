@@ -275,7 +275,6 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
   { id: '3.111', css: '--size-dot', name: 'Größe Nummern-Punkt', units: 5, use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
-  { id: '3.110', css: '--w-round-label', name: 'Breite Rundenspalte', units: 14, use: 'Punkteverlauf: erste Spalte („R1“); alle Spielerspalten teilen sich den Rest gleichmäßig' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
   { id: '3.93', css: '--size-icon-glyph', name: 'Größe Piktogramm', units: 10, use: 'Pixel-Piktogramm im Icon-Button (10 × 10 Pixel)' },

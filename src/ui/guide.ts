@@ -9,9 +9,10 @@
 import { Card } from '../engine/cards';
 import { h, Child } from './dom';
 import { t } from '../i18n';
-import { backBtn, badge, btn, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
+import { backBtn, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
 import { ICONS, pixelArt, pixelIcon } from './icons';
-import { ATLAS_CELLS, FIGURES, GLYPHS, STAR, SUIT_SHAPES, figureMap, PALETTE } from './sprites';
+import { ATLAS_CELLS, FIGURES, GLYPHS, STAR, SUIT_SHAPES, figureMap, PALETTE, backThumb } from './sprites';
+import { BACK_DESIGNS } from './backs';
 import { SOUND_CATALOG, VIBRATION_CATALOG, preview, vibrate } from './sound';
 import {
   BORDER_TOKENS,
@@ -501,6 +502,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '4.18', name: 'Einstellungs-Zeile (nur lesen)', where: 'Lobby für Mitspieler ohne Rechte', code: '.summary-row', sel: '.summary-row', stage: () => h('div', { class: 'row spread summary-row', style: { width: '100%' } }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, '7')), stageCls: 'flat', live: 'box', liveSel: '.summary-row' },
     { id: '4.19', name: 'Sortier-Griff', where: 'Lobby: Sitzordnung ziehen (nur Gastgeber)', code: '.handle', sel: '.handle', stage: () => h('span', { class: 'handle' }), live: 'box' },
     { id: '4.20', name: 'Chip Rommé', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
+    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): ein Button mit Vorschaubild je Design, gewählte Rückseite primär. Wirkt sofort und nur für den eigenen Bildschirm', code: 'App.cardBackChoice() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), h('div', { class: 'choices back-choices' }, ...BACK_DESIGNS.map((d, i) => btn(h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, 'a')})` } }), undefined, { variant: i === 0 ? 'primary' : 'default', title: d.name })))), stageCls: 'flat', live: 'box', liveSel: '.back-choices .btn' },
     { id: '4.21', name: 'Chip Cheft', where: 'Sitz-Beschriftung: Spieler hat Cheft angesagt', code: "badge(text, 'cheft')", sel: '.badge.cheft', stage: () => badge(t('mode.cheft'), 'cheft'), live: 'both' },
   ];
 
@@ -593,6 +595,15 @@ export function chapters(env: GuideEnv): Chapter[] {
       facts: [['Zellen', 'H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55']],
     },
   ];
+  const backSpecs: Spec[] = BACK_DESIGNS.map((d, i) => ({
+    id: `5.${61 + i}`,
+    name: `Rückseite „${d.name}“`,
+    where: 'Zur Auswahl in den Einstellungen (4.22); links Deck 1 (Orange), rechts Deck 2 (Dunkel)',
+    code: `backs.ts › BACK_DESIGNS['${d.id}'] (neues Design: Eintrag ergänzen)`,
+    stage: () => (['a', 'b'] as const).map((deck) => h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, deck)})`, width: 'var(--card-w)', height: 'var(--card-h)' } })),
+    stageCls: 'flat' as const,
+    facts: [['Feld', 'im Rahmen 26 × 38 Pixel; Rahmen, weiße Kontur und abgerundete Ecken sind für alle Designs gleich']],
+  }));
   const brand: Spec[] = [
     {
       id: '5.30',
@@ -709,39 +720,20 @@ export function chapters(env: GuideEnv): Chapter[] {
   // ----- 7 Fenster
   const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { margin: '0 auto' } }, ...children);
   // Standard sind vier Spieler: Spalten in Spielreihenfolge ab dem Startspieler der ersten Runde (App.renderRoundsTable)
-  const players4 = ['Emil', 'Du', 'Zhao', 'Neo'];
+  const players4 = ['Emil', 'Tobi', 'Zhao', 'Neo'];
   const roundPoints = [
     [14, 100, 28, 100],
     [48, 0, 200, 36],
     [16, 2, 100, 4],
     [0, 25, 12, 60],
   ];
-  const roundsTable = (): HTMLElement => {
-    const sums = players4.map(() => 0);
-    const total = players4.map((_, i) => roundPoints.reduce((a, r) => a + r[i], 0));
-    const max = Math.max(...total);
-    return h(
-      'table',
-      { class: 'scores rounds' },
-      h('thead', null, h('tr', null, h('th', null, ''), ...players4.map((n) => h('th', { class: 'num' }, n)))),
-      h(
-        'tbody',
-        null,
-        ...roundPoints.map((r, ri) => {
-          const win = r.indexOf(Math.min(...r));
-          return h(
-            'tr',
-            null,
-            h('td', { class: 'muted' }, t('round.short', { n: ri + 1 })),
-            ...r.map((pts, i) => {
-              sums[i] += pts;
-              return h('td', { class: `num cell${win === i && pts === 0 ? ' win' : ''}` }, h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } }), h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, pts ? `+${pts}` : '·'));
-            }),
-          );
-        }),
-      ),
+  /** 7 Runden festgelegt, 4 gespielt: die übrigen Zeilen bleiben leer. Eigener Name statt „Du“, wie überall. */
+  const roundsDemo = (): HTMLElement =>
+    roundsTable(
+      players4,
+      roundPoints.map((points) => ({ points, winner: points.indexOf(Math.min(...points)) })),
+      7,
     );
-  };
   /** Zeile der Auswertung; `rest`: offene Restkarten (opened) oder verdeckte (closed). */
   const h2row = (winner: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string): HTMLElement =>
     h(
@@ -759,7 +751,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '7.04', name: 'Eingabe', where: 'Spielstand-Code einfügen', code: 'askDialog({ input })', stage: () => dlg(h('h2', null, t('btn.importSave')), h('p', null, t('save.prompt')), h('textarea', { class: 'text', rows: '3', placeholder: '…' }), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.load'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.05', name: 'Information', where: 'Code zum Kopieren, wenn die Zwischenablage nicht geht', code: 'askDialog({ back: true })', stage: () => dlg(h('h2', null, t('lobby.copy')), h('textarea', { class: 'text', rows: '2', readonly: 'readonly' }, 'https://cheft.beigi.eu/232'), backBtn(() => undefined)), stageCls: 'flat' },
     { id: '7.06', name: 'Einstellungen', where: 'Menü (Zahnrad im Spiel): Tempo, Vibration, Sounds, Bildschirm, Karte ziehen; im Spiel zusätzlich Pause, Spielstand, Abbrechen', code: 'App.renderSettings()', stage: () => dlg(h('h2', null, t('btn.settings')), choiceDemo(), btn(t('btn.exportSave')), btn(t('btn.quit'), undefined, { variant: 'danger' }), backBtn(() => undefined)), stageCls: 'flat' },
-    { id: '7.07', name: 'Punkteübersicht', where: 'Punkte-Piktogramm in der Kopfzeile; am Spielende in der Auswertung. Vier Spieler, alle Spalten gleich breit, Reihenfolge ab dem Startspieler der ersten Runde in Spielreihenfolge', code: 'App.renderRoundsTable() · table.scores.rounds', sel: 'table.rounds', stage: () => dlg(roundsTable(), backBtn(() => undefined)), stageCls: 'flat' },
+    { id: '7.07', name: 'Punkteübersicht', where: 'Punkte-Piktogramm in der Kopfzeile; am Spielende in der Auswertung. Vier Spieler, alle Spalten gleich breit, Reihenfolge ab dem Startspieler der ersten Runde in Spielreihenfolge; keine Rundenbeschriftung, eine Zeile je festgelegter Runde (nicht gespielte bleiben leer, ist die Liste voll, ist das Spiel vorbei); immer der eigene Spielername statt „Du“', code: 'App.renderRoundsTable() · table.scores.rounds', sel: 'table.rounds', stage: () => dlg(roundsDemo(), backBtn(() => undefined)), stageCls: 'flat' },
     {
       id: '7.08',
       name: 'Auswahl der Kombination',
@@ -795,7 +787,7 @@ export function chapters(env: GuideEnv): Chapter[] {
           h('tbody', null,
             h2row(true, 'Emil', 'romme', null, '0', t('factor.hand'), '0', '14'),
             h2row(false, 'Neo', 'romme', 'opened', '36', '', '36', '136'),
-            h2row(false, 'Du', 'cheft', 'closed', '100', t('factor.cheftLost'), '200', '302'),
+            h2row(false, 'Tobi', 'cheft', 'closed', '100', t('factor.cheftLost'), '200', '302'),
             h2row(false, 'Zhao', 'romme', 'closed', '100', '', '100', '228'))),
         h('div', { class: 'btn-row' }, btn(t('btn.peekTable')), btn(t('btn.nextRound'), undefined, { variant: 'primary' }))),
       stageCls: 'flat',
@@ -807,8 +799,8 @@ export function chapters(env: GuideEnv): Chapter[] {
       where: 'Nach der letzten Runde: Sieger, Auswertung mit Rollen der Bots (Stufe · Spielweise, orange), Punkteverlauf',
       code: 'App.renderRoundEnd() · .factors.accent · table.rounds',
       stage: () => dlg(h('h2', null, t('gameEnd.title')), h('p', null, t('gameEnd.winner', { name: 'Emil', n: 38 })),
-        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Du'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Du' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i]); r.firstElementChild!.append(h('div', { class: 'factors accent' }, n === 'Du' ? '' : `${t(['level.hard', 'level.easy', 'level.master'][i % 3])} · ${t(['style.sprinter', 'style.counter', 'style.gambler'][i % 3])}`)); return r; }))),
-        h('div', null, h('h3', null, t('gameEnd.rounds')), roundsTable()),
+        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i]); r.firstElementChild!.append(h('div', { class: 'factors accent' }, n === 'Tobi' ? '' : `${t(['level.hard', 'level.easy', 'level.master'][i % 3])} · ${t(['style.sprinter', 'style.counter', 'style.gambler'][i % 3])}`)); return r; }))),
+        h('div', null, h('h3', null, t('gameEnd.rounds')), roundsDemo()),
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',
     },
@@ -996,6 +988,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       groups: [
         { title: 'Kartensatz', specs: [sizes, ...suitRows] },
         { title: 'Sonderkarten, Figuren, Glyphen', specs: cardArt },
+        { title: 'Kartenrückseiten zur Auswahl (5.61 ff.)', specs: backSpecs },
         { title: 'Kartenzustände', specs: cardStates },
         { title: 'Logo, App-Icon, Hintergrund', specs: brand },
         { title: 'Piktogramme', specs: iconSpecs },
@@ -1151,8 +1144,9 @@ export class DsLabels {
       const dot = h('button', { class: 'ds-dot', 'aria-label': items.map((i) => i.id).join(' · ') });
       layer.appendChild(dot);
       const size = dot.getBoundingClientRect().width;
-      let left = Math.min(Math.max(0, r.left + size / 2), window.innerWidth - size);
-      const top = Math.min(Math.max(0, r.bottom - size * 1.5), window.innerHeight - size);
+      // Der Punkt sitzt mit seiner Mitte auf der Ecke unten links: so verdeckt er auch bei kleinen Elementen kaum etwas
+      let left = Math.min(Math.max(0, r.left - size / 2), window.innerWidth - size);
+      const top = Math.min(Math.max(0, r.bottom - size / 2), window.innerHeight - size);
       // Liegen zwei Punkte übereinander, rückt der spätere ein Stück nach rechts
       for (let i = 0; i < 8; i++) {
         const hit = placed.find((p) => left < p.right && left + size > p.left && top < p.bottom && top + size > p.top);
@@ -1177,7 +1171,7 @@ export class DsLabels {
 
   private show(layer: HTMLElement, dot: HTMLElement, ids: string, text: string): void {
     layer.querySelectorAll('.ds-tag').forEach((n) => n.remove());
-    const tag = h('div', { class: 'ds-tag' }, ids, ...text.split('\n').map((l) => h('div', { class: 'ds-tag-name' }, l)));
+    const tag = h('div', { class: 'ds-tag' }, ...text.split('\n').map((l) => h('div', { class: 'ds-tag-name' }, l)));
     layer.appendChild(tag);
     const d = dot.getBoundingClientRect();
     const tr = tag.getBoundingClientRect();

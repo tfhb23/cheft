@@ -27,9 +27,10 @@ import { BotChoice, LEVELS, STYLES, resolveBots } from '../bot/names';
 import { makeRng } from '../engine/cards';
 import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
-import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
+import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
+import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_X, pixelIcon } from './icons';
-import { backBtn, btn, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { backBtn, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from './tokens';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
@@ -67,6 +68,8 @@ interface Prefs {
   safeDraw: boolean;
   /** Design Guide: Nummern der Elemente über dem Spiel einblenden. */
   dsLabels: boolean;
+  /** Gewählte Kartenrückseite (backs.ts), nur für die eigene Anzeige. */
+  cardDesign: string;
   /** Sitzordnung der Bots: wie eingestellt oder zufällig. */
   seating: 'manual' | 'random';
   /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
@@ -148,10 +151,11 @@ export class App {
     serverUrl: '',
     keepAwake: true,
     peekDiscards: true,
-    seating: 'manual',
+    seating: 'random',
     sortedDeal: true,
     safeDraw: true,
     dsLabels: false,
+    cardDesign: DEFAULT_BACK,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
@@ -202,9 +206,9 @@ export class App {
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.atlas = buildAtlas();
-    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
     this.loadPrefs();
+    this.atlas = buildAtlas(this.prefs.cardDesign);
+    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
     setSoundEnabled(this.prefs.sound);
     const save = this.loadSave();
     if (save) {
@@ -308,15 +312,18 @@ export class App {
         this.prefs = { ...this.prefs, ...stored };
         // Neuer Standard: Rauskommen im ersten Zug gesperrt (einmalig auch für gespeicherte Einstellungen).
         if ((stored.v ?? 0) < 3) this.prefs.firstTurn = false;
+        // Neuer Standard: Sitzplätze zufällig (einmalig auch für gespeicherte Einstellungen).
+        if ((stored.v ?? 0) < 4) this.prefs.seating = 'random';
       }
       if (!ROUND_CHOICES.includes(this.prefs.rounds)) this.prefs.rounds = 7;
+      this.prefs.cardDesign = backDesign(this.prefs.cardDesign).id;
     } catch {
       /* ignorieren */
     }
   }
   private savePrefs(): void {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ ...this.prefs, v: 3 }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ ...this.prefs, v: 4 }));
     } catch {
       /* ignorieren */
     }
@@ -942,8 +949,8 @@ export class App {
       line.style.cssText = `left:${pc.x}px;top:${pc.y}px;width:${len}px;transform:rotate(${Math.atan2(ty - pc.y, tx - pc.x)}rad)`;
       const takenBy = r.taken.find((x) => x.card.id === e.card.id);
       const stillThere = r.discard.some((c) => c.id === e.card.id);
-      const who = e.player === this.me ? t('you') : s.players[e.player].name;
-      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: takenBy.player === this.me ? t('you') : s.players[takenBy.player].name })) : null);
+      const who = s.players[e.player].name;
+      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: s.players[takenBy.player].name })) : null);
       const card = this.cardEl(e.card, {});
       delete card.dataset.cardId;
       const item = h('div', { class: `peek-item${takenBy && !stillThere ? ' taken' : ''}` }, card, tag);
@@ -1443,7 +1450,7 @@ export class App {
   private logText(e: { key: string; player?: number; params?: Record<string, string | number> }): string {
     const s = this.state!;
     const params: Record<string, string | number> = { ...(e.params ?? {}) };
-    if (e.player !== undefined) params.name = e.player === this.me ? t('you') : s.players[e.player].name;
+    if (e.player !== undefined) params.name = s.players[e.player].name;
     if (e.key === 'log.discard') {
       const top = s.round.discard[s.round.discard.length - 1];
       params.card = top ? cardName(top) : '';
@@ -1966,10 +1973,35 @@ export class App {
         inGame && !this.online ? btn(t('btn.exportSave'), () => this.exportSave()) : null,
         inGame && !this.online ? btn(t('btn.saveQuit'), () => this.saveAndQuit()) : null,
         !inGame ? null : this.online ? btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }) : btn(t('btn.quit'), () => this.quitGame(), { variant: 'danger' }),
+        this.cardBackChoice(),
         backBtn(() => this.back()),
       ],
       () => this.back(),
     );
+  }
+
+  /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */
+  private cardBackChoice(): HTMLElement {
+    return h(
+      'div',
+      { class: 'option' },
+      fieldLabel(t('settings.cardBack')),
+      h(
+        'div',
+        { class: 'choices back-choices' },
+        ...BACK_DESIGNS.map((d) =>
+          btn(h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, 'a')})` } }), () => this.setCardDesign(d.id), { variant: this.prefs.cardDesign === d.id ? 'primary' : 'default', title: d.name }),
+        ),
+      ),
+    );
+  }
+
+  private setCardDesign(id: string): void {
+    this.prefs.cardDesign = backDesign(id).id;
+    this.savePrefs();
+    this.atlas = buildAtlas(this.prefs.cardDesign);
+    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
+    this.render();
   }
 
   // ------------------------------------------------------------ Online
@@ -2461,28 +2493,8 @@ export class App {
   /** Punkteverlauf: Spieler als Spalten, Runden als Zeilen mit aufsummierten Strafpunkten. */
   private renderRoundsTable(order: number[]): HTMLElement {
     const s = this.state!;
-    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
-    const sums = order.map(() => 0);
-    const max = Math.max(1, ...s.totals);
-    const body = s.history.map((res) =>
-      h(
-        'tr',
-        null,
-        h('td', { class: 'muted' }, t('round.short', { n: res.roundNo })),
-        ...order.map((pid, i) => {
-          const pts = res.scores[pid].total;
-          sums[i] += pts;
-          const bar = h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } });
-          return h('td', { class: `num cell${res.winner === pid ? ' win' : ''}` }, bar, h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, pts ? `+${pts}` : '·'));
-        }),
-      ),
-    );
-    return h(
-      'div',
-      null,
-      h('h3', null, t('gameEnd.rounds')),
-      h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, h('th', null, ''), ...order.map((pid) => h('th', { class: 'num' }, name(pid))))), h('tbody', null, ...body)),
-    );
+    const rows = s.history.map((res) => ({ points: order.map((pid) => res.scores[pid].total), winner: res.winner === null ? null : order.indexOf(res.winner) }));
+    return h('div', null, h('h3', null, t('gameEnd.rounds')), roundsTable(order.map((pid) => s.players[pid].name), rows, s.settings.rounds));
   }
 
   /** Punkteübersicht aus der Kopfzeile: dieselbe Tabelle wie am Spielende. */
@@ -2498,7 +2510,7 @@ export class App {
     const s = this.state!;
     const r = s.round;
     const res = r.result!;
-    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
+    const name = (pid: number) => s.players[pid].name;
     const extras: string[] = [];
     if (res.winnerMode === 'cheft') extras.push(t('roundEnd.cheft'));
     if (res.hand) extras.push(t('roundEnd.hand'));

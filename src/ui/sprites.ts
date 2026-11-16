@@ -4,6 +4,7 @@
  */
 import { Card, Suit, isJoker } from '../engine/cards';
 import { CARD_PX, color } from './tokens';
+import { BACK_FIELD, BackDesign, BackRole, backDesign } from './backs';
 
 export const CARD_W = CARD_PX.w;
 export const CARD_H = CARD_PX.h;
@@ -263,22 +264,30 @@ function drawJoker(ctx: Ctx, x: number, y: number): void {
   px(ctx, x + 15, y + 19, PALETTE.cream);
 }
 
-function drawBack(ctx: Ctx, x: number, y: number, main: string, dark: string): void {
+/** Kartenrücken: gemeinsamer Rahmen, darin das gewählte Design. `main`/`dark` sind Hauptfarbe und Gegenfarbe des Decks. */
+function drawBack(ctx: Ctx, x: number, y: number, design: BackDesign, main: string, dark: string): void {
   cardBase(ctx, x, y, main);
   ctx.fillStyle = PALETTE.cream;
   ctx.fillRect(x + 2, y + 2, CARD_W - 4, CARD_H - 4);
   ctx.fillStyle = main;
   ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
-  for (let yy = 3; yy < CARD_H - 3; yy++) {
-    for (let xx = 3; xx < CARD_W - 3; xx++) {
-      if ((xx + yy) % 4 === 0 || (xx - yy + 400) % 4 === 0) px(ctx, x + xx, y + yy, dark);
+  const colors: Record<BackRole, string> = { main, dark, cream: PALETTE.cream, gold: PALETTE.gold };
+  for (let fy = 0; fy < BACK_FIELD.h; fy++) {
+    for (let fx = 0; fx < BACK_FIELD.w; fx++) {
+      const role = design.paint({ x: fx, y: fy, dx: Math.abs(fx - (BACK_FIELD.w - 1) / 2), dy: Math.abs(fy - (BACK_FIELD.h - 1) / 2) });
+      if (role && role !== 'main') px(ctx, x + BACK_FIELD.inset + fx, y + BACK_FIELD.inset + fy, colors[role]);
     }
   }
-  ctx.fillStyle = dark;
-  ctx.fillRect(x + 11, y + 17, 10, 10);
-  ctx.fillStyle = PALETTE.cream;
-  ctx.fillRect(x + 12, y + 18, 8, 8);
-  shape(ctx, ['..#..', '.###.', '#####', '.###.', '..#..'], x + 13, y + 19, main);
+}
+
+/** Einzelne Rückseite als Bild (für die Auswahl in den Einstellungen und den Design Guide). deck 'a' orange, 'b' dunkel. */
+export function backThumb(designId: string, deck: 'a' | 'b'): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d')!;
+  drawBack(ctx, 0, 0, backDesign(designId), deck === 'a' ? PALETTE.orange : PALETTE.backB, deck === 'a' ? PALETTE.orangeDark : PALETTE.ink);
+  return canvas.toDataURL('image/png');
 }
 
 function drawSlot(ctx: Ctx, x: number, y: number): void {
@@ -297,7 +306,8 @@ export interface Atlas {
   index(card: Card | 'back' | 'back2' | 'slot'): number;
 }
 
-export function buildAtlas(): Atlas {
+export function buildAtlas(backId?: string): Atlas {
+  const design = backDesign(backId);
   const cells = ATLAS_CELLS;
   const rows = Math.ceil(cells / COLS);
   const canvas = document.createElement('canvas');
@@ -316,11 +326,11 @@ export function buildAtlas(): Atlas {
   let p = at(i++);
   drawJoker(ctx, p.x, p.y);
   p = at(i++);
-  drawBack(ctx, p.x, p.y, PALETTE.orange, PALETTE.orangeDark);
+  drawBack(ctx, p.x, p.y, design, PALETTE.orange, PALETTE.orangeDark);
   p = at(i++);
   drawSlot(ctx, p.x, p.y);
   p = at(i++);
-  drawBack(ctx, p.x, p.y, PALETTE.backB, PALETTE.ink);
+  drawBack(ctx, p.x, p.y, design, PALETTE.backB, PALETTE.ink);
   return {
     url: canvas.toDataURL('image/png'),
     width: canvas.width,

@@ -292,9 +292,9 @@ describe('Räume', () => {
     const room = new Rooms(18).create();
     room.addHuman('A');
     expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
     room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true, speed: undefined });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
     room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.updateSettings({ rounds: 11 }).ok).toBe(false); // nur 3, 5, 7, 9
