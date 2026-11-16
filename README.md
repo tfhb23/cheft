@@ -14,6 +14,8 @@ npm install
 npm run dev        # Entwicklung: http://localhost:5173
 npm test           # Regel-Tests (Vitest)
 npm run build      # Produktions-Build nach dist/
+npm run calibrate  # Bot-Gedächtnisse gegeneinander antreten lassen (siehe „Bot-Gedächtnis“)
+npm run duel       # zwei Bot-Einstellungen am selben Tisch vergleichen (siehe „Bot-Strategie“)
 npm run preview    # Build lokal ansehen
 ```
 
@@ -30,9 +32,42 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
-- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
+- Bots haben Rollen aus Gedächtnis (Vergesslich, Normal, Scharfsinnig, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle vier Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“ (gewichtet: Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, der Mastermind nie); Rollen werden am Spielende aufgedeckt. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“.
 - Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
+
+## Bot-Gedächtnis
+
+Die Stufe eines Bots ist sein Gedächtnis. Sie setzt keine Spielregler, nur diese Werte (`src/bot/memory.ts`). Alles wird bei jeder Entscheidung deterministisch aus dem Spielzustand abgeleitet (Seed, Runde, Spieler, Karte, eigener Zug): derselbe Zustand ergibt immer dieselbe Wahrnehmung, auch nach einem Neustart des Servers.
+
+| Regler | Bedeutung |
+|---|---|
+| Spanne | Wie viele Runden eine abgeworfene oder offen genommene Karte im Schnitt im Kopf bleibt |
+| Streuung | Die Spanne schwankt je Karte (Vergesslich: von sofort vergessen bis doppelt so lang) |
+| Genauigkeit | Chance, eine Karte beim Einprägen exakt abzuspeichern, sonst gleich eine Stufe verschwommener |
+| Tagesform | Gute und schlechte Runden verschieben Spanne, Genauigkeit und Aufmerksamkeit |
+| Tisch-Aufmerksamkeit | Chance, eine fremde Auslage in einem Zug zu übersehen; wächst mit der Zahl der ausgelegten Karten |
+| Beobachtung | Chance, dass ein offenes Nehmen eines Mitspielers überhaupt registriert wird |
+| Handüberblick | Grundchance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen; jede Kombination wird einzeln geprüft, einfache (Dreiersatz, Paar) seltener, schwierige (lange Folge, Joker, Ass, Klauen) öfter |
+
+| Gedächtnis | Spanne | Streuung | Genauigkeit | Tagesform | Übersehen (voller Tisch) | Beobachtung | Handüberblick |
+|---|---|---|---|---|---|---|---|
+| Vergesslich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 12 % (1 bis 3 Züge) | 40 % | 40 % |
+| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 6 % (1 bis 2 Züge) | 70 % | 20 % |
+| Scharfsinnig | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 2 % (1 Zug) | 90 % | 7 % |
+| Mastermind | unbegrenzt | keine | 1,0 | keine | 0 % | 100 % | 0 % |
+
+Vergessen ist eine Treppe: exakt („Herz Bube“), dann eine Achse verschwommen („roter Bube“ oder „Pik-Bildkarte“), dann nur der Eindruck („schwarze Bildkarte“), dann vergessen (bei S = Spanne der einzelnen Karte nach 0,5 S, 1 S und 2,5 S). Bildkarten verwechselt man eher im Wert, Zahlkarten eher in der Farbe (Herz/Karo, Pik/Kreuz). Joker bleiben doppelt so lange im Kopf und werden nie verwechselt, eigene Abwürfe merkt man sich 1,5-mal so lange. Teppichkarte, oberste Ablagekarte und die Auslagen liegen offen und werden nicht vergessen, aber mit der Tisch-Aufmerksamkeit gelegentlich übersehen (eine Blindphase dauert höchstens 1 bis 3 eigene Züge, danach folgt immer ein aufmerksamer Zug). Bei Pflichtzügen (Joker verwenden, genommene Karte nutzen, Paar mit der Teppichkarte) wird nichts übersehen. Übersieht ein Bot eine Kombination der Erstmeldung, legt er die übrigen aus, wenn sie allein regelkonform sind (z. B. noch 51 Augen), sonst wartet er bis zum nächsten Zug.
+
+Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Vergesslich ≈ 20 %, Normal ≈ 24 %, Scharfsinnig ≈ 27 %, Mastermind ≈ 30 %. Gemessen (1920 Spiele, ±2 %): 18,7 / 23,5 / 28,1 / 29,7 %, Strafpunkte pro Runde 48,9 / 45,2 / 42,7 / 42,1.
+
+## Bot-Strategie: Erstmeldung abwägen, hinten mutig sein
+
+Unabhängig vom Gedächtnis wägen alle Bots ab (`src/bot/strategy.ts`), auch der Mastermind: Wer die Erstmeldung legt, setzt die Hürde für alle Nachfolger (letzte Erstmeldung + 1); wer sie verpasst, zahlt 100 Strafpunkte. Der **Ehrgeiz** (0 bis 1) ergibt sich aus der Spielweise und dem Tabellenstand: Wer hinten liegt, wagt mehr (bis +0,5 bei 100 Punkten Rückstand, im Endspurt noch +0,2); wer mit Vorsprung noch viele Runden vor sich hat, will Abstand gewinnen (+0,1), wer kurz vor Schluss führt, sichert (−0,2).
+
+- **Erstmeldung abwägen:** Der Bot wartet noch, wenn die Erstmeldung deutlich unter dem Ziel (Hürde + 10 + 40 × Ehrgeiz) liegt, die nächste Karte sie wahrscheinlich erhöht (aus dem, was er noch weiß) und seine Geduld (1 + 5 × Ehrgeiz eigene Züge) noch reicht. Er legt nie später, wenn ein Gegner schon draußen ist, die Cheft-Hürde (101) gilt, der Stapel zur Neige geht, es eine Hand ist oder es ein Pflichtzug ist. Das gilt auch für „Ablagekarte nehmen und sofort rauskommen“.
+- **Mutig, wenn man hinten liegt** (Ehrgeiz ab 0,7, also etwa 60 Punkte Rückstand): auf Hand spielen (alle Karten auf einmal) und Cheft schon mit vier statt fünf Paaren ansagen bzw. Paare für Cheft nehmen. Hinten zählt nicht die beste Durchschnittsrunde, sondern die Siegchance.
+- **Gemessen** (1920 Spiele gegen Bots, die immer sofort legen): 51,3 % Siege (±2,2), 18 % Runden mit Cheft statt 11 bis 13 %. Reines Warten verliert dagegen: Wer immer wartet, gewinnt nur 42 bis 45 %, weil der Tempoverlust mehr kostet, als die höhere Hürde bringt. Mit `npm run duel` lassen sich zwei Einstellungen am selben Tisch vergleichen; `tuning` (siehe `Tuning` in `strategy.ts`) stellt Geduld, Ziel und Schwellen ein, `boldHold` lässt einen Mutigen auch ohne Aussicht warten (als Charakterzug für Rollen gedacht).
 
 ## Mehrspieler-Server
 

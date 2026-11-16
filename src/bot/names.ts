@@ -6,8 +6,24 @@
 import { BotLevel, BotStyle } from '../engine/game';
 
 export const LEVELS: BotLevel[] = ['easy', 'normal', 'hard', 'master'];
-/** „Zufall“ wählt nur aus diesen Stufen; der Mastermind muss bewusst gewählt werden. */
-const RANDOM_LEVELS: BotLevel[] = ['easy', 'normal', 'hard'];
+/**
+ * „Zufall“ wählt nur aus diesen Stufen (Gedächtnis), nach unten gewichtet, damit eine Familienrunde meist
+ * milde Gegner bekommt; der Mastermind muss bewusst gewählt werden.
+ */
+export const RANDOM_LEVELS: [BotLevel, number][] = [
+  ['easy', 0.4],
+  ['normal', 0.4],
+  ['hard', 0.2],
+];
+
+function pickRandomLevel(rng: () => number): BotLevel {
+  let x = rng();
+  for (const [level, weight] of RANDOM_LEVELS) {
+    if (x < weight) return level;
+    x -= weight;
+  }
+  return RANDOM_LEVELS[RANDOM_LEVELS.length - 1][0];
+}
 export const STYLES: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
 
 export const NAMES: Record<BotLevel, Record<BotStyle, [string, string, string, string]>> = {
@@ -62,7 +78,7 @@ export interface BotChoice {
 export function resolveBots(choices: BotChoice[], rng: () => number): { level: BotLevel; style: BotStyle; name: string }[] {
   const used = new Set<string>();
   return choices.map((c) => {
-    const level = c.level === 'random' ? RANDOM_LEVELS[Math.floor(rng() * RANDOM_LEVELS.length)] : c.level;
+    const level = c.level === 'random' ? pickRandomLevel(rng) : c.level;
     const style = c.style === 'random' ? STYLES[Math.floor(rng() * STYLES.length)] : c.style;
     const pool = NAMES[level][style].filter((n) => !used.has(n));
     const candidates = pool.length ? pool : NAMES[level][style];

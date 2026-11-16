@@ -1,8 +1,11 @@
 /**
- * Computergegner mit Profilen: Stufe (gemütlich/normal/gerissen) und Spielweise.
+ * Computergegner mit Profilen: Gedächtnis (Stufe, siehe memory.ts) und Spielweise.
  * decideAction liefert jeweils die nächste regelkonforme Aktion für den Spieler pid.
+ *
+ * Das Gedächtnis bestimmt nur, was der Bot wahrnimmt und behält (Abwürfe, genommene Karten, Auslagen, eigene Hand).
+ * Die Spielweise bestimmt, was er daraus macht (Knobs).
  */
-import { Card, isJoker, makeDeck, penaltyValue, sameCard, makeRng } from '../engine/cards';
+import { Card, isJoker, penaltyValue, sameCard, makeRng } from '../engine/cards';
 import { Action, applyAction } from '../engine/actions';
 import {
   BotProfile,
@@ -17,9 +20,11 @@ import {
   nextIndex,
   thresholdFor,
 } from '../engine/game';
-import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, jokerRepresents, maxPairs } from '../engine/melds';
+import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
+import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
+import { Cand, MemoryParams, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, recall } from './memory';
 
-interface Knobs {
+export interface Knobs {
   /** Zusätzliche Augen über der Grenze, bevor der Bot rauskommt. */
   openMargin: number;
   /** Nach dem Rauskommen alles ablegen, was geht. */
@@ -46,12 +51,26 @@ interface Knobs {
   gamble: number;
   /** Joker möglichst als letzte Karte abwerfen (verbrennen) und dafür aufheben. */
   burn: boolean;
-  /** Zählt alle gespielten Karten und wirft nach Wahrscheinlichkeiten ab (Gerissen und Mastermind). */
+  /** Wirft nach Wahrscheinlichkeiten ab, die aus der Erinnerung folgen (für alle Stufen an; die Stufe bestimmt nur, wie gut die Erinnerung ist). */
   counting: boolean;
-  /** Mastermind: zusätzlich Joker schonen, Erstmeldung ohne Joker bevorzugen und Spielende vorausahnen. */
+  /** Erstmeldung ohne Joker bevorzugen (Joker bleiben für Klauen und Verbrennen auf der Hand). */
   master: boolean;
   /** Mit Jokern nicht überstürzt rauskommen: Ist die Teppichkarte nächste Runde ein echtes Paar, lieber warten. */
   patient: boolean;
+  /** Ausgangs-Ehrgeiz 0..1: wie bereitwillig der Bot mit der Erstmeldung wartet, um die Hürde zu erhöhen (Tabellenstand verschiebt ihn). */
+  ambition: number;
+  /** Erstmeldung abwägen (sofort legen oder noch warten). Aus nur für Vergleiche und Tests. */
+  weighOpening: boolean;
+  /** Stellschrauben der Abwägung überschreiben (Simulation). */
+  tuning?: Partial<Tuning>;
+  /** Mutiger Modus beim Zurückliegen erlauben (siehe strategy.ts). Aus nur für Vergleiche und Tests. */
+  bold: boolean;
+}
+
+/** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
+export interface DecideOptions {
+  knobs?: Partial<Knobs>;
+  memory?: Partial<MemoryParams>;
 }
 
 const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'balanced' };
@@ -71,35 +90,14 @@ export function knobsFor(profile: BotProfile): Knobs {
     smartDiscard: true,
     gamble: 0,
     burn: false,
-    counting: false,
+    counting: true,
     master: false,
     patient: false,
+    ambition: 0.4,
+    weighOpening: true,
+    bold: true,
   };
-  switch (profile.level) {
-    case 'easy':
-      k.openMargin = 15;
-      k.steal = false;
-      k.smartDiscard = false;
-      k.takeDiscardToOpen = false;
-      break;
-    case 'hard':
-      k.blocker = true;
-      k.counter = true;
-      k.jokerHunter = true;
-      k.burn = true;
-      k.patient = true;
-      k.counting = true;
-      break;
-    case 'master':
-      k.blocker = true;
-      k.counter = true;
-      k.jokerHunter = true;
-      k.burn = true;
-      k.counting = true;
-      k.master = true;
-      k.patient = true;
-      break;
-  }
+  // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
     case 'sprinter':
       k.openMargin = Math.min(k.openMargin, 0);
@@ -133,50 +131,70 @@ export function knobsFor(profile: BotProfile): Knobs {
   return k;
 }
 
-function knobs(state: GameState, pid: number): Knobs {
-  return knobsFor(state.players[pid].bot ?? DEFAULT_PROFILE);
+function profileOf(state: GameState, pid: number): BotProfile {
+  return state.players[pid].bot ?? DEFAULT_PROFILE;
 }
 
-/** Deterministischer Zufall je Zug (für Zocker). */
+function knobs(state: GameState, pid: number, opts: DecideOptions = {}): Knobs {
+  return { ...knobsFor(profileOf(state, pid)), ...opts.knobs };
+}
+
+/** Deterministischer Zufall je Zug (für Zocker). Der Zugzähler `plies` macht jeden Zug zu einem neuen Wurf. */
 function chance(state: GameState, pid: number, p: number): boolean {
   if (p <= 0) return false;
   const r = state.round;
-  const rng = makeRng(state.seed + r.no * 131 + pid * 17 + r.stock.length * 7);
+  const rng = makeRng(state.seed + r.no * 131 + pid * 17 + (r.plies ?? 0) * 7);
   return rng() < p;
 }
 
-/** Vorschlag für die Oberfläche: welche Karten könnte der Spieler jetzt auslegen? */
+/** Vorschlag für die Oberfläche: welche Karten könnte der Spieler jetzt auslegen? (Ohne Wahrnehmungsfehler.) */
 export function suggestLay(state: GameState, pid: number): number[][] | null {
   const p = state.round.players[pid];
   if (state.round.turn.phase !== 'play') return null;
   return p.opened ? bestAdditionalMelds(state, pid, knobs(state, pid)) : bestOpening(state, pid, knobs(state, pid), true);
 }
 
-export function decideAction(state: GameState, pid: number): Action {
+/** Pflichtzüge: Hier muss der Bot alles sehen, sonst steckt er fest. */
+function isForced(state: GameState): boolean {
+  const t = state.round.turn;
+  return t.phase === 'play' && (t.pendingJokerId !== null || t.mustUseId !== null || t.mustOpenWithId !== null || t.mustPairWithId !== null);
+}
+
+export function decideAction(state: GameState, pid: number, opts: DecideOptions = {}): Action {
   const r = state.round;
   const p = r.players[pid];
   const hand = p.hand;
-  const top = r.discard[r.discard.length - 1];
-  const k = knobs(state, pid);
+  const k = knobs(state, pid, opts);
+  // Wahrnehmung: Was übersieht der Bot in diesem Zug? Der Spielzustand selbst bleibt unverändert.
+  const per = perceive(state, pid, memoryFor(profileOf(state, pid).level, opts.memory), isForced(state));
+  const view = perceivedState(state, per);
+  const top = per.topBlind ? undefined : r.discard[r.discard.length - 1];
+  // Wer hinten liegt, spielt mutiger: auf Hand, früher Cheft, mit der Erstmeldung warten (hier der Ausgangspunkt)
+  const bold = k.bold && isBold(state, pid, k.ambition, k.tuning);
+  const bt = { ...DEFAULT_TUNING, ...k.tuning };
+  const cheftEager = bold && bt.boldCheft ? Math.min(k.cheftEagerPairs, 4) : k.cheftEagerPairs;
+  const pairTake = bold && bt.boldCheft ? Math.min(k.pairTakeAt, 3) : k.pairTakeAt;
+  const hunter = k.handHunter || (bold && bt.boldHand);
 
   if (r.turn.phase === 'draw') {
     // Cheft-Weg: Ablagekarte bildet ein Paar.
     if (top && !p.opened) {
       const mate = isJoker(top) || hand.some((c) => sameCard(c, top));
       const pairsAfter = maxPairs([...hand, top]);
-      const wants = pairsAfter >= 5 || (mate && pairsAfter >= k.pairTakeAt && (p.mode === 'cheft' || pairsAfter >= k.cheftEagerPairs || chance(state, pid, k.gamble * 0.4)));
+      const wants = pairsAfter >= 5 || (mate && pairsAfter >= pairTake && (p.mode === 'cheft' || pairsAfter >= cheftEager || chance(state, pid, k.gamble * 0.4)));
       if (mate && wants) {
         if (p.mode === 'romme' && checkDeclareCheft(state, pid).ok) return { kind: 'declareCheft' };
         if (checkDraw(state, pid, 'discard').ok) return { kind: 'draw', source: 'discard' };
       }
     }
-    if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(state, pid, top)) {
+    if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(view, pid, top)) {
       return { kind: 'draw', source: 'discard' };
     }
     const stockEmpty = r.stock.length === 0;
-    if (r.carpet && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
+    if (r.carpet && !per.carpetBlind && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
     if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard').ok) {
-      if (!(k.handHunter && holdForHand(state, pid, k))) return { kind: 'draw', source: 'discard' };
+      // Die Ablagekarte zu nehmen heißt, sofort rauszukommen: Das lohnt nur, wenn Warten nicht besser wäre
+      if (!(hunter && holdForHand(state, pid, hunter)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
     }
     // Stapel leer: letzter Zug, die Teppichkarte zählt wie eine Stapelkarte.
     if (stockEmpty && r.carpet) return { kind: 'draw', source: 'carpet' };
@@ -197,25 +215,75 @@ export function decideAction(state: GameState, pid: number): Action {
 
   if (!p.opened) {
     // Freiwillige Cheft-Ansage (Cheft-Fan, Zocker)
-    if (p.mode === 'romme' && r.turn.mustOpenWithId === null && maxPairs(hand) >= k.cheftEagerPairs && checkDeclareCheft(state, pid).ok) {
-      if (k.cheftEagerPairs <= 3 ? chance(state, pid, k.gamble) : true) return { kind: 'declareCheft' };
+    if (p.mode === 'romme' && r.turn.mustOpenWithId === null && maxPairs(hand) >= cheftEager && checkDeclareCheft(state, pid).ok) {
+      if (cheftEager <= 3 ? chance(state, pid, k.gamble) : true) return { kind: 'declareCheft' };
     }
-    const opening = bestOpening(state, pid, k, false);
-    if (opening) return { kind: 'lay', groups: opening };
+    // Handüberblick: Einzelne Kombinationen der möglichen Erstmeldung übersieht der Bot in diesem Zug vielleicht
+    const opening = bestOpening(state, pid, k, false, hunter);
+    const seenOpening = opening && perceivedGroups(state, pid, opening, per, 1);
+    // Abwägung: Wer noch deutlich mehr Augen zusammenbekommt, wartet und erhöht damit die Hürde für die Gegner
+    if (seenOpening && !holdsOpening(state, pid, k, per, seenOpening, hand)) return { kind: 'lay', groups: seenOpening };
   } else {
     const more = bestAdditionalMelds(state, pid, k);
-    if (more) return { kind: 'lay', groups: more };
+    const seenMore = more && perceivedGroups(state, pid, more, per, 2);
+    if (seenMore) return { kind: 'lay', groups: seenMore };
     if (k.steal) {
-      const steal = findSteal(state, pid, k);
+      const steal = findSteal(state, view, pid, k, per);
       if (steal) return steal;
     }
     if (k.layAll) {
-      const off = findLayOff(state, pid, k);
+      const off = findLayOff(state, view, pid, k, per);
       if (off) return off;
     }
   }
 
-  return { kind: 'discard', cardId: chooseDiscard(state, pid, k) };
+  return { kind: 'discard', cardId: chooseDiscard(state, pid, k, per) };
+}
+
+/** Wartet der Bot mit dieser möglichen Erstmeldung noch (siehe strategy.ts)? */
+function holdsOpening(state: GameState, pid: number, k: Knobs, per: Perception, groups: number[][], hand: Card[]): boolean {
+  if (!k.weighOpening) return false;
+  const unseen = recall(state, pid, per).unseen;
+  return weighOpening(state, pid, { base: k.ambition, groups, hand, unseen, forced: per.forced, tuning: k.bold ? k.tuning : { ...k.tuning, boldHold: false } }).hold;
+}
+
+/** Wie holdsOpening, aber für die Erstmeldung, die sich durch das Nehmen der obersten Ablagekarte ergäbe. */
+function holdsOpeningWith(state: GameState, pid: number, k: Knobs, per: Perception, card: Card): boolean {
+  if (!k.weighOpening) return false;
+  const hand = [...state.round.players[pid].hand, card];
+  const th = thresholdFor(state, pid);
+  let best: { groups: number[][]; used: number; augen: number } | null = null;
+  for (let kk = 0; kk < hand.length; kk++) {
+    if (hand[kk].id === card.id) continue;
+    const rest = hand.filter((_, i) => i !== kk);
+    const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [card.id] });
+    if (!part || part.used === 0) continue;
+    if (part.used !== hand.length - 1 && part.augen < th) continue;
+    if (!best || part.used > best.used || (part.used === best.used && part.augen > best.augen)) best = { groups: groupsOf(part.melds), used: part.used, augen: part.augen };
+  }
+  if (!best) return false;
+  const unseen = recall(state, pid, per).unseen;
+  return weighOpening(state, pid, { base: k.ambition, groups: best.groups, hand, unseen, forced: false, tuning: k.bold ? k.tuning : { ...k.tuning, boldHold: false } }).hold;
+}
+
+/**
+ * Handüberblick: Welche der möglichen Kombinationen sieht der Bot in diesem Zug? Jede wird einzeln geprüft, einfache
+ * (ein Satz, ein Paar) werden selten, schwierige (lange Folge, Joker, Ass) öfter übersehen. Reicht der Rest nicht mehr
+ * für die Regeln (z. B. unter 51 Augen oder keine 5 Paare), legt er in diesem Zug nichts aus und versucht es im nächsten wieder.
+ * Pflichtzüge und der Mastermind übersehen nie etwas.
+ */
+export function perceivedGroups(state: GameState, pid: number, groups: number[][], per: Perception, decision: number): number[][] | null {
+  if (per.forced || !(per.params.handMiss > 0)) return groups;
+  const hand = state.round.players[pid].hand;
+  const kept = groups.filter((g) => {
+    const cards = g.map((id) => hand.find((c) => c.id === id)!);
+    const shape = interpretMeld(cards);
+    const difficulty = shape ? comboDifficulty(shape) : 1;
+    return !overlooksAt(state, pid, per, difficulty, decision, Math.min(...g));
+  });
+  if (kept.length === groups.length) return groups;
+  if (kept.length === 0) return null;
+  return checkLay(state, pid, kept).ok ? kept : null;
 }
 
 function usableAfterOpening(state: GameState, pid: number, card: Card): boolean {
@@ -237,8 +305,8 @@ function groupsOf(melds: MeldShape[]): number[][] {
 }
 
 /** Handmacher: zurückhalten, wenn höchstens drei Karten fehlen und noch niemand draußen ist. */
-function holdForHand(state: GameState, pid: number, k: Knobs): boolean {
-  if (!k.handHunter) return false;
+function holdForHand(state: GameState, pid: number, hunter: boolean): boolean {
+  if (!hunter) return false;
   const r = state.round;
   if (r.players.some((q) => q.opened)) return false;
   if (r.stock.length < 8) return false;
@@ -249,7 +317,7 @@ function holdForHand(state: GameState, pid: number, k: Knobs): boolean {
 }
 
 /** Beste Erstmeldung (Rommé oder Cheft), die die Regeln und das Profil erfüllt. */
-function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boolean): number[][] | null {
+function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boolean, hunter = k.handHunter): number[][] | null {
   const r = state.round;
   const p = r.players[pid];
   const hand = p.hand;
@@ -302,7 +370,7 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
     if (isHand || part.augen >= threshold + margin) consider(groupsOf(part.melds), part.used, part.augen);
   }
   // Mastermind: Reicht die Erstmeldung auch ohne Joker, bleiben die Joker auf der Hand (Klauen, Verbrennen).
-  if (k.master && hand.some(isJoker) && !(!ignoreProfile && must === null && holdForHand(state, pid, k))) {
+  if (k.master && hand.some(isJoker) && !(!ignoreProfile && must === null && holdForHand(state, pid, hunter))) {
     let alt: Best | null = null;
     for (let kk = 0; kk < n; kk++) {
       if (hand[kk].id === must) continue;
@@ -319,7 +387,7 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
   if (!best) return null;
   const b = best as Best;
   // Handmacher: lieber warten, außer die Erstmeldung ist bereits die Hand oder eine Pflichtkarte zwingt.
-  if (!ignoreProfile && must === null && b.used < n - 1 && holdForHand(state, pid, k)) return null;
+  if (!ignoreProfile && must === null && b.used < n - 1 && holdForHand(state, pid, hunter)) return null;
   return b.groups;
 }
 
@@ -350,31 +418,34 @@ function bestAdditionalMelds(state: GameState, pid: number, k: Knobs): number[][
   return best ? best.groups : null;
 }
 
-function findLayOff(state: GameState, pid: number, k: Knobs): Action | null {
+/** `view` ist der Zustand ohne die Auslagen, die der Bot gerade übersieht; Regeln prüft weiterhin `state`. */
+function findLayOff(state: GameState, view: GameState, pid: number, k: Knobs, per: Perception): Action | null {
   const p = state.round.players[pid];
   if (p.hand.length < 2) return null;
   const sorted = [...p.hand].sort((a, b) => (isJoker(a) ? 1 : 0) - (isJoker(b) ? 1 : 0) || penaltyValue(b) - penaltyValue(a));
   for (const c of sorted) {
     if (isJoker(c) && (k.jokerHunter || k.burn) && p.hand.length <= 3 && !endIsNear(state, pid)) continue; // zum Verbrennen aufheben
-    const targets = layOffTargets(state, pid, c.id);
+    const targets = layOffTargets(view, pid, c.id);
     if (targets.length === 0) continue;
     const own = targets.find((t) => t.meld.owner === pid) ?? targets[0];
+    if (overlooksAt(state, pid, per, layOffDifficulty(c, own.meld), 3, c.id)) continue; // Handüberblick: Anlegemöglichkeit nicht gesehen
     return { kind: 'layOff', cardId: c.id, meldId: own.meld.id, end: 'top' };
   }
   return null;
 }
 
 /** Alle erlaubten Joker-Klauzüge bewerten (Zug durchspielen) und den mit den wenigsten Reststrafpunkten wählen. */
-function findSteal(state: GameState, pid: number, k: Knobs): Action | null {
+function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per: Perception): Action | null {
   const p = state.round.players[pid];
   if (p.hand.length < 2) return null;
   const options: Extract<Action, { kind: 'steal' }>[] = [];
-  for (const m of state.round.melds) {
+  for (const m of view.round.melds) {
     for (let i = 0; i < m.cards.length; i++) {
       if (!isJoker(m.cards[i])) continue;
       const rep = jokerRepresents(m, i);
       if (!rep) continue;
       for (const card of p.hand.filter((c) => c.suit === rep.suit && c.rank === rep.rank)) {
+        if (overlooksAt(state, pid, per, STEAL_DIFFICULTY, 4, card.id, m.id, i)) continue; // Handüberblick: Klaumöglichkeit nicht gesehen
         if (checkStealJoker(state, pid, m.id, i, card.id).ok) options.push({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id });
       }
     }
@@ -444,42 +515,12 @@ function useJoker(state: GameState, pid: number, jokerId: number): Action | null
   return null;
 }
 
-// ---------------------------------------------------------------- Mastermind: Kartenzählen und Wahrscheinlichkeiten
+// ---------------------------------------------------------------- Kartenzählen und Wahrscheinlichkeiten
+// Was der Bot dabei noch weiß, bestimmt sein Gedächtnis (memory.ts: recall). Der Mastermind weiß alles, die anderen
+// Stufen vergessen, verwechseln oder bekommen manches gar nicht mit.
 
 const SUITS = ['H', 'D', 'C', 'S'] as const;
 const augen = (rank: number) => (rank === 1 ? 11 : rank >= 10 ? 10 : rank);
-
-interface Unseen {
-  /** Noch nicht gesehene Kopien je Karte ('H5', 'J' für Joker). */
-  copies: Map<string, number>;
-  total: number;
-}
-
-/**
- * Welche Karten kann der Bot noch nicht verorten? Gesehen sind die eigene Hand, alle Auslagen, die ganze Ablage,
- * die Teppichkarte und die Karten, die Mitspieler offen genommen haben. Der Rest steckt im Stapel oder in fremden Händen.
- */
-function unseenCards(state: GameState, pid: number, precise: boolean): Unseen {
-  const r = state.round;
-  const seen = new Set<number>();
-  for (const c of r.players[pid].hand) seen.add(c.id);
-  for (const m of r.melds) for (const c of m.cards) seen.add(c.id);
-  for (const c of r.discard) seen.add(c.id);
-  // Gerissen zählt nur, was offen liegt; der Mastermind merkt sich auch Teppichkarte und die offen genommenen Karten der anderen
-  if (precise) {
-    if (r.carpet) seen.add(r.carpet.id);
-    for (const x of r.taken) seen.add(x.card.id);
-  }
-  const copies = new Map<string, number>();
-  let total = 0;
-  for (const c of makeDeck()) {
-    if (seen.has(c.id)) continue;
-    const key = isJoker(c) ? 'J' : `${c.suit}${c.rank}`;
-    copies.set(key, (copies.get(key) ?? 0) + 1);
-    total++;
-  }
-  return { copies, total };
-}
 
 /** Wahrscheinlichkeit, eine von `m` Kopien in `draws` Zügen zu bekommen. */
 const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Math.min(1, m / U), draws);
@@ -488,11 +529,11 @@ const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Mat
  * Wie wertvoll ist die Karte für die Hand? Erwartete Augen der besten Kombinationen, an denen sie beteiligt sein kann
  * (fertige Kombination, oder Wahrscheinlichkeit, die fehlenden Karten noch zu bekommen).
  */
-function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean, precise: boolean): number {
+function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean): number {
   if (isJoker(c)) return 60;
-  const draws = precise ? 3 : 2;
+  const draws = 3;
   const U = Math.max(8, un.total);
-  const J = precise ? (un.copies.get('J') ?? 0) : 0; // der Mastermind rechnet auch mit den noch ungesehenen Jokern
+  const J = un.copies.get('J') ?? 0; // auch die noch ungesehenen Joker zählen als Ersatz
   const jokersInHand = hand.filter(isJoker).length;
   const have = (suit: string, rank: number) => hand.some((o) => !isJoker(o) && o.suit === suit && o.rank === rank);
   const chance = (suit: string, rank: number) => outsChance((un.copies.get(`${suit}${rank}`) ?? 0) + J * 0.5, U, draws);
@@ -543,17 +584,33 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
       }
     }
   }
-  return best + (precise ? 0.35 : 0.15) * second;
+  return best + 0.35 * second;
 }
 
-/** Mastermind wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt. */
-function masterDiscard(state: GameState, pid: number, k: Knobs, pool: Card[]): number {
+/**
+ * Wie stark deutet eine (womöglich verschwommene) Erinnerung an die vom nächsten Spieler genommene Karte darauf hin,
+ * dass er `c` sammelt? Eine scharfe Erinnerung zählt voll, eine verschwommene anteilig.
+ */
+function blockPenalty(c: Card, cands: Cand[]): number {
+  let s = 0;
+  for (const t of cands) {
+    if (t.suit === 'J') continue;
+    if (t.suit === c.suit && t.rank === c.rank) s += 9;
+    else if (t.rank === c.rank) s += 4;
+    else if (t.suit === c.suit && Math.abs(t.rank - c.rank) <= 2) s += 4;
+  }
+  return s / cands.length;
+}
+
+/** Wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt (nach dem, was der Bot noch weiß). */
+function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception): number {
   const r = state.round;
   const p = r.players[pid];
-  const un = unseenCards(state, pid, k.master);
+  const memory = recall(state, pid, per);
+  const un = memory.unseen;
   const next = r.players[nextIndex(state, pid)];
-  const nextTaken = r.taken.filter((x) => x.player === nextIndex(state, pid)).map((x) => x.card);
-  const danger = k.master && endIsNear(state, pid); // das Spielende vorausahnen kann nur der Mastermind
+  const nextTaken = memory.takes.filter((x) => x.player === nextIndex(state, pid));
+  const danger = endIsNear(state, pid);
   // Ausgelegte Joker: Die passenden Karten sind zum Klauen wertvoll
   const jokerTargets: { suit: string; rank: number }[] = [];
   if (p.opened) {
@@ -567,18 +624,13 @@ function masterDiscard(state: GameState, pid: number, k: Knobs, pool: Card[]): n
   let bestCard = pool[0];
   let bestScore = -Infinity;
   for (const c of pool) {
-    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.master);
+    const keep = keepValue(c, p.hand, un, p.mode, p.opened);
     let score = -keep;
     if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
     else score += p.opened ? penaltyValue(c) * 0.9 : penaltyValue(c) * 0.12;
     if (isJoker(c)) score -= 500;
     // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
-    for (const t of nextTaken) {
-      if (isJoker(t)) continue;
-      if (sameCard(t, c)) score -= 9;
-      else if (t.rank === c.rank) score -= 4;
-      else if (t.suit === c.suit && Math.abs(t.rank - c.rank) <= 2) score -= 4;
-    }
+    for (const t of nextTaken) score -= blockPenalty(c, t.cands);
     if (next.mode === 'cheft' && !next.opened) score -= 1;
     if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) score -= 25;
     if (score > bestScore) {
@@ -599,7 +651,7 @@ function visibleCopies(state: GameState, card: Card): number {
 }
 
 /** Wählt die Abwurfkarte: hohe Strafpunkte, wenig Nutzen, regelkonform, profilabhängig. */
-function chooseDiscard(state: GameState, pid: number, k: Knobs): number {
+function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception): number {
   const r = state.round;
   const p = r.players[pid];
   const hand = p.hand;
@@ -608,7 +660,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs): number {
   // Wer auf die Teppichkarte wartet, wirft deren Partner nicht weg
   const mate = k.patient && !p.opened && waitForCarpet(state, pid, k) ? carpetMate(state, pid) : null;
   if (mate && pool.length > 1) pool = pool.filter((c) => c.id !== mate.id);
-  if (k.counting) return masterDiscard(state, pid, k, pool);
+  if (k.counting) return masterDiscard(state, pid, pool, per);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);

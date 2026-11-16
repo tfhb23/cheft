@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "calibrate": "tsx scripts/calibrate.ts",
+    "sensitivity": "tsx scripts/sensitivity.ts",
+    "duel": "tsx scripts/duel.ts",
     "server": "tsx server/index.ts",
     "start": "tsx server/index.ts"
   },
