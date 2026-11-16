@@ -35,3 +35,40 @@ export function writePng(path, size, pixel) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4); ihdr[8] = 8; ihdr[9] = 6;
   writeFileSync(path, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 }
+
+/**
+ * Rendert die Sonne in beliebiger Größe (Überabtastung 4 × 4, deshalb auch bei krummen Verhältnissen sauber).
+ * grid: Breite des Bildes in Sonnenpixeln (16 = Sonne füllt alles, größer = mehr orangener Rand).
+ * radiusFrac: Eckenradius als Anteil der Kantenlänge (0 = Vollfläche, ohne Transparenz).
+ */
+export function renderSun(size, grid, radiusFrac = 0) {
+  const pad = (grid - SUN) / 2, R = radiusFrac * size, N = 4;
+  const out = new Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const px = x + (i + 0.5) / N, py = y + (j + 0.5) / N;
+        if (R > 0) {
+          const cx = Math.min(Math.max(px, R), size - R), cy = Math.min(Math.max(py, R), size - R);
+          if ((px - cx) ** 2 + (py - cy) ** 2 > R * R) continue;
+        }
+        const c = sunPixel(Math.floor((px / size) * grid - pad), Math.floor((py / size) * grid - pad));
+        r += c[0]; g += c[1]; b += c[2]; n++;
+      }
+      out[y * size + x] = n ? [Math.round(r / n), Math.round(g / n), Math.round(b / n), Math.round((255 * n) / (N * N))] : [0, 0, 0, 0];
+    }
+  }
+  return out;
+}
+
+/** PNG als Buffer (statt Datei), z. B. für favicon.ico. */
+export function pngBuffer(size, pixel) {
+  const raw = Buffer.alloc((size * 4 + 1) * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const c = pixel(x, y), o = y * (size * 4 + 1) + 1 + x * 4;
+    raw[o] = c[0]; raw[o + 1] = c[1]; raw[o + 2] = c[2]; raw[o + 3] = c[3] ?? 255;
+  }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
