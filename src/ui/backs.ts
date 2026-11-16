@@ -210,7 +210,7 @@ export const BACK_DESIGNS: BackDesign[] = BACK_ORDER.map((id) => ALL_DESIGNS.fin
 /** Designs, die in BACK_ORDER fehlen (für den Test). */
 export const BACK_UNSORTED: string[] = ALL_DESIGNS.filter((d) => !BACK_ORDER.includes(d.id)).map((d) => d.id);
 
-export const DEFAULT_BACK = 'classic';
+export const DEFAULT_BACK = 'garten';
 
 export function backDesign(id: string | undefined): BackDesign {
   const key = id && LEGACY_IDS[id] ? LEGACY_IDS[id] : id;
