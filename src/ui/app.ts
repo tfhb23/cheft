@@ -46,6 +46,8 @@ const SAVE_KEY = 'cheft.save.v2';
 const PREFS_KEY = 'cheft.prefs.v2';
 /** Wählbare Rundenzahlen. */
 const ROUND_CHOICES = [3, 5, 7, 9];
+/** Obergrenze für die Auswahl „Wie auslegen?“. Es werden alle erlaubten Möglichkeiten angeboten, die Grenze schützt nur vor endlosem Rechnen. */
+const ALL_OPTIONS = 500;
 
 interface Prefs {
   name: string;
@@ -1681,7 +1683,7 @@ export class App {
     attempts.push({ types: ALL_TYPES });
     let firstError: { error: string; params?: Record<string, string | number> } | null = null;
     for (const opts of attempts) {
-      const parts = findAllPartitions(cards, opts, 8);
+      const parts = findAllPartitions(cards, opts, ALL_OPTIONS);
       if (parts.length === 0) continue;
       const valid: { groups: number[][]; shapes: MeldShape[]; augen: number }[] = [];
       for (const part of parts) {

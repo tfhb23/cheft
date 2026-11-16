@@ -300,7 +300,8 @@ table.rounds { table-layout: fixed; }
 table.rounds th, table.rounds td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 table.rounds th:first-child, table.rounds td:first-child { width: var(--w-round-label); }
 table.rounds td.cell { position: relative; }
-table.rounds .bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--surface-highlight); z-index: 0; }
+/* Balken lassen links und rechts Luft, damit Balken nebeneinanderliegender Spieler nie zusammenstoßen */
+table.rounds .bar { position: absolute; left: var(--sp-1); max-width: calc(100% - 2 * var(--sp-1)); top: 0; bottom: 0; background: var(--surface-highlight); z-index: 0; }
 table.rounds td.cell.win .bar { background: var(--surface-positive); }
 table.rounds .sum, table.rounds .delta { position: relative; z-index: 1; }
 table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--text-muted); }
@@ -345,4 +346,8 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .guide-table th { color: var(--text-accent); font-weight: var(--fw-regular); }
 .guide-table .num { text-align: right; white-space: nowrap; }
 .guide-table .mono { white-space: nowrap; }
-.ds-tag { position: fixed; z-index: var(--z-labels); pointer-events: none; padding: 0 var(--sp-1); background: var(--surface-gold); color: var(--text-strong); border: var(--bw) solid var(--line); font-family: var(--font-body); font-size: var(--fs-micro); line-height: var(--lh-chip); white-space: nowrap; }
+.ds-layer { position: fixed; inset: 0; z-index: var(--z-labels); pointer-events: none; }
+.ds-dot { position: fixed; width: var(--size-dot); height: var(--size-dot); padding: 0; background: var(--surface-gold); border: var(--bw) solid var(--line); border-radius: var(--radius); pointer-events: auto; cursor: pointer; opacity: var(--op-dot); }
+.ds-dot:active { opacity: 1; }
+.ds-tag { position: fixed; pointer-events: none; padding: var(--sp-1) var(--sp-2); background: var(--surface-gold); color: var(--text-strong); border: var(--bw) solid var(--line); font-family: var(--font-body); font-size: var(--fs-caption); line-height: var(--lh-chip); white-space: nowrap; }
+.ds-tag-name { font-size: var(--fs-micro); color: var(--text-strong); }

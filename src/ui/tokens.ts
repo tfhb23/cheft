@@ -39,7 +39,7 @@ export const PALETTE_COLORS: ColorToken[] = [
   { id: '1.10', css: '--c-orange', name: 'Cheft-Orange', value: '#f06a2d', group: 'Marke', use: 'Primär-Button, Logo, Markierungen, aktiver Sitz, Cheft-Badge, Kartenrücken A' },
   { id: '1.11', css: '--c-orange-dark', name: 'Orange dunkel', value: '#b94718', group: 'Marke', use: 'Überschriften, Akzenttext, Vorwahl-Rahmen, Cheft-Badge-Rahmen' },
   { id: '1.12', css: '--c-orange-pale', name: 'Orange blass', value: '#ffe3d2', group: 'Marke', use: 'Hover und Ablagezone, Leuchten um Karten, Balken im Punkteverlauf' },
-  { id: '1.13', css: '--c-gold', name: 'Gold', value: '#f2b53a', group: 'Marke', use: 'Vorwahl-Leuchten, Rückblick (Linie, Namensschild), Joker-Stern, Kronen, Nummern-Etiketten' },
+  { id: '1.13', css: '--c-gold', name: 'Gold', value: '#f2b53a', group: 'Marke', use: 'Vorwahl-Leuchten, Rückblick (Linie, Namensschild), Joker-Stern, Kronen, Nummern-Punkte' },
   { id: '1.14', css: '--c-red', name: 'Rot', value: '#d2362a', group: 'Signal', use: 'Gefahr-Button, Fehlermeldung, Herz und Karo' },
   { id: '1.15', css: '--c-green', name: 'Grün', value: '#4f9a6a', group: 'Signal', use: 'Frisch gezogene Karte, klaubarer Joker' },
   { id: '1.16', css: '--c-green-pale', name: 'Grün blass', value: '#d9ecd2', group: 'Signal', use: 'Balken des Rundensiegers im Punkteverlauf' },
@@ -96,7 +96,7 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.60', css: '--surface-dark', name: 'Dunkel', ref: '--c-ink', group: 'Fläche', use: 'Dunkler Button (Cheft, Zurücklegen)' },
   { id: '1.61', css: '--surface-accent', name: 'Akzent', ref: '--c-orange', group: 'Fläche', use: 'Primär-Button, aktiver Sitz, Cheft-Badge, Zählerchip beim Ziehen' },
   { id: '1.62', css: '--surface-danger', name: 'Gefahr', ref: '--c-red', group: 'Fläche', use: 'Gefahr-Button' },
-  { id: '1.63', css: '--surface-gold', name: 'Gold', ref: '--c-gold', group: 'Fläche', use: 'Namensschild im Rückblick, Nummern-Etiketten' },
+  { id: '1.63', css: '--surface-gold', name: 'Gold', ref: '--c-gold', group: 'Fläche', use: 'Namensschild im Rückblick, Nummern-Punkte' },
   { id: '1.64', css: '--line', name: 'Linie', ref: '--c-ink', group: 'Linie', use: 'Standardrahmen, Trennlinien der Leisten' },
   { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand-dark', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen' },
   { id: '1.66', css: '--line-muted', name: 'Linie gedämpft', ref: '--c-ink-soft', group: 'Linie', use: 'Rahmen deaktivierter Buttons' },
@@ -225,6 +225,7 @@ export const BORDER_TOKENS: ValueToken[] = [
 
 /** 3.61–3.69: Wirkung auf Karten. */
 export const EFFECT_TOKENS: ValueToken[] = [
+  { id: '3.68', css: '--op-dot', name: 'Deckkraft Nummern-Punkt', value: '0.85', use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.61', css: '--filter-dim', name: 'Abblenden', value: 'grayscale(0.5) contrast(0.6) brightness(1.08)', use: 'Karten, die gerade nicht gezogen werden können (ohne Durchscheinen)' },
   { id: '3.62', css: '--op-drag', name: 'Deckkraft beim Ziehen', value: '0.92', use: 'Karte unter dem Finger' },
   { id: '3.63', css: '--scale-drag', name: 'Vergrößerung beim Ziehen', value: '1.05', use: 'Karte unter dem Finger' },
@@ -273,6 +274,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Design Guide (ca. 65 Zeichen)' },
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
+  { id: '3.111', css: '--size-dot', name: 'Größe Nummern-Punkt', units: 5, use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.110', css: '--w-round-label', name: 'Breite Rundenspalte', units: 14, use: 'Punkteverlauf: erste Spalte („R1“); alle Spielerspalten teilen sich den Rest gleichmäßig' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
@@ -302,7 +304,7 @@ export const Z_TOKENS: ValueToken[] = [
   { id: '3.123', css: '--z-overlay', name: 'Fenster', value: '60', use: 'Fenster, Dialoge, Fußleiste nach der Runde' },
   { id: '3.124', css: '--z-peek', name: 'Rückblick', value: '70', use: 'Abgedunkelter Tisch mit Abwürfen' },
   { id: '3.125', css: '--z-toast', name: 'Toast', value: '80', use: 'Meldungen, immer ganz oben' },
-  { id: '3.126', css: '--z-labels', name: 'Nummern-Etiketten', value: '90', use: 'Etiketten des Design Guides („Nummern im Spiel“)' },
+  { id: '3.126', css: '--z-labels', name: 'Nummern-Punkte', value: '90', use: 'Punkte und Anzeige des Design Guides („Nummern im Spiel“)' },
   { id: '3.127', css: '--z-drag', name: 'Gezogene Karte', value: '100', use: 'Handkarte unter dem Finger' },
 ];
 

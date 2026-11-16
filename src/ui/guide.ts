@@ -1,7 +1,7 @@
 /**
  * Design Guide: zeigt jedes Element der App mit fester Nummer, echtem Aussehen (aus denselben Bausteinen und
  * Stilen wie das Spiel) und den tatsächlich berechneten Werten. Nummern stammen aus tokens.ts (Kapitel 1–3) und
- * stehen hier (Kapitel 4–11). Mit „Nummern im Spiel“ erscheinen sie als Etiketten über dem laufenden Spiel.
+ * stehen hier (Kapitel 4–11). Mit „Nummern im Spiel“ erscheinen sie als Punkte über dem laufenden Spiel.
  *
  * Neues Element aufnehmen: unten in chapters() einen Eintrag mit neuer Nummer ergänzen. Ein Test prüft, dass die Nummern
  * eindeutig sind und jeder Selektor existiert.
@@ -763,7 +763,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       id: '7.08',
       name: 'Auswahl der Kombination',
-      where: 'Wenn Karten sich verschieden auslegen lassen (hier: ♥5 ♦5 ♣5 ♠5 ♥6 ♥7 Joker, drei Möglichkeiten mit 41, 41 und 38 Augen); auch Joker-Ende',
+      where: 'Wenn Karten sich verschieden auslegen lassen (hier: ♥5 ♦5 ♣5 ♠5 ♥6 ♥7 Joker: alle fünf erlaubten Möglichkeiten, der Joker als ♥8, ♥5, ♥4 oder im Satz; 41 bis 37 Augen). Es werden immer ALLE möglichen Aufteilungen angeboten, auch mit weniger Augen, damit man taktisch wählen kann; auch Joker-Ende',
       code: '.choose-option · App.renderChooser()',
       sel: '.choose-option',
       stage: () => {
@@ -773,9 +773,11 @@ export function chapters(env: GuideEnv): Chapter[] {
         return dlg(
           h('h2', null, t('choose.title')),
           hint(t('choose.hint')),
-          option([[k('H', 6, -811), k('H', 7, -812), jk()], [k('C', 5, -813), k('D', 5, -814), k('H', 5, -815), k('S', 5, -816)]], 41),
-          option([[k('H', 5, -821), k('H', 6, -822), k('H', 7, -823), jk()], [k('C', 5, -824), k('D', 5, -825), k('S', 5, -826)]], 41),
-          option([[k('H', 5, -831), k('H', 6, -832), k('H', 7, -833)], [k('C', 5, -834), k('D', 5, -835), jk(), k('S', 5, -836)]], 38),
+          option([[k('H', 5, -811), k('H', 6, -812), k('H', 7, -813), jk()], [k('C', 5, -814), k('D', 5, -815), k('S', 5, -816)]], 41),
+          option([[k('H', 6, -821), k('H', 7, -822), jk()], [k('H', 5, -823), k('C', 5, -824), k('D', 5, -825), k('S', 5, -826)]], 41),
+          option([[jk(), k('H', 6, -831), k('H', 7, -832)], [k('H', 5, -833), k('C', 5, -834), k('D', 5, -835), k('S', 5, -836)]], 38),
+          option([[k('H', 5, -841), k('H', 6, -842), k('H', 7, -843)], [k('C', 5, -844), k('D', 5, -845), jk(), k('S', 5, -846)]], 38),
+          option([[jk(), k('H', 5, -851), k('H', 6, -852), k('H', 7, -853)], [k('C', 5, -854), k('D', 5, -855), k('S', 5, -856)]], 37),
           btn(t('btn.cancel')),
         );
       },
@@ -1037,10 +1039,10 @@ export function chapters(env: GuideEnv): Chapter[] {
 }
 
 /** Alle Etiketten-Ziele: Nummer und Selektor. */
-export function labelTargets(): { id: string; sel: string }[] {
+export function labelTargets(): { id: string; sel: string; name: string }[] {
   const stub = {} as GuideEnv;
-  const out: { id: string; sel: string }[] = [];
-  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) if (sp.sel) out.push({ id: sp.id, sel: sp.sel });
+  const out: { id: string; sel: string; name: string }[] = [];
+  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) if (sp.sel) out.push({ id: sp.id, sel: sp.sel, name: sp.name });
   return out;
 }
 
@@ -1071,7 +1073,7 @@ export function renderGuide(env: GuideEnv): HTMLElement {
     h('p', null, 'Alle Elemente der App mit fester Nummer. Eine Nummer besteht aus Kapitel und Zähler (z. B. 4.02 = Button Primär). Damit lässt sich jede Änderung eindeutig benennen.'),
     h('p', null, 'Maße stehen in u: 1 u = 1 Pixel × Maßstab (Handy: 1 u = 2 px). Farben, Größen und Abstände sind in tokens.ts als Parameter angelegt; styles.css verwendet nur diese Variablen. Das Spiel und dieser Guide bauen aus denselben Bausteinen.'),
     h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), h('div', { class: 'choices' }, btn('an', () => env.setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' }), btn('aus', () => env.setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' }))),
-    hint('Blendet die Nummern der Elemente als gelbe Etiketten über dem Menü und dem Spiel ein (nicht in diesem Guide).'),
+    hint('Zeigt an jedem Element einen kleinen gelben Punkt unten links (nicht in diesem Guide). Antippen zeigt die Nummer und kopiert sie.'),
     toc,
   );
   const body: HTMLElement[] = [intro];
@@ -1091,19 +1093,27 @@ export function renderGuide(env: GuideEnv): HTMLElement {
   return view;
 }
 
-// ---------------------------------------------------------------- Etiketten im Spiel
+// ---------------------------------------------------------------- Nummern im Spiel
+/**
+ * Kleiner gelber Punkt unten links an jedem bekannten Element. Antippen zeigt Nummer und Name und kopiert die
+ * Nummer(n) in die Zwischenablage. Ein Tipp irgendwo sonst blendet die Anzeige wieder aus.
+ */
 export class DsLabels {
   private layer: HTMLElement | null = null;
   private raf = 0;
   private on = false;
-  private targets: { id: string; sel: string }[] | null = null;
+  private targets: { id: string; sel: string; name: string }[] | null = null;
   private bound = false;
+  private open: { el: Element; text: string } | null = null;
 
   refresh(on: boolean): void {
     this.on = on;
     this.layer?.remove();
     this.layer = null;
-    if (!on) return;
+    if (!on) {
+      this.open = null;
+      return;
+    }
     if (!this.bound) {
       this.bound = true;
       const again = () => {
@@ -1117,7 +1127,7 @@ export class DsLabels {
       document.addEventListener('scroll', again, true);
     }
     this.targets ??= labelTargets();
-    const found = new Map<Element, string[]>();
+    const found = new Map<Element, { id: string; name: string }[]>();
     for (const tg of this.targets) {
       let list: NodeListOf<Element>;
       try {
@@ -1126,32 +1136,60 @@ export class DsLabels {
         continue;
       }
       list.forEach((el) => {
-        if (el.closest('.ds-tag, .view')) return;
-        const ids = found.get(el) ?? [];
-        if (!ids.includes(tg.id)) ids.push(tg.id);
-        found.set(el, ids);
+        if (el.closest('.ds-layer, .view')) return;
+        const items = found.get(el) ?? [];
+        if (!items.some((i) => i.id === tg.id)) items.push({ id: tg.id, name: tg.name });
+        found.set(el, items);
       });
     }
     const layer = h('div', { class: 'ds-layer' });
     document.body.appendChild(layer);
     const placed: DOMRect[] = [];
-    for (const [el, ids] of found) {
+    for (const [el, items] of found) {
       const r = el.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.top > window.innerHeight) continue;
-      const tag = h('div', { class: 'ds-tag' }, ids.join(' · '));
-      layer.appendChild(tag);
-      const tr = tag.getBoundingClientRect();
-      let top = Math.max(0, r.top);
-      const left = Math.min(Math.max(0, r.left), window.innerWidth - tr.width);
+      if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) continue;
+      const dot = h('button', { class: 'ds-dot', 'aria-label': items.map((i) => i.id).join(' · ') });
+      layer.appendChild(dot);
+      const size = dot.getBoundingClientRect().width;
+      let left = Math.min(Math.max(0, r.left + size / 2), window.innerWidth - size);
+      const top = Math.min(Math.max(0, r.bottom - size * 1.5), window.innerHeight - size);
+      // Liegen zwei Punkte übereinander, rückt der spätere ein Stück nach rechts
       for (let i = 0; i < 8; i++) {
-        const hit = placed.find((p) => left < p.right && left + tr.width > p.left && top < p.bottom && top + tr.height > p.top);
+        const hit = placed.find((p) => left < p.right && left + size > p.left && top < p.bottom && top + size > p.top);
         if (!hit) break;
-        top = hit.bottom;
+        left = hit.right + size / 4;
       }
-      tag.style.left = `${left}px`;
-      tag.style.top = `${top}px`;
-      placed.push(new DOMRect(left, top, tr.width, tr.height));
+      dot.style.left = `${left}px`;
+      dot.style.top = `${top}px`;
+      placed.push(new DOMRect(left, top, size, size));
+      const text = items.map((i) => `${i.id} ${i.name}`).join('\n');
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.show(layer, dot, items.map((i) => i.id).join(' · '), text);
+      });
     }
     this.layer = layer;
+    if (this.open) {
+      // nach einem Neuaufbau (Scrollen) offene Anzeige entfernen, damit nichts an falscher Stelle steht
+      this.open = null;
+    }
+  }
+
+  private show(layer: HTMLElement, dot: HTMLElement, ids: string, text: string): void {
+    layer.querySelectorAll('.ds-tag').forEach((n) => n.remove());
+    const tag = h('div', { class: 'ds-tag' }, ids, ...text.split('\n').map((l) => h('div', { class: 'ds-tag-name' }, l)));
+    layer.appendChild(tag);
+    const d = dot.getBoundingClientRect();
+    const tr = tag.getBoundingClientRect();
+    tag.style.left = `${Math.min(Math.max(0, d.left), window.innerWidth - tr.width)}px`;
+    tag.style.top = `${Math.max(0, d.top - tr.height - 2)}px`;
+    // Zwischenablage kann verweigert werden (kein HTTPS, Berechtigung): dann zeigt die Anzeige die Nummer trotzdem
+    navigator.clipboard?.writeText(ids.replace(/ · /g, ', ')).catch(() => undefined);
+    const away = (e: Event) => {
+      if ((e.target as Element | null)?.closest('.ds-dot')) return;
+      tag.remove();
+      document.removeEventListener('pointerdown', away, true);
+    };
+    window.setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
   }
 }

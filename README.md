@@ -102,14 +102,14 @@ Im Menü zwischen „Regeln“ und „Einstellungen“ liegt der **Design Guide*
 Nummer (Kapitel.Zähler, z. B. `4.02` = Button Primär): Farben, Schriften, Abstände, Buttons, alle Karten und Grafiken,
 Spielfeld-Elemente, Fenster, Seiten, Töne und Vibrationen, dazu die Navigationslogik und eine Liste, welcher Abstand wo
 wirkt. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ erscheinen die
-Nummern als gelbe Etiketten über Menü und Spielfeld, damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
+Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die Nummer), damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
 
 - **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
   auf sie zeigen; eine Rolle (`1.4x`–`1.7x`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
   der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.37` geben ihnen Bedeutung. `styles.css` enthält
   keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht.
 - **Neues Element:** Baustein in `components.ts` (oder Klasse in `styles.css`) anlegen und in `guide.ts` unter `chapters()`
-  mit neuer Nummer eintragen; mit `sel` findet es auch die Etiketten-Anzeige.
+  mit neuer Nummer eintragen; mit `sel` findet es auch die Nummern-Punkte.
 - **Zurück:** Es gibt genau einen Weg, ein Fenster oder eine Seite zu verlassen: `App.back()`. Der Knopf „Zurück“
   (`backBtn`), ein Tipp neben ein Anzeige-Fenster und die Esc-Taste rufen sie auf. „Abbrechen“ verwirft eine offene Entscheidung.
 
