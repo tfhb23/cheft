@@ -396,7 +396,10 @@ export class App {
     if (this.drag) return; // während des Ziehens nicht neu aufbauen
     const tableEl = this.root.querySelector('.table');
     const scroll = tableEl ? tableEl.scrollTop : 0;
+    const menuScroll = this.root.querySelector('.menu')?.scrollTop ?? 0;
+    const prevScreen = this.root.dataset.screen;
     clear(this.root);
+    this.root.dataset.screen = this.screen;
     switch (this.screen) {
       case 'menu':
         this.root.appendChild(this.renderMenu());
@@ -423,6 +426,11 @@ export class App {
         const nt = this.root.querySelector('.table');
         if (nt) nt.scrollTop = scroll;
         break;
+    }
+    // Gleicher Bildschirm (z. B. Einstellung angetippt): Scrollposition der Menüliste behalten.
+    if (prevScreen === this.screen && menuScroll > 0) {
+      const nm = this.root.querySelector('.menu');
+      if (nm) nm.scrollTop = menuScroll;
     }
     if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
     void this.syncWakeLock();
@@ -1198,12 +1206,14 @@ export class App {
     const playPhase = myTurn && r.turn.phase === 'play';
 
     // Handreihenfolge abgleichen
-    const handIds = me.hand.map((c) => c.id);
+    // Die offene Startkarte liegt in der Sortierphase noch auf dem Tisch und wandert erst mit „Bereit“ in die Hand.
+    const hiddenOpenId = r.waiting && this.me === r.starter ? r.turn.drawnCardId : null;
+    const handIds = me.hand.filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
     const have = new Set(handIds);
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).map((c) => c.id);
+    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
     else this.order.push(...added);
     if (myTurn) {
       for (const id of added) {
@@ -1247,7 +1257,7 @@ export class App {
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCardEl = (): HTMLElement | null =>
       starterCard
-        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
+        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
         : null;
     const showFan = window.innerWidth >= BREAKPOINTS.fan;
     for (const seat of this.seats()) {
@@ -1255,10 +1265,12 @@ export class App {
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
       const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length });
-      const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
+      const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
+      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
         seat.pos === 'top'
-          ? h('div', { class: 'seat-inner' }, label, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl))
+          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl))
           : h('div', { class: 'seat-inner' }, meldsEl, label, fan);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
@@ -1896,15 +1908,6 @@ export class App {
       [
         h('h2', null, t('btn.settings')),
         inGame && this.online && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
-        this.choice(
-          t('settings.speed'),
-          [
-            { v: 'normal', label: t('settings.speed.normal') },
-            { v: 'fast', label: t('settings.speed.fast') },
-          ],
-          () => this.prefs.speed,
-          (v) => (this.prefs.speed = v as Prefs['speed']),
-        ),
         this.choice(
           t('settings.vibration'),
           onOff,
