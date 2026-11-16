@@ -118,13 +118,14 @@ function iosTick(): void {
   label.remove();
 }
 
-/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 30 ms. */
-export function vibrate(ms: number, on: boolean): void {
-  if (!on) return;
+/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 30 ms. Gibt zurück, ob der Browser den Impuls angenommen hat. */
+export function vibrate(ms: number, on: boolean): boolean {
+  if (!on) return true;
   try {
-    if ('vibrate' in navigator) navigator.vibrate(Math.max(30, ms * 2));
-    else iosTick();
+    if ('vibrate' in navigator) return navigator.vibrate(Math.max(30, ms * 2));
+    iosTick();
+    return true;
   } catch {
-    /* ignorieren */
+    return false;
   }
 }

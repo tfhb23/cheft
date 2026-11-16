@@ -1920,7 +1920,8 @@ export class App {
           () => this.prefs.vibration,
           (v) => {
             this.prefs.vibration = v as boolean;
-            vibrate(40, this.prefs.vibration); // Probe direkt beim Einschalten
+            // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
+            if (!vibrate(40, this.prefs.vibration)) this.toast(t('settings.vibration.fail'), true);
           },
         ),
         this.choice(
@@ -1930,7 +1931,15 @@ export class App {
             { v: false, label: t('settings.off') },
           ],
           () => this.prefs.sound,
-          (v) => (this.prefs.sound = v as boolean),
+          (v) => {
+            this.prefs.sound = v as boolean;
+            // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
+            setSoundEnabled(this.prefs.sound);
+            if (this.prefs.sound) {
+              unlockAudio();
+              play('lay');
+            }
+          },
         ),
         this.choice(
           t('settings.keepAwake'),
@@ -1980,7 +1989,7 @@ export class App {
         h(
           'button',
           {
-            class: 'btn primary',
+            class: 'btn primary spaced',
             onclick: () => {
               this.showSettings = false;
               this.render();
@@ -2565,7 +2574,7 @@ export class App {
         'div',
         { class: 'panel dialog' },
         s.history.length ? this.renderRoundsTable(s.players.map((p) => p.id)) : h('p', { class: 'muted' }, t('scores.none')),
-        h('button', { class: 'btn', onclick: close }, t('btn.close')),
+        h('button', { class: 'btn spaced', onclick: close }, t('btn.close')),
       ),
     );
   }

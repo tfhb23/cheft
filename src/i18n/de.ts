@@ -148,6 +148,7 @@ export const de: Record<string, string> = {
   'selected.augen': '{n} Augen gewählt',
   'turn.you.draw': 'Du bist dran: Zieh eine Karte.',
   'turn.you.confirmDraw': '{pile}: Noch einmal tippen zum Ziehen.',
+  'settings.vibration.fail': 'Vibration nicht möglich: Der Browser blockiert sie oder sie ist am Gerät aus (Touch-Feedback, Stromsparmodus).',
   'settings.safeDraw': 'Karte ziehen',
   'settings.safeDraw.yes': 'mit Bestätigung',
   'settings.safeDraw.no': 'sofort',
