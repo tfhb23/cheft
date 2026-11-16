@@ -102,6 +102,23 @@ Maß**, und Vergleiche sollten auf **denselben Spielen** laufen (gleicher Starti
 - Die Bots **schauen nicht in verdeckte Karten** (Test: fremde Hände und Stapelreihenfolge vertauschen ändert keine Entscheidung).
 - Rechenzeit einer Entscheidung: Median 0,2 ms, 99 % unter 22 ms, Maximum rund 100 ms.
 
+## 5a. Dauertest (letzter Stand)
+
+`npm run soak` spielt Spiele mit zufälligen Einstellungen (2 bis 4 Spieler, 1 bis 9 Runden, Erstzug gesperrt oder erlaubt, alle Stufen
+und Rollen gemischt) und prüft in jedem Zug unter anderem: Regelkonformität, 106 Karten, Reinheit, Determinismus, „kein Mogeln“,
+Neustart aus JSON, Erinnerung (Mastermind gleich Referenzrechnung), Teppichkarte nie mit Joker, Rechenzeit.
+
+- **Normal-Modus**: 5000 Spiele, rund 24 000 Runden, 1,92 Millionen Entscheidungen, **keine Verstöße**.
+- **Extrem-Modus** (`SOAK_EXTREME=1`: pro Platz zufällige, auch absurde Werte für Gedächtnis und alle Regler, wie spätere Rollen sie
+  setzen könnten): 2000 Spiele, rund 960 000 Entscheidungen. Er fand **eine echte Lücke**, die jetzt behoben ist: Eine genommene
+  Ablagekarte, die nur durch Klauen eines Jokers verwendbar war, wurde nicht zum Klauen benutzt, wenn es eine zweite Klaumöglichkeit gab;
+  die Karte blieb als letzte Karte übrig und der Bot kam nicht weiter (`err.mustUseTaken`). Seitdem keine Verstöße.
+- **Rechenzeit einer Entscheidung** (ohne Last): Median 0,16 ms, 99 % unter 11 ms, 99,9 % unter 30 ms, Maximum rund 300 ms (11 von 27 700
+  Entscheidungen über 60 ms, meist Ziehentscheidungen eines Spielers, der noch nicht draußen ist). Die Zeit steckt zu über 70 % in der
+  Partitionssuche der Engine (`findPartition`). Ein Zwischenspeicher dafür brachte nichts (verworfen). Auf dem schwachen Render-Server
+  können einzelne Entscheidungen deshalb bis etwa eine Sekunde dauern; falls das stört, wäre die Suche in `canOpenRommeWith` und
+  `holdsOpeningWith` der Ansatzpunkt.
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
