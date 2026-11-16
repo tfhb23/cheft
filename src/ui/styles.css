@@ -105,8 +105,8 @@ details > * + * { margin-top: var(--gap-tight); }
 
 /* Auswahl der Kartenrückseite: Vorschaubild in der Größe der Karten im Spiel (--card-w × --card-h) im Button */
 .thumb { display: block; width: var(--card-w); height: var(--card-h); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
-.option .choices.back-choices { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-4); padding: var(--sp-3); }
-/* Sechs Rückseiten nebeneinander: die Karten füllen ihre Spalte (Seitenverhältnis der Karte) */
+.option .choices.back-choices { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-3); padding: var(--sp-3); }
+/* Fünf Rückseiten nebeneinander: die Karten füllen ihre Spalte (Seitenverhältnis der Karte) */
 .option .choices.back-choices .card { width: 100%; height: auto; aspect-ratio: var(--card-ratio); }
 
 /* Auswahlzeile: Beschriftung über zwei oder mehr gleich breiten Knöpfen */

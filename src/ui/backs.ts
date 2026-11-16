@@ -100,27 +100,6 @@ const FORMULA_DESIGNS: BackDesign[] = [
     },
   },
   {
-    id: 'toranj',
-    name: 'Toranj',
-    // Persisches Medaillon (Toranj): Raute in der Mitte, Anhänger oben und unten, Viertel-Medaillons in den Ecken,
-    // im Hintergrund ein Rautengitter alle 6 Pixel.
-    paint: ({ dx, dy }) => {
-      const m6 = (n: number) => ((n % 6) + 6) % 6;
-      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
-      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
-      const d = dx + dy;
-      if (d <= 7) return ring(d, ['gold', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream']);
-      const dp = dx + Math.abs(dy - 13.5);
-      if (dp <= 2) return ring(dp, ['gold', 'cream', 'dark']);
-      if (dx <= 0.5 && dy >= 9.5 && dy <= 10.5) return 'dark';
-      if (dx <= 0.5 && dy >= 8.5 && dy <= 11.5) return 'cream';
-      const e = 13 - dx + (19 - dy);
-      if (e >= 0 && e <= 6) return ring(e + 1, ['dark', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream']);
-      if (d <= 8.5 || dp <= 3.5 || e <= 8) return null;
-      return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
-    },
-  },
-  {
     id: 'herati',
     name: 'Herati',
     // Rauten-Zellen mit goldenen Knoten und Zickzack-Rand (Herati-Muster), dazwischen feines Raster.
@@ -241,16 +220,29 @@ export function backDetail(d: BackDesign): number {
 }
 
 /**
- * Reihenfolge in den Einstellungen: von einfach (ein kleines Element, ruhiges Muster) zu detailreich und prunkvoll
- * (Ornamente, Ränder, dichte Muster). Von Hand nach Anblick sortiert; backDetail dient dabei nur als Anhaltspunkt für
+ * Reihenfolge in den Einstellungen: ähnliche Designs stehen nebeneinander (Familien), die Familien grob von einfach zu
+ * detailreich und prunkvoll. Innerhalb einer Familie stehen die Favoriten zuerst, danach Kandidaten zum Entfernen. Von Hand sortiert; backDetail dient dabei nur als Anhaltspunkt für
  * das dichte Ende. Ein neues Design bekommt hier seinen Platz (der Test erzwingt das).
  */
 export const BACK_ORDER = [
-  'classic', 'ring', 'raute', 'lotus', 'sonne', 'stern', 'rosette', 'raute-ecken', 'achtecke-2', 'faecher-4',
-  'medaillon-schach', 'strahlen-1', 'strahlen-2', 'toranj', 'kartusche-2', 'kartusche-1', 'kartusche-4', 'kartusche-3',
-  'stern-rahmen', 'ranken-1', 'ranken-2', 'zwei-kreise', 'faecher-3', 'faecher-2', 'faecher-1', 'achtecke-1',
-  'guilloche-3', 'guilloche-1', 'guilloche-2', 'loewe-sonne', 'gitter-2', 'gitter-1', 'gitter-4', 'gitter-3', 'herati',
-  'schlacht', 'geometrie-3', 'geometrie-2', 'geometrie-5', 'geometrie-4', 'geometrie-1',
+  // Raute-Familie
+  'classic', 'raute', 'raute-ecken',
+  // Kreis und Stern in der Mitte
+  'ring', 'lotus', 'sonne', 'rosette', 'stern',
+  // Strahlenkranz, Achtecke, Schach
+  'strahlen-1', 'strahlen-2', 'achtecke-2', 'achtecke-1', 'medaillon-schach',
+  // Fächer-Ränder
+  'faecher-1', 'faecher-3', 'faecher-2', 'faecher-4',
+  // Arabesken auf dunklem Grund
+  'kartusche-1', 'ranken-1', 'kartusche-2', 'kartusche-3', 'kartusche-4', 'ranken-2',
+  'zwei-kreise', 'stern-rahmen',
+  // Guilloche
+  'guilloche-3', 'guilloche-1', 'guilloche-2',
+  // Einzelstücke
+  'loewe-sonne', 'schlacht', 'herati',
+  // Gitter und Geometrie (am dichtesten)
+  'gitter-1', 'gitter-4', 'gitter-2', 'gitter-3',
+  'geometrie-3', 'geometrie-5', 'geometrie-1', 'geometrie-2', 'geometrie-4',
 ];
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];

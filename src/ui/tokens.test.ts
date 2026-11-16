@@ -160,6 +160,6 @@ describe('Kartenrückseiten', () => {
     expect(BACK_UNSORTED).toEqual([]);
     expect(new Set(BACK_ORDER).size).toBe(BACK_ORDER.length);
     expect(BACK_DESIGNS.length).toBe(BACK_ORDER.length);
-    expect(BACK_DESIGNS.length).toBeGreaterThanOrEqual(41);
+    expect(BACK_DESIGNS.length).toBeGreaterThanOrEqual(40);
   });
 });
