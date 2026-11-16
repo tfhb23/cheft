@@ -80,6 +80,8 @@ export const de: Record<string, string> = {
   'online.noServer': 'Keine Server-Adresse eingetragen.',
   'online.connecting': 'Verbinde …',
   'online.offline': 'Verbindung getrennt, versuche es erneut …',
+  'settings.room': 'Raum',
+  'settings.inviteHint': 'Es sind noch Plätze frei (Bot oder abwesende Spieler). Wer den Link öffnet, kann einen davon übernehmen.',
   'lobby.title': 'Raum {code}',
   'lobby.host': 'Gastgeber',
   'lobby.you': 'du',

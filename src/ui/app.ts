@@ -552,8 +552,8 @@ export class App {
         h(
           'div',
           { class: 'menu-group' },
-          hasSave && btn(t('btn.continue'), () => this.continueGame(), { variant: 'primary' }),
           btn(t('btn.newGame'), () => this.goto('setup'), { variant: hasSave || hasRoom ? 'default' : 'primary' }),
+          hasSave && btn(t('btn.continue'), () => this.continueGame(), { variant: 'primary' }),
           btn(t('btn.importSave'), () => this.importSave()),
         ),
         h(
@@ -1319,7 +1319,7 @@ export class App {
       starterCard
         ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
         : null;
-    const showFan = window.innerWidth >= BREAKPOINTS.fan;
+    const showFan = window.innerWidth >= BREAKPOINTS.fan && window.innerHeight >= BREAKPOINTS.fanHeight;
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
@@ -1982,6 +1982,18 @@ export class App {
           this.online ? btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }) : btn(t('btn.quit'), () => this.quitGame(), { variant: 'danger' }),
         )
       : null;
+    // Laufender Online-Raum: Code und Link zum Einladen, solange Plätze frei sind (Bot oder länger Abwesende lassen sich übernehmen)
+    const lobby = this.online?.lobby;
+    const invite =
+      inGame && lobby && lobby.seats.some((x) => x.isBot || !x.connected)
+        ? h(
+            'div',
+            { class: 'menu-group' },
+            h('div', { class: 'option' }, fieldLabel(t('settings.room')), h('div', null, lobby.code)),
+            hint(t('settings.inviteHint')),
+            btn(t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'), () => this.copyCode(lobby.code)),
+          )
+        : null;
     const general = h(
       'div',
       { class: 'menu-group' },
@@ -2033,7 +2045,7 @@ export class App {
       ),
       this.cardBackChoice(),
     );
-    return windowEl([h('h2', null, t('btn.settings')), gameActions, general, backBtn(() => this.back())], () => this.back());
+    return windowEl([h('h2', null, t('btn.settings')), gameActions, invite, general, backBtn(() => this.back())], () => this.back());
   }
 
   /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */
