@@ -1263,7 +1263,9 @@ export class App {
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
       const label = h('div', { class: 'seat-label' }, h('span', { class: 'sl-name' }, s.players[seat.pid].name), modeBadge(pr.mode), h('span', { class: 'sl-cnt' }, t('cards.count', { n: pr.hand.length })));
-      const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
+      const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
+      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
         seat.pos === 'top'
           ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl))
