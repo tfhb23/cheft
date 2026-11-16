@@ -105,8 +105,7 @@ details > * + * { margin-top: var(--gap-tight); }
 
 /* Auswahl der Kartenrückseite: Vorschaubild in der Größe der Karten im Spiel (--card-w × --card-h) im Button */
 .thumb { display: block; width: var(--card-w); height: var(--card-h); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
-.option .choices.back-choices { flex-wrap: wrap; }
-.option .back-choices .btn { width: auto; flex: 0 0 auto; display: inline-flex; padding: var(--sp-2); }
+.option .choices.back-choices { flex-wrap: wrap; gap: var(--sp-6); padding: var(--sp-4); }
 
 /* Auswahlzeile: Beschriftung über zwei oder mehr gleich breiten Knöpfen */
 .option { display: flex; flex-direction: column; gap: var(--gap-hair); }

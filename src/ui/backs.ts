@@ -160,6 +160,27 @@ export const BACK_DESIGNS: BackDesign[] = [
       return Math.floor(dx) % 4 === 1 && Math.floor(dy) % 4 === 1 ? 'dark' : null;
     },
   },
+  {
+    id: 'lotus',
+    name: 'Lotus',
+    // Lotus (Scheibe mit acht Blättern) in der Mitte, im Hintergrund ein Raster aus kleinen Ringen mit Mittelpunkt.
+    paint: ({ dx, dy }) => {
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      const r = Math.hypot(dx, dy);
+      if (r <= 1.6) return 'gold';
+      if (r <= 2.6) return 'cream';
+      if (r <= 4.6) return 'dark';
+      if (r <= 5.6) return 'cream';
+      for (const [px, py] of [[8, 0], [0, 8], [6, 6]]) {
+        const e = Math.abs(dx - px) + Math.abs(dy - py);
+        if (e <= (px === 6 ? 2 : 2.5)) return e > 1.5 ? 'cream' : 'dark';
+      }
+      if (r <= 10) return null;
+      const m8 = (n: number) => ((n % 8) + 8) % 8;
+      const d = Math.hypot(m8(dx) - 4, m8(dy) - 4);
+      return d <= 0.8 || (d >= 2.6 && d <= 3.3) ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;

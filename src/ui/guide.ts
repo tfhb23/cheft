@@ -9,7 +9,7 @@
 import { Card } from '../engine/cards';
 import { h, Child } from './dom';
 import { t } from '../i18n';
-import { backBtn, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
+import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
 import { ICONS, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FIGURES, GLYPHS, STAR, SUIT_SHAPES, figureMap, PALETTE, backThumb } from './sprites';
 import { BACK_DESIGNS } from './backs';
@@ -502,7 +502,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '4.18', name: 'Einstellungs-Zeile (nur lesen)', where: 'Lobby für Mitspieler ohne Rechte', code: '.summary-row', sel: '.summary-row', stage: () => h('div', { class: 'row spread summary-row', style: { width: '100%' } }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, '7')), stageCls: 'flat', live: 'box', liveSel: '.summary-row' },
     { id: '4.19', name: 'Sortier-Griff', where: 'Lobby: Sitzordnung ziehen (nur Gastgeber)', code: '.handle', sel: '.handle', stage: () => h('span', { class: 'handle' }), live: 'box' },
     { id: '4.20', name: 'Chip Rommé', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
-    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): ein Button mit Vorschaubild je Design, gewählte Rückseite primär. Wirkt sofort und nur für den eigenen Bildschirm', code: 'App.cardBackChoice() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), h('div', { class: 'choices back-choices' }, ...BACK_DESIGNS.map((d, i) => btn(h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, 'a')})` } }), undefined, { variant: i === 0 ? 'primary' : 'default', title: d.name })))), stageCls: 'flat', live: 'box', liveSel: '.back-choices .btn' },
+    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange und leuchtend (5.13), die übrigen dunkel und abgeblendet (5.15). Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
     { id: '4.21', name: 'Chip Cheft', where: 'Sitz-Beschriftung: Spieler hat Cheft angesagt', code: "badge(text, 'cheft')", sel: '.badge.cheft', stage: () => badge(t('mode.cheft'), 'cheft'), live: 'both' },
   ];
 

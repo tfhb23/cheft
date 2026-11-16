@@ -30,7 +30,7 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_X, pixelIcon } from './icons';
-import { backBtn, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from './tokens';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
@@ -1982,18 +1982,8 @@ export class App {
 
   /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */
   private cardBackChoice(): HTMLElement {
-    return h(
-      'div',
-      { class: 'option' },
-      fieldLabel(t('settings.cardBack')),
-      h(
-        'div',
-        { class: 'choices back-choices' },
-        ...BACK_DESIGNS.map((d) =>
-          btn(h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, 'a')})` } }), () => this.setCardDesign(d.id), { variant: this.prefs.cardDesign === d.id ? 'primary' : 'default', title: d.name }),
-        ),
-      ),
-    );
+    const items = BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') }));
+    return h('div', { class: 'option' }, fieldLabel(t('settings.cardBack')), backChoiceRow(items, this.prefs.cardDesign, (id) => this.setCardDesign(id)));
   }
 
   private setCardDesign(id: string): void {

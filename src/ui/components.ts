@@ -146,3 +146,23 @@ export function roundsTable(names: string[], played: RoundsRow[], totalRounds: n
   }
   return h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, ...names.map((n) => h('th', { class: 'num' }, n)))), h('tbody', null, ...rows));
 }
+
+/**
+ * 4.22: Auswahl der Kartenrückseite. Keine Buttons: Jede Rückseite ist eine Karte in Spielgröße. Die gewählte steht
+ * orange und leuchtet (Karte leuchtet, 5.13), die anderen dunkel und abgeblendet (Karte abgeblendet, 5.15).
+ */
+export function backChoiceRow(items: { id: string; name: string; orange: string; dark: string }[], selected: string, onPick: (id: string) => void): HTMLElement {
+  return h(
+    'div',
+    { class: 'choices back-choices' },
+    ...items.map((d) => {
+      const on = d.id === selected;
+      return h('div', {
+        class: `card clickable ${on ? 'glow' : 'dim'}`,
+        style: { backgroundImage: `url(${on ? d.orange : d.dark})`, backgroundSize: '100% 100%', backgroundPosition: '0 0' },
+        title: d.name,
+        onclick: () => onPick(d.id),
+      });
+    }),
+  );
+}
