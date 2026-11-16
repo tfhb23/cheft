@@ -12,7 +12,7 @@ export default defineConfig({
     { name: 'cheft-shell-color', transformIndexHtml: (html: string) => html.replace('%SHELL_COLOR%', SHELL) },
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'favicon.png'],
       manifest: {
         name: 'Cheft',
         short_name: 'Cheft',
