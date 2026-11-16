@@ -56,6 +56,46 @@ export const BACK_DESIGNS: BackDesign[] = [
       return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
     },
   },
+  {
+    id: 'stern',
+    name: 'Stern',
+    // Achtzackiger Stern mit Schachbrett-Kern; im Hintergrund wachsen seine Konturen in dunklen Linien weiter (alle 3 Pixel),
+    // dahinter ein dezentes Punktraster. Nur dx, dy: perfekt gespiegelt.
+    paint: ({ dx, dy }) => {
+      const inStar = (a: number, b: number) => Math.max(dx, dy) <= a || dx + dy <= b;
+      const A0 = 5.5;
+      const B0 = 8.5;
+      if (inStar(A0, B0) && !inStar(A0 - 1, B0 - 1)) return 'cream';
+      if (inStar(A0 - 1, B0 - 1)) {
+        const d = dx + dy;
+        if (d <= 1) return 'gold';
+        if (d <= 2) return 'cream';
+        if (Math.max(dx, dy) <= 2.5) return 'dark';
+        return Math.floor(d) % 2 ? null : 'dark';
+      }
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      for (let k = 1; k <= 3; k++) {
+        if (inStar(A0 + 3 * k, B0 + 3 * k) && !inStar(A0 + 3 * k - 1, B0 + 3 * k - 1)) return 'dark';
+      }
+      return (Math.floor(dx) + Math.floor(dy)) % 3 === 0 && Math.floor(dx) % 2 === 0 ? 'dark' : null;
+    },
+  },
+  {
+    id: 'raute-ecken',
+    name: 'Raute mit Ecken',
+    // Große Raute (7 Ringe) im Diagonalgitter, dunkler Rand und Eck-Klammern in Creme, die an die weiße Kontur stoßen.
+    paint: ({ dx, dy }) => {
+      const m4 = (n: number) => ((n % 4) + 4) % 4;
+      const a = Math.floor(12.5 - dx);
+      const b = Math.floor(18.5 - dy);
+      if ((a === 1 && b <= 7) || (b === 1 && a <= 7)) return 'cream';
+      if (a <= 0 || b <= 0) return 'dark';
+      const d = dx + dy;
+      if (d <= 7) return (['gold', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream'] as const)[Math.max(0, Math.ceil(d) - 1)];
+      if (d <= 8.5) return null;
+      return m4(d) === 0 || m4(dx - dy) === 0 ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;
