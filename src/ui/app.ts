@@ -40,6 +40,7 @@ import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate, SoundName, VIB } from './sound';
 import { randomForgottenName } from './names';
 import { packSave, unpackSave } from './savecode';
+import { NavGuard } from './nav';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'guide' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
@@ -203,6 +204,8 @@ export class App {
   /** Nummern-Etiketten des Design Guides über dem Spiel. */
   private labels = new DsLabels();
   private rulesFrom: Screen = 'menu';
+  /** Zurück-Geste/-Taste des Geräts: eine Ebene zurück, im Spiel und in der Lobby erst warnen, im Hauptmenü die App verlassen. */
+  private nav = new NavGuard(window, () => this.screen === 'menu', () => this.navBack());
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -222,7 +225,7 @@ export class App {
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.back()) e.preventDefault();
+      if (e.key === 'Escape' && this.navBack()) e.preventDefault();
     });
     document.addEventListener('visibilitychange', () => void this.syncWakeLock());
     this.prewarm();
@@ -241,7 +244,7 @@ export class App {
   private openRoomLink(code: string): void {
     const stored = this.storedOnline();
     if (stored && stored.room === code) {
-      history.replaceState(null, '', '/');
+      this.nav.replaceUrl('/');
       this.resumeOnline(); // Seite neu geladen, du warst schon in diesem Raum
       return;
     }
@@ -255,7 +258,7 @@ export class App {
     const wait = () => {
       if (this.linkRoom !== code) return; // abgebrochen oder schon drin
       if (net.connected) {
-        history.replaceState(null, '', '/');
+        this.nav.replaceUrl('/');
         net.join(code, this.playerName());
       } else if (Date.now() - t0 < 90000) setTimeout(wait, 200);
       else {
@@ -457,6 +460,7 @@ export class App {
     }
     void this.syncWakeLock();
     this.labels.refresh(this.prefs.dsLabels);
+    this.nav.sync();
   }
 
   // ------------------------------------------------------------ Eigener Dialog
@@ -813,6 +817,30 @@ export class App {
       default:
         return false;
     }
+  }
+
+  /**
+   * Zurück-Geste, Zurück-Taste des Geräts und Esc: erst schließen, was offen ist (back), sonst im Spiel und in der
+   * Lobby vor dem Verlassen warnen. Im Hauptmenü gibt es nichts zu tun (false): Dort verlässt „Zurück“ die App.
+   */
+  private navBack(): boolean {
+    if (this.back()) return true;
+    if (this.screen === 'lobby' || (this.screen === 'game' && this.online)) {
+      this.leaveOnline(true);
+      return true;
+    }
+    if (this.screen === 'game') {
+      // Beendetes Solospiel: nichts mehr zu verlieren. Laufendes Spiel: warnen, der Stand bleibt gespeichert.
+      if (this.state?.finished) this.saveAndQuit();
+      else
+        this.askDialog({
+          title: t('confirm.toMenu.title'),
+          text: t('confirm.toMenu'),
+          buttons: [{ label: t('btn.continue'), primary: true }, { label: t('btn.toMenu'), onClick: () => this.saveAndQuit() }],
+        });
+      return true;
+    }
+    return false;
   }
 
   // ------------------------------------------------------------ Spielsteuerung

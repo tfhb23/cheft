@@ -31,6 +31,7 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
 - Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
+- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Mehrspieler-Server
