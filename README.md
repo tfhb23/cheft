@@ -47,18 +47,18 @@ Die Stufe eines Bots ist sein Gedächtnis. Sie setzt keine Spielregler, nur dies
 | Tagesform | Gute und schlechte Runden verschieben Spanne, Genauigkeit und Aufmerksamkeit |
 | Tisch-Aufmerksamkeit | Chance, eine fremde Auslage in einem Zug zu übersehen; wächst mit der Zahl der ausgelegten Karten |
 | Beobachtung | Chance, dass ein offenes Nehmen eines Mitspielers überhaupt registriert wird |
-| Handüberblick | Chance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen |
+| Handüberblick | Grundchance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen; jede Kombination wird einzeln geprüft, einfache (Dreiersatz, Paar) seltener, schwierige (lange Folge, Joker, Ass, Klauen) öfter |
 
 | Gedächtnis | Spanne | Streuung | Genauigkeit | Tagesform | Übersehen (voller Tisch) | Beobachtung | Handüberblick |
 |---|---|---|---|---|---|---|---|
-| Vergesslich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 6 % (1 bis 3 Züge) | 40 % | 15 % |
-| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 3 % (1 bis 2 Züge) | 70 % | 6 % |
-| Scharfsinnig | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 1 % (1 Zug) | 90 % | 1 % |
+| Vergesslich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 12 % (1 bis 3 Züge) | 40 % | 40 % |
+| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 6 % (1 bis 2 Züge) | 70 % | 20 % |
+| Scharfsinnig | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 2 % (1 Zug) | 90 % | 7 % |
 | Mastermind | unbegrenzt | keine | 1,0 | keine | 0 % | 100 % | 0 % |
 
-Vergessen ist eine Treppe: exakt („Herz Bube“), dann eine Achse verschwommen („roter Bube“ oder „Pik-Bildkarte“), dann nur der Eindruck („schwarze Bildkarte“), dann vergessen (bei S = Spanne der einzelnen Karte nach 0,5 S, 1 S und 2,5 S). Bildkarten verwechselt man eher im Wert, Zahlkarten eher in der Farbe (Herz/Karo, Pik/Kreuz). Joker bleiben doppelt so lange im Kopf und werden nie verwechselt, eigene Abwürfe merkt man sich 1,5-mal so lange. Teppichkarte, oberste Ablagekarte und die Auslagen liegen offen und werden nicht vergessen, aber mit der Tisch-Aufmerksamkeit gelegentlich übersehen (eine Blindphase dauert höchstens 1 bis 3 eigene Züge, danach folgt immer ein aufmerksamer Zug). Bei Pflichtzügen (Joker verwenden, genommene Karte nutzen, Paar mit der Teppichkarte) wird nichts übersehen.
+Vergessen ist eine Treppe: exakt („Herz Bube“), dann eine Achse verschwommen („roter Bube“ oder „Pik-Bildkarte“), dann nur der Eindruck („schwarze Bildkarte“), dann vergessen (bei S = Spanne der einzelnen Karte nach 0,5 S, 1 S und 2,5 S). Bildkarten verwechselt man eher im Wert, Zahlkarten eher in der Farbe (Herz/Karo, Pik/Kreuz). Joker bleiben doppelt so lange im Kopf und werden nie verwechselt, eigene Abwürfe merkt man sich 1,5-mal so lange. Teppichkarte, oberste Ablagekarte und die Auslagen liegen offen und werden nicht vergessen, aber mit der Tisch-Aufmerksamkeit gelegentlich übersehen (eine Blindphase dauert höchstens 1 bis 3 eigene Züge, danach folgt immer ein aufmerksamer Zug). Bei Pflichtzügen (Joker verwenden, genommene Karte nutzen, Paar mit der Teppichkarte) wird nichts übersehen. Übersieht ein Bot eine Kombination der Erstmeldung, legt er die übrigen aus, wenn sie allein regelkonform sind (z. B. noch 51 Augen), sonst wartet er bis zum nächsten Zug.
 
-Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Vergesslich 15 bis 20 %, Normal ≈ 25 %, Scharfsinnig ≈ 30 %, Mastermind ≈ 35 %.
+Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Vergesslich ≈ 20 %, Normal ≈ 24 %, Scharfsinnig ≈ 27 %, Mastermind ≈ 30 %. Gemessen (1920 Spiele, ±2 %): 18,7 / 23,5 / 28,1 / 29,7 %, Strafpunkte pro Runde 48,9 / 45,2 / 42,7 / 42,1.
 
 ## Mehrspieler-Server
 

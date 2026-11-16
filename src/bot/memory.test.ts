@@ -1,17 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { Card, isJoker, makeDeck } from '../engine/cards';
 import { GameState } from '../engine/game';
-import { Meld } from '../engine/melds';
+import { Meld, interpretMeld } from '../engine/melds';
 import { applyAction } from '../engine/actions';
 import { startNextRound } from '../engine/game';
 import { testGame, setHand } from '../engine/testutil';
-import { decideAction } from './bot';
+import { decideAction, suggestLay } from './bot';
+import { layOffTargets } from '../engine/game';
 import {
   Cand,
   MEMORY,
   MemoryParams,
   Stage,
+  STEAL_DIFFICULTY,
   blindAt,
+  comboDifficulty,
+  layOffDifficulty,
+  overlooksAt,
   candKey,
   candidates,
   goodDay,
@@ -408,13 +413,13 @@ describe('perceive: Wahrnehmung eines Zuges', () => {
     expect(tableLoad(table(1, 8))).toBe(1);
     expect(tableLoad(table(1, 4))).toBe(0.5);
     const full = rate('easy', 8);
-    expect(full).toBeGreaterThan(0.07);
-    expect(full).toBeLessThan(0.14);
+    expect(full).toBeGreaterThan(0.15);
+    expect(full).toBeLessThan(0.26);
     expect(rate('easy', 2)).toBeLessThan(full * 0.5);
     expect(rate('normal', 8)).toBeLessThan(full);
     expect(rate('hard', 8)).toBeLessThan(rate('normal', 8));
     expect(rate('hard', 8)).toBeGreaterThan(0);
-    expect(rate('hard', 8)).toBeLessThan(0.03);
+    expect(rate('hard', 8)).toBeLessThan(0.04);
   });
   it('Teppichkarte und oberste Ablagekarte werden seltener übersehen als eine Auslage, aber nicht nie', () => {
     let carpet = 0;
@@ -468,12 +473,12 @@ describe('overlooks: Handüberblick', () => {
     return miss / total;
   };
   it('trifft ungefähr die Quote der Stufe', () => {
-    expect(frac('easy')).toBeGreaterThan(0.12);
-    expect(frac('easy')).toBeLessThan(0.18);
-    expect(frac('normal')).toBeGreaterThan(0.04);
-    expect(frac('normal')).toBeLessThan(0.08);
-    expect(frac('hard')).toBeGreaterThan(0.002);
-    expect(frac('hard')).toBeLessThan(0.025);
+    expect(frac('easy')).toBeGreaterThan(0.34);
+    expect(frac('easy')).toBeLessThan(0.44);
+    expect(frac('normal')).toBeGreaterThan(0.17);
+    expect(frac('normal')).toBeLessThan(0.23);
+    expect(frac('hard')).toBeGreaterThan(0.05);
+    expect(frac('hard')).toBeLessThan(0.09);
   });
   it('der Mastermind und Pflichtzüge übersehen nie etwas', () => {
     expect(frac('master')).toBe(0);
@@ -839,5 +844,128 @@ describe('Gedächtnis-Stufen in echten Spielen', () => {
     expect(d.hard).toBeGreaterThan(0);
     expect(d.normal).toBeGreaterThan(d.hard);
     expect(d.easy).toBeGreaterThan(d.normal);
+  });
+});
+
+// ---------------------------------------------------------------- Handüberblick: Schwierigkeit
+
+describe('Schwierigkeit einer Kombination', () => {
+  /** Kombination aus Kurzschreibweise ('H5', 'H13' = Herz König, 'J'), jede Karte beliebig oft; die zweite Kopie als 'H5#'. */
+  const shapeOf = (...keys: string[]) => {
+    const used = new Map<string, number>();
+    const cs = keys.map((k) => {
+      const key = k.replace('#', '');
+      const nth = k.endsWith('#') ? 1 : used.get(key) ?? 0;
+      used.set(key, nth + 1);
+      return card(key, nth);
+    });
+    const shape = interpretMeld(cs);
+    if (!shape) throw new Error(`keine Kombination: ${keys.join(' ')}`);
+    return shape;
+  };
+  const d = (...keys: string[]) => comboDifficulty(shapeOf(...keys));
+
+  it('ein Paar ist am leichtesten, dann der Dreiersatz, dann Folgen, die mit jeder Karte länger schwerer werden', () => {
+    expect(d('H5', 'H5#')).toBeLessThan(d('H7', 'S7', 'D7'));
+    expect(d('H7', 'S7', 'D7')).toBeLessThan(d('H5', 'H6', 'H7'));
+    expect(d('H5', 'H6', 'H7')).toBeLessThan(d('H5', 'H6', 'H7', 'H8'));
+    expect(d('H5', 'H6', 'H7', 'H8')).toBeLessThan(d('H5', 'H6', 'H7', 'H8', 'H9'));
+    expect(d('H7', 'S7', 'D7')).toBeLessThan(d('H7', 'S7', 'D7', 'C7'));
+  });
+  it('Joker und ein Ass (unten oder oben in der Folge) machen eine Kombination schwerer', () => {
+    expect(d('H7', 'S7', 'J')).toBeGreaterThan(d('H7', 'S7', 'D7'));
+    expect(d('H5', 'J', 'H7')).toBeGreaterThan(d('H5', 'H6', 'H7'));
+    expect(d('H1', 'H2', 'H3')).toBeGreaterThan(d('H4', 'H5', 'H6'));
+    expect(d('H12', 'H13', 'H1')).toBeGreaterThan(d('H9', 'H10', 'H11'));
+    expect(d('H5', 'J', 'J')).toBeGreaterThan(d('H5', 'J', 'H7'));
+  });
+  it('bleibt in einem sinnvollen Bereich', () => {
+    for (const keys of [['H5', 'H5#'], ['J', 'J'], ['H7', 'S7', 'D7'], ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9', 'H10', 'H11', 'H12', 'H13'], ['J', 'H5', 'J']]) {
+      const v = d(...keys);
+      expect(v).toBeGreaterThanOrEqual(0.15);
+      expect(v).toBeLessThanOrEqual(2.5);
+    }
+  });
+  it('Anlegen: an einem Satz leichter als an einer Folge; Joker in der Auslage und ein Ass erschweren es', () => {
+    const set: Pick<Meld, 'type' | 'cards'> = { type: 'set', cards: [card('H7'), card('S7'), card('D7')] };
+    const run: Pick<Meld, 'type' | 'cards'> = { type: 'run', cards: [card('H5'), card('H6'), card('H7')] };
+    const runJ: Pick<Meld, 'type' | 'cards'> = { type: 'run', cards: [card('H5'), card('J'), card('H7')] };
+    expect(layOffDifficulty(card('C7'), set)).toBeLessThan(layOffDifficulty(card('H8'), run));
+    expect(layOffDifficulty(card('H8'), runJ)).toBeGreaterThan(layOffDifficulty(card('H8'), run));
+    expect(layOffDifficulty(card('H1'), run)).toBeGreaterThan(layOffDifficulty(card('H8'), run));
+  });
+  it('Klauen ist am schwersten: schwerer als der Durchschnitt aller Kombinationen', () => {
+    expect(STEAL_DIFFICULTY).toBeGreaterThan(1);
+    expect(STEAL_DIFFICULTY).toBeGreaterThan(d('H7', 'S7', 'D7'));
+    expect(STEAL_DIFFICULTY).toBeGreaterThan(d('H5', 'H6', 'H7'));
+  });
+  it('im Mittel über die Kombinationen und Anlegemöglichkeiten echter Spiele ist die Schwierigkeit 1 (Skala kalibriert)', () => {
+    let sum = 0;
+    let n = 0;
+    let loSum = 0;
+    let loN = 0;
+    for (let seed = 800; seed < 812; seed++) {
+      playGames([seed], ['master'], (g, pid) => {
+        if (g.round.turn.phase !== 'play') return;
+        const hand = g.round.players[pid].hand;
+        for (const grp of suggestLay(g, pid) ?? []) {
+          const shape = interpretMeld(grp.map((id) => hand.find((c) => c.id === id)!));
+          if (!shape) continue;
+          sum += comboDifficulty(shape);
+          n++;
+        }
+        if (g.round.players[pid].opened) {
+          for (const c of hand) {
+            const t = layOffTargets(g, pid, c.id);
+            if (t.length) {
+              loSum += layOffDifficulty(c, t[0].meld);
+              loN++;
+            }
+          }
+        }
+      });
+    }
+    expect(n).toBeGreaterThan(150);
+    expect(loN).toBeGreaterThan(150);
+    expect(sum / n).toBeGreaterThan(0.85);
+    expect(sum / n).toBeLessThan(1.15);
+    expect(loSum / loN).toBeGreaterThan(0.85);
+    expect(loSum / loN).toBeLessThan(1.15);
+  }, 120000);
+});
+
+describe('overlooksAt: die Schwierigkeit skaliert die Grundchance', () => {
+  const rate = (level: 'easy' | 'normal' | 'master', difficulty: number, forced = false) => {
+    let miss = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const g = bare(seed * 23);
+      for (let t = 0; t < 10; t++) {
+        g.round.players[0].turns = t;
+        const per = perceive(g, 0, MEMORY[level], forced);
+        for (let k = 0; k < 40; k++) {
+          total++;
+          if (overlooksAt(g, 0, per, difficulty, k)) miss++;
+        }
+      }
+    }
+    return miss / total;
+  };
+  it('Schwierigkeit 0 wird nie übersehen, doppelte Schwierigkeit doppelt so oft, große Schwierigkeit fast immer', () => {
+    expect(rate('normal', 0)).toBe(0);
+    const base = rate('normal', 1);
+    expect(base).toBeGreaterThan(0.17);
+    expect(base).toBeLessThan(0.23);
+    expect(rate('normal', 2) / base).toBeGreaterThan(1.8);
+    expect(rate('normal', 2) / base).toBeLessThan(2.2);
+    expect(rate('normal', 0.5) / base).toBeGreaterThan(0.4);
+    expect(rate('normal', 0.5) / base).toBeLessThan(0.6);
+    expect(rate('easy', 2.5)).toBeGreaterThan(0.9); // 0,4 × 2,5 = 1: gedeckelt, nie über 100 %
+  });
+  it('der Mastermind und Pflichtzüge übersehen bei keiner Schwierigkeit etwas', () => {
+    for (const diff of [0.5, 1, 2.5]) {
+      expect(rate('master', diff)).toBe(0);
+      expect(rate('easy', diff, true)).toBe(0);
+    }
   });
 });

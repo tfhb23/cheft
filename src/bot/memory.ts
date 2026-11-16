@@ -17,6 +17,7 @@
  */
 import { Card, SUITS, Suit, isJoker, makeRng } from '../engine/cards';
 import { BotLevel, GameState } from '../engine/game';
+import { Meld, MeldShape } from '../engine/melds';
 
 export interface MemoryParams {
   /** Durchschnittliche Gedächtnisspanne in Runden (ein Umlauf, in dem jeder einmal dran war). Infinity = vergisst nie. */
@@ -33,14 +34,18 @@ export interface MemoryParams {
   missExtra: number;
   /** Chance, dass ein offenes Nehmen von Ablage oder Teppichkarte durch einen Mitspieler überhaupt registriert wird. */
   observe: number;
-  /** Handüberblick: Chance, eine mögliche Kombination oder ein Anlegen mit der eigenen Hand zu übersehen. */
+  /**
+   * Handüberblick: Grundchance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen.
+   * Einfache Dinge (ein Satz aus drei Karten, ein Paar) übersieht man seltener, schwierige (lange Folgen, Joker, Ass
+   * oben oder unten, Klauen) öfter: Die Chance wird mit der Schwierigkeit multipliziert (siehe comboDifficulty).
+   */
   handMiss: number;
 }
 
 export const MEMORY: Record<BotLevel, MemoryParams> = {
-  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.06, missExtra: 2, observe: 0.4, handMiss: 0.15 },
-  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.03, missExtra: 1, observe: 0.7, handMiss: 0.06 },
-  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.01, missExtra: 0, observe: 0.9, handMiss: 0.01 },
+  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.12, missExtra: 2, observe: 0.4, handMiss: 0.4 },
+  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.06, missExtra: 1, observe: 0.7, handMiss: 0.2 },
+  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.07 },
   master: { span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 },
 };
 
@@ -200,14 +205,55 @@ export function perceivedState(state: GameState, per: Perception): GameState {
 }
 
 /**
- * Handüberblick: Übersieht der Bot an dieser Stelle eine Möglichkeit mit der eigenen Hand?
- * `keys` unterscheidet die Entscheidungen im selben Zug; derselbe Zustand würfelt immer gleich.
+ * Handüberblick: Übersieht der Bot an dieser Stelle etwas mit der eigenen Hand? `difficulty` skaliert die Grundchance
+ * der Stufe (1 = durchschnittlich schwierig). `keys` unterscheidet die Entscheidungen im selben Zug; derselbe Zustand
+ * würfelt immer gleich, der nächste Zug dagegen neu.
  */
-export function overlooks(state: GameState, pid: number, per: Perception, ...keys: number[]): boolean {
+export function overlooksAt(state: GameState, pid: number, per: Perception, difficulty: number, ...keys: number[]): boolean {
   if (per.forced || !(per.params.handMiss > 0)) return false;
-  const p = Math.min(1, per.params.handMiss * Math.max(0, 1 - per.goodDay));
+  const p = Math.min(1, per.params.handMiss * Math.max(0, 1 - per.goodDay) * difficulty);
   return roll(state, pid, SALT.hand, per.turn, state.round.turn.actions, ...keys) < p;
 }
+
+/** Wie `overlooksAt` mit durchschnittlicher Schwierigkeit. */
+export function overlooks(state: GameState, pid: number, per: Perception, ...keys: number[]): boolean {
+  return overlooksAt(state, pid, per, 1, ...keys);
+}
+
+/**
+ * Wie schwer ist eine Kombination zu erkennen? Ein Satz aus drei Karten oder ein Paar springt ins Auge, eine lange Folge,
+ * ein Joker oder ein Ass (oben oder unten angelegt) dagegen erkennt man leichter nicht. Das Mittel über die Kombinationen,
+ * die Bots in echten Spielen sehen, ist 1 (siehe COMBO_SCALE und die Kalibrierung).
+ */
+export const COMBO_SCALE = 1.63;
+/** Wie COMBO_SCALE, für das Anlegen (Mittel über die Anlegemöglichkeiten in echten Spielen = 1). */
+export const LAYOFF_SCALE = 1.15;
+
+export function comboDifficulty(shape: Pick<MeldShape, 'type' | 'cards' | 'startRank'>): number {
+  const jokers = shape.cards.filter(isJoker).length;
+  let d: number;
+  if (shape.type === 'pair') d = 0.2;
+  else if (shape.type === 'set') d = shape.cards.length <= 3 ? 0.4 : 0.55;
+  else {
+    d = 0.6 + 0.2 * Math.max(0, shape.cards.length - 3);
+    const start = shape.startRank ?? 2;
+    const end = start + shape.cards.length - 1;
+    if (start === 1 || end === 14) d += 0.25; // Ass unten oder oben
+  }
+  d += 0.45 * Math.min(jokers, 2);
+  return Math.min(2.5, Math.max(0.15, d * COMBO_SCALE));
+}
+
+/** Schwierigkeit, an einer Auslage anzulegen: Sätze sind leicht, Folgen schwerer, Joker und Asse in der Auslage erschweren es. */
+export function layOffDifficulty(card: Card, meld: Pick<Meld, 'type' | 'cards'>): number {
+  let d = meld.type === 'set' ? 0.5 : 0.85;
+  if (meld.cards.some(isJoker)) d += 0.4;
+  if (!isJoker(card) && card.rank === 1) d += 0.3;
+  return Math.min(2.5, Math.max(0.15, d * LAYOFF_SCALE));
+}
+
+/** Einen ausgelegten Joker zu klauen erfordert, die vertretene Karte zu erkennen: das übersieht man am ehesten. */
+export const STEAL_DIFFICULTY = 1.6;
 
 // ---------------------------------------------------------------- Erinnerung: Was weiß der Bot noch?
 

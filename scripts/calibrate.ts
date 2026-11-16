@@ -4,7 +4,8 @@
  *
  *   npm run calibrate                         256 Spiele, 5 Runden, Spielweise "Ausgewogen", alle Regler
  *   npm run calibrate -- 640 5 sprinter       640 Spiele, 5 Runden, Spielweise Sprinter
- *   npm run calibrate -- 256 5 balanced full  letzter Wert: Variante
+ *   npm run calibrate -- 256 5 balanced full  vierter Wert: Variante
+ *   npm run calibrate -- 960 5 balanced full 4000  fünfter Wert: Startindex der Spiele (unabhängige Wiederholung)
  *
  * Varianten (wozu trägt welcher Regler bei?):
  *   full         alles wie in der App
@@ -12,7 +13,8 @@
  *   perception   nur Übersehen (Tisch und Handüberblick), mit perfektem Gedächtnis
  *   none         Kontrolle: alles perfekt; jede Stufe muss dann ≈ 25 % erreichen
  *
- * Zielwerte am Vierertisch (fair wären 25 %): Vergesslich 15 bis 20 %, Normal ≈ 25 %, Scharfsinnig ≈ 30 %, Mastermind ≈ 35 %.
+ * Zielwerte am Vierertisch (fair wären 25 %): Vergesslich ≈ 20 %, Normal ≈ 24 %, Scharfsinnig ≈ 27 %, Mastermind ≈ 30 %.
+ * Besser als die Siegquote (stark vom Kartenglück verrauscht) misst man die Strafpunkte pro Runde.
  * Die Spiele laufen parallel auf allen Kernen (Worker); das Ergebnis hängt nicht von der Zahl der Kerne ab.
  *
  * Werte ausprobieren, ohne die Tabelle in memory.ts zu ändern (Gedächtnis-Überschreibungen je Stufe als JSON):
@@ -94,11 +96,12 @@ if (!isMainThread) {
   const rounds = Number(process.argv[3] ?? 5);
   const style = (process.argv[4] ?? 'balanced') as BotStyle;
   const variant = (process.argv[5] ?? 'full') as Variant;
+  const first = Number(process.argv[6] ?? 0); // Startindex: andere Spiele für unabhängige Wiederholungen
   const workers = Math.max(1, Math.min(cpus().length, 8));
   const t0 = Date.now();
 
   const shards = Array.from({ length: workers }, (_, w) => ({ indices: [] as number[], rounds, style, variant }) as Job);
-  for (let i = 0; i < games; i++) shards[i % workers].indices.push(i);
+  for (let i = first; i < first + games; i++) shards[(i - first) % workers].indices.push(i);
 
   const results = await Promise.all(
     shards.map(
@@ -121,7 +124,7 @@ if (!isMainThread) {
     for (const l of LEVELS) for (const k of Object.keys(tally[l]) as (keyof Tally)[]) tally[l][k] += r.tally[l][k];
   }
 
-  const TARGET: Record<BotLevel, [number, number]> = { easy: [15, 20], normal: [23, 27], hard: [28, 32], master: [33, 38] };
+  const TARGET: Record<BotLevel, [number, number]> = { easy: [17, 22], normal: [22, 26], hard: [25, 29], master: [28, 33] };
   const pct = (x: number) => `${(100 * x).toFixed(1)} %`;
   console.log(`\n${games} Spiele à ${rounds} Runden, Spielweise ${style}, Variante ${variant}, ${workers} Worker, ${((Date.now() - t0) / 1000).toFixed(0)} s\n`);
   console.log('Gedächtnis   Siegquote (95 %)     Ziel        Strafpunkte/Runde   Rundensiege');

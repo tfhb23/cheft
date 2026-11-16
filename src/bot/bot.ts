@@ -20,8 +20,8 @@ import {
   nextIndex,
   thresholdFor,
 } from '../engine/game';
-import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, jokerRepresents, maxPairs } from '../engine/melds';
-import { Cand, MemoryParams, Perception, Unseen, memoryFor, overlooks, perceive, perceivedState, recall } from './memory';
+import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
+import { Cand, MemoryParams, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, recall } from './memory';
 
 export interface Knobs {
   /** Zusätzliche Augen über der Grenze, bevor der Bot rauskommt. */
@@ -199,12 +199,14 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
     if (p.mode === 'romme' && r.turn.mustOpenWithId === null && maxPairs(hand) >= k.cheftEagerPairs && checkDeclareCheft(state, pid).ok) {
       if (k.cheftEagerPairs <= 3 ? chance(state, pid, k.gamble) : true) return { kind: 'declareCheft' };
     }
-    // Handüberblick: Mit der Wahrscheinlichkeit der Stufe sieht der Bot die mögliche Erstmeldung in diesem Zug nicht
+    // Handüberblick: Einzelne Kombinationen der möglichen Erstmeldung übersieht der Bot in diesem Zug vielleicht
     const opening = bestOpening(state, pid, k, false);
-    if (opening && !overlooks(state, pid, per, 1)) return { kind: 'lay', groups: opening };
+    const seenOpening = opening && perceivedGroups(state, pid, opening, per, 1);
+    if (seenOpening) return { kind: 'lay', groups: seenOpening };
   } else {
     const more = bestAdditionalMelds(state, pid, k);
-    if (more && !overlooks(state, pid, per, 2)) return { kind: 'lay', groups: more };
+    const seenMore = more && perceivedGroups(state, pid, more, per, 2);
+    if (seenMore) return { kind: 'lay', groups: seenMore };
     if (k.steal) {
       const steal = findSteal(state, view, pid, k, per);
       if (steal) return steal;
@@ -216,6 +218,26 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   }
 
   return { kind: 'discard', cardId: chooseDiscard(state, pid, k, per) };
+}
+
+/**
+ * Handüberblick: Welche der möglichen Kombinationen sieht der Bot in diesem Zug? Jede wird einzeln geprüft, einfache
+ * (ein Satz, ein Paar) werden selten, schwierige (lange Folge, Joker, Ass) öfter übersehen. Reicht der Rest nicht mehr
+ * für die Regeln (z. B. unter 51 Augen oder keine 5 Paare), legt er in diesem Zug nichts aus und versucht es im nächsten wieder.
+ * Pflichtzüge und der Mastermind übersehen nie etwas.
+ */
+export function perceivedGroups(state: GameState, pid: number, groups: number[][], per: Perception, decision: number): number[][] | null {
+  if (per.forced || !(per.params.handMiss > 0)) return groups;
+  const hand = state.round.players[pid].hand;
+  const kept = groups.filter((g) => {
+    const cards = g.map((id) => hand.find((c) => c.id === id)!);
+    const shape = interpretMeld(cards);
+    const difficulty = shape ? comboDifficulty(shape) : 1;
+    return !overlooksAt(state, pid, per, difficulty, decision, Math.min(...g));
+  });
+  if (kept.length === groups.length) return groups;
+  if (kept.length === 0) return null;
+  return checkLay(state, pid, kept).ok ? kept : null;
 }
 
 function usableAfterOpening(state: GameState, pid: number, card: Card): boolean {
@@ -357,10 +379,10 @@ function findLayOff(state: GameState, view: GameState, pid: number, k: Knobs, pe
   const sorted = [...p.hand].sort((a, b) => (isJoker(a) ? 1 : 0) - (isJoker(b) ? 1 : 0) || penaltyValue(b) - penaltyValue(a));
   for (const c of sorted) {
     if (isJoker(c) && (k.jokerHunter || k.burn) && p.hand.length <= 3 && !endIsNear(state, pid)) continue; // zum Verbrennen aufheben
-    if (overlooks(state, pid, per, 3, c.id)) continue; // Handüberblick: Anlegemöglichkeit nicht gesehen
     const targets = layOffTargets(view, pid, c.id);
     if (targets.length === 0) continue;
     const own = targets.find((t) => t.meld.owner === pid) ?? targets[0];
+    if (overlooksAt(state, pid, per, layOffDifficulty(c, own.meld), 3, c.id)) continue; // Handüberblick: Anlegemöglichkeit nicht gesehen
     return { kind: 'layOff', cardId: c.id, meldId: own.meld.id, end: 'top' };
   }
   return null;
@@ -377,7 +399,7 @@ function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per
       const rep = jokerRepresents(m, i);
       if (!rep) continue;
       for (const card of p.hand.filter((c) => c.suit === rep.suit && c.rank === rep.rank)) {
-        if (overlooks(state, pid, per, 4, card.id, m.id, i)) continue; // Handüberblick: Klaumöglichkeit nicht gesehen
+        if (overlooksAt(state, pid, per, STEAL_DIFFICULTY, 4, card.id, m.id, i)) continue; // Handüberblick: Klaumöglichkeit nicht gesehen
         if (checkStealJoker(state, pid, m.id, i, card.id).ok) options.push({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id });
       }
     }

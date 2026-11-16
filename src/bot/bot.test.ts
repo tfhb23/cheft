@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { applyAction } from '../engine/actions';
 import { BotLevel, BotStyle, startNextRound } from '../engine/game';
-import { decideAction } from './bot';
+import { decideAction, perceivedGroups } from './bot';
 import { testGame, CardPool, setHand } from '../engine/testutil';
 import { isJoker, makeDeck, makeRng } from '../engine/cards';
-import { MEMORY } from './memory';
+import { MEMORY, memoryFor, perceive } from './memory';
+import { checkLay } from '../engine/game';
 import { simulate } from './simulate';
 
 describe('Bots spielen komplette Spiele regelkonform', () => {
@@ -343,8 +344,89 @@ describe('Zufall nach Gedächtnis gewichtet', () => {
     }
   });
   it('die Stufenwerte sind die vereinbarte Spezifikation', () => {
-    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.06, missExtra: 2, observe: 0.4, handMiss: 0.15 });
-    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.03, missExtra: 1, observe: 0.7, handMiss: 0.06 });
-    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.01, missExtra: 0, observe: 0.9, handMiss: 0.01 });
+    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.12, missExtra: 2, observe: 0.4, handMiss: 0.4 });
+    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.06, missExtra: 1, observe: 0.7, handMiss: 0.2 });
+    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.07 });
+  });
+});
+
+describe('Handüberblick: einzelne Kombinationen werden übersehen', () => {
+  // Zwei Dreiersätze (30 + 30 Augen) und eine Folge (18 Augen): Zusammen 78, die Sätze allein reichen mit 60 für die 51.
+  // Fehlt ein Satz, reicht der Rest nicht mehr; fehlt nur die Folge, bleibt eine gültige Erstmeldung.
+  function setup(seed: number, level: 'easy' | 'normal' | 'hard' | 'master', t: number) {
+    const g = testGame(4, seed);
+    const p = new CardPool();
+    const me = g.round.starter;
+    g.players[me].isBot = true;
+    g.players[me].bot = { level, style: 'balanced' };
+    g.round.players[me].turns = t;
+    const hand = p.takeAll('SK', 'HK', 'DK', 'S10', 'H10', 'D10', 'C5', 'C6', 'C7', 'H2', 'D4', 'S9', 'C3', 'H8', 'DA');
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'stock', drawnCardId: hand[14].id };
+    const ids = (a: number, b: number) => hand.slice(a, b).map((c) => c.id);
+    const groups = [ids(0, 3), ids(3, 6), ids(6, 9)];
+    return { g, me, groups };
+  }
+  const outcomes = (level: 'easy' | 'normal' | 'hard' | 'master', forced = false) => {
+    const o = { full: 0, partial: 0, none: 0, invalid: 0, n: 0 };
+    for (let seed = 1; seed <= 25; seed++) {
+      for (let t = 0; t < 30; t++) {
+        const { g, me, groups } = setup(seed * 3, level, t);
+        const per = perceive(g, me, memoryFor(level), forced);
+        const kept = perceivedGroups(g, me, groups, per, 1);
+        o.n++;
+        if (kept === null) o.none++;
+        else {
+          if (!checkLay(g, me, kept).ok) o.invalid++;
+          if (kept.length === groups.length) o.full++;
+          else o.partial++;
+        }
+      }
+    }
+    return o;
+  };
+
+  it('der Mastermind und Pflichtzüge sehen immer alles', () => {
+    expect(outcomes('master')).toMatchObject({ full: 750, partial: 0, none: 0 });
+    expect(outcomes('easy', true)).toMatchObject({ full: 750, partial: 0, none: 0 });
+  });
+  it('wer etwas übersieht, legt nie etwas Ungültiges aus: Entweder bleibt eine regelkonforme Erstmeldung oder er legt in diesem Zug nichts aus', () => {
+    for (const level of ['easy', 'normal', 'hard'] as const) expect(outcomes(level).invalid).toBe(0);
+  });
+  it('die einfache Folge fehlt, die Sätze reichen noch: manchmal eine Teil-Erstmeldung statt gar nichts', () => {
+    const o = outcomes('easy');
+    expect(o.partial).toBeGreaterThan(o.n * 0.1);
+    expect(o.partial).toBeLessThan(o.n * 0.35);
+    expect(o.none).toBeGreaterThan(o.n * 0.3); // fehlt ein Satz, reichen die Augen nicht mehr
+    expect(o.full).toBeGreaterThan(o.n * 0.2);
+    expect(o.full + o.partial + o.none).toBe(o.n);
+  });
+  it('je besser die Aufmerksamkeit, desto öfter sieht der Bot die ganze Erstmeldung', () => {
+    const easy = outcomes('easy').full;
+    const normal = outcomes('normal').full;
+    const hard = outcomes('hard').full;
+    expect(normal).toBeGreaterThan(easy);
+    expect(hard).toBeGreaterThan(normal);
+    expect(hard / 750).toBeGreaterThan(0.8);
+  });
+  it('die Folge wird öfter übersehen als ein Dreiersatz, und beide gemessen einzeln liegen nahe an der erwarteten Quote', () => {
+    let missedRun = 0;
+    let missedSet = 0;
+    let n = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (let t = 0; t < 30; t++) {
+        const { g, me, groups } = setup(seed * 7, 'normal', t);
+        const per = perceive(g, me, memoryFor('normal'));
+        // Eine Gruppe allein: ohne Ergebnis (null) bedeutet "übersehen"
+        if (perceivedGroups(g, me, [groups[0]], per, 1) === null) missedSet++;
+        if (perceivedGroups(g, me, [groups[2]], per, 1) === null) missedRun++;
+        n++;
+      }
+    }
+    expect(missedRun).toBeGreaterThan(missedSet * 1.3);
+    expect(missedSet / n).toBeGreaterThan(0.04); // Normal: 20 % × (Satz ≈ 0,65) ≈ 13 %
+    expect(missedSet / n).toBeLessThan(0.22);
+    expect(missedRun / n).toBeGreaterThan(0.1); // 20 % × (Folge ≈ 0,98) ≈ 20 %
+    expect(missedRun / n).toBeLessThan(0.32);
   });
 });
