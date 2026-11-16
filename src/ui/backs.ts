@@ -181,6 +181,25 @@ export const BACK_DESIGNS: BackDesign[] = [
       return d <= 0.8 || (d >= 2.6 && d <= 3.3) ? 'dark' : null;
     },
   },
+  {
+    id: 'sonne',
+    name: 'Sonne',
+    // Sonne mit gezacktem Rand in der Mitte, im Hintergrund Kreise mit Achsenkreuz, Viertel-Medaillons in den Ecken.
+    paint: ({ dx, dy }) => {
+      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      const r = Math.hypot(dx, dy);
+      if (r <= 4) return r <= 1.5 ? 'gold' : r <= 3 ? 'cream' : 'dark';
+      const zack = 5.2 + (Math.abs(Math.cos(6 * Math.atan2(dy, dx))) > 0.5 ? 1.6 : 0);
+      if (r <= zack + (r > 5 ? 1 : 0)) return r > 4.8 ? 'cream' : 'main';
+      const e = 13 - dx + (19 - dy);
+      if (e >= 0 && e <= 6) return ring(e + 1, ['dark', 'cream', 'dark', 'cream', 'dark', 'dark']);
+      if (r <= 8.5) return null;
+      const n = Math.floor(r);
+      if (n % 4 === 0) return 'dark';
+      return (dx <= 0.5 || dy <= 0.5) && n % 2 === 0 ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;
