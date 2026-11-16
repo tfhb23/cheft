@@ -1212,7 +1212,7 @@ export class App {
       const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
         seat.pos === 'top'
-          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl), label)
+          ? h('div', { class: 'seat-inner' }, label, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl))
           : h('div', { class: 'seat-inner' }, meldsEl, label, fan);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
