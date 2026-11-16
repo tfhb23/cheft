@@ -1952,7 +1952,6 @@ export class App {
             this.disarm();
           },
         ),
-        inGame ? h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')) : null,
         inGame && this.online && this.state && !this.state.finished
           ? h(
               'button',
