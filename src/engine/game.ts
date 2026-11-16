@@ -118,9 +118,13 @@ export interface RoundState {
   lastDiscarder: number | null;
   lastDiscarderMode: Mode | null;
   /** Offen genommene Karten (Ablage/Teppich) je Spieler, für die Bots sichtbar wie am echten Tisch. */
-  taken: { player: number; card: Card }[];
+  taken: { player: number; card: Card; /** Zugzähler (plies) zum Zeitpunkt des Nehmens, für das Bot-Gedächtnis. */ at?: number }[];
   /** Die letzten Abwürfe mit Spieler (auch wenn die Karte inzwischen genommen wurde), für den Rückblick. */
   discardLog?: { player: number; card: Card }[];
+  /** Wer welche Karte (ID) zuletzt abgeworfen hat, die ganze Runde lang. Das Bot-Gedächtnis erkennt daran eigene Abwürfe. */
+  discardedBy?: Record<number, number>;
+  /** Zugzähler: Wie viele Züge in dieser Runde schon beendet wurden (jeder Zug endet mit einem Abwurf). */
+  plies?: number;
   /** Nach dem Austeilen: Spieler sortieren, bis alle bereit sind. */
   waiting: boolean;
   ready: boolean[];
@@ -225,6 +229,8 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     lastDiscarderMode: null,
     taken: [],
     discardLog: [],
+    discardedBy: {},
+    plies: 0,
     waiting: true,
     ready: state.players.map(() => false),
     ended: false,
@@ -455,7 +461,7 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
     card = r.discard.pop()!;
     if (p.mode === 'romme' && !p.opened) r.turn.mustOpenWithId = card.id;
     if (p.mode === 'romme' && p.opened) r.turn.mustUseId = card.id;
-    r.taken.push({ player: pid, card });
+    r.taken.push({ player: pid, card, at: r.plies ?? 0 });
   } else if (r.stock.length === 0) {
     // Letzter Zug bei leerem Stapel: Teppichkarte wie eine Stapelkarte, kein Cheft, kein Zwang zum Rauskommen.
     card = r.carpet!;
@@ -467,7 +473,7 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
     r.turn.cheftAnnouncedBefore = r.cheftAnnounced;
     r.turn.cheftByDraw = p.mode !== 'cheft';
     setCheft(state, pid);
-    r.taken.push({ player: pid, card });
+    r.taken.push({ player: pid, card, at: r.plies ?? 0 });
   }
   p.hand.push(card);
   r.turn.phase = 'play';
@@ -766,6 +772,8 @@ export function doDiscard(state: GameState, pid: number, cardId: number): Result
   p.hand = p.hand.filter((x) => x.id !== cardId);
   r.discard.push(card);
   r.discardLog = [...(r.discardLog ?? []), { player: pid, card }].slice(-8);
+  (r.discardedBy ??= {})[card.id] = pid;
+  r.plies = (r.plies ?? 0) + 1;
   r.lastDiscarder = pid;
   r.lastDiscarderMode = p.mode;
   p.turns++;

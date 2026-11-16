@@ -234,7 +234,7 @@ export const de: Record<string, string> = {
   'round.short': 'R{n}',
   'setup.random': 'Zufall',
     'setup.allRandom': 'Alle zufällig',
-  'setup.level': 'Stufe',
+  'setup.level': 'Gedächtnis',
   'setup.style': 'Spielweise',
   'level.easy': 'Gemütlich',
   'level.normal': 'Normal',

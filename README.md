@@ -14,6 +14,7 @@ npm install
 npm run dev        # Entwicklung: http://localhost:5173
 npm test           # Regel-Tests (Vitest)
 npm run build      # Produktions-Build nach dist/
+npm run calibrate  # Bot-Gedächtnisse gegeneinander antreten lassen (siehe „Bot-Gedächtnis“)
 npm run preview    # Build lokal ansehen
 ```
 
@@ -30,8 +31,33 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
-- Bots haben Rollen aus Stufe (Gemütlich, Normal, Gerissen, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle drei Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“; Rollen werden am Spielende aufgedeckt.
+- Bots haben Rollen aus Gedächtnis (Gemütlich, Normal, Gerissen, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle vier Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“ (gewichtet: Gemütlich 40 %, Normal 40 %, Gerissen 20 %, der Mastermind nie); Rollen werden am Spielende aufgedeckt. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
+
+## Bot-Gedächtnis
+
+Die Stufe eines Bots ist sein Gedächtnis. Sie setzt keine Spielregler, nur diese Werte (`src/bot/memory.ts`). Alles wird bei jeder Entscheidung deterministisch aus dem Spielzustand abgeleitet (Seed, Runde, Spieler, Karte, eigener Zug): derselbe Zustand ergibt immer dieselbe Wahrnehmung, auch nach einem Neustart des Servers.
+
+| Regler | Bedeutung |
+|---|---|
+| Spanne | Wie viele Runden eine abgeworfene oder offen genommene Karte im Schnitt im Kopf bleibt |
+| Streuung | Die Spanne schwankt je Karte (Gemütlich: von sofort vergessen bis doppelt so lang) |
+| Genauigkeit | Chance, eine Karte beim Einprägen exakt abzuspeichern, sonst gleich eine Stufe verschwommener |
+| Tagesform | Gute und schlechte Runden verschieben Spanne, Genauigkeit und Aufmerksamkeit |
+| Tisch-Aufmerksamkeit | Chance, eine fremde Auslage in einem Zug zu übersehen; wächst mit der Zahl der ausgelegten Karten |
+| Beobachtung | Chance, dass ein offenes Nehmen eines Mitspielers überhaupt registriert wird |
+| Handüberblick | Chance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen |
+
+| Gedächtnis | Spanne | Streuung | Genauigkeit | Tagesform | Übersehen (voller Tisch) | Beobachtung | Handüberblick |
+|---|---|---|---|---|---|---|---|
+| Gemütlich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 6 % (1 bis 3 Züge) | 40 % | 15 % |
+| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 3 % (1 bis 2 Züge) | 70 % | 6 % |
+| Gerissen | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 1 % (1 Zug) | 90 % | 1 % |
+| Mastermind | unbegrenzt | keine | 1,0 | keine | 0 % | 100 % | 0 % |
+
+Vergessen ist eine Treppe: exakt („Herz Bube“), dann eine Achse verschwommen („roter Bube“ oder „Pik-Bildkarte“), dann nur der Eindruck („schwarze Bildkarte“), dann vergessen (bei S = Spanne der einzelnen Karte nach 0,5 S, 1 S und 2,5 S). Bildkarten verwechselt man eher im Wert, Zahlkarten eher in der Farbe (Herz/Karo, Pik/Kreuz). Joker bleiben doppelt so lange im Kopf und werden nie verwechselt, eigene Abwürfe merkt man sich 1,5-mal so lange. Teppichkarte, oberste Ablagekarte und die Auslagen liegen offen und werden nicht vergessen, aber mit der Tisch-Aufmerksamkeit gelegentlich übersehen (eine Blindphase dauert höchstens 1 bis 3 eigene Züge, danach folgt immer ein aufmerksamer Zug). Bei Pflichtzügen (Joker verwenden, genommene Karte nutzen, Paar mit der Teppichkarte) wird nichts übersehen.
+
+Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Gemütlich 15 bis 20 %, Normal ≈ 25 %, Gerissen ≈ 30 %, Mastermind ≈ 35 %.
 
 ## Mehrspieler-Server
 

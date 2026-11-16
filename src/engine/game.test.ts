@@ -489,6 +489,99 @@ describe('Zurücklegen', () => {
   });
 });
 
+describe('Zugzähler und Zeitstempel (Grundlage des Bot-Gedächtnisses)', () => {
+  it('der Zugzähler beginnt bei 0, zählt jeden Abwurf und beginnt mit jeder Runde neu', () => {
+    const g = testGame(3, 41);
+    expect(g.round.plies).toBe(0);
+    for (let i = 0; i < 7; i++) {
+      const pid = g.round.turn.player;
+      freshTurn(g, pid);
+      setHand(g, pid, [
+        { id: 2000 + i, suit: 'H', rank: 2 },
+        { id: 3000 + i, suit: 'C', rank: 9 },
+      ]);
+      expect(doDiscard(g, pid, 2000 + i).ok).toBe(true);
+      expect(g.round.plies).toBe(i + 1);
+    }
+    endRound(g, null, false);
+    startNextRound(g);
+    expect(g.round.plies).toBe(0);
+    expect(g.round.taken).toEqual([]);
+  });
+  it('ein misslungener Abwurf zählt nicht', () => {
+    const g = testGame(3, 42);
+    const pid = g.round.turn.player;
+    freshTurn(g, pid);
+    setHand(g, pid, [{ id: 2000, suit: 'H', rank: 2 }]);
+    const before = g.round.plies;
+    expect(doDiscard(g, pid, 999).ok).toBe(false);
+    expect(g.round.plies).toBe(before);
+  });
+  it('das Abwurf-Protokoll des Rückblicks bleibt bei 8 Einträgen; "discardedBy" kennt die ganze Runde', () => {
+    const g = testGame(3, 43);
+    const players: number[] = [];
+    for (let i = 0; i < 80; i++) {
+      const pid = g.round.turn.player;
+      players.push(pid);
+      freshTurn(g, pid);
+      setHand(g, pid, [
+        { id: 2000 + i, suit: 'H', rank: 2 },
+        { id: 3000 + i, suit: 'C', rank: 9 },
+      ]);
+      expect(doDiscard(g, pid, 2000 + i).ok).toBe(true);
+    }
+    expect(g.round.plies).toBe(80);
+    const log = g.round.discardLog!;
+    expect(log.length).toBe(8);
+    expect(log[0].card.id).toBe(2072);
+    expect(log[7].card.id).toBe(2079);
+    log.forEach((e, k) => expect(e.player).toBe(players[72 + k]));
+    expect(Object.keys(g.round.discardedBy!).length).toBe(80);
+    for (let i = 0; i < 80; i++) expect(g.round.discardedBy![2000 + i]).toBe(players[i]);
+    // Neue Runde: alles beginnt neu
+    endRound(g, null, false);
+    startNextRound(g);
+    expect(g.round.discardedBy).toEqual({});
+    expect(g.round.discardLog).toEqual([]);
+  });
+  it('Nehmen von Ablage und Teppichkarte merkt sich den Zeitpunkt; Zurücklegen löscht den Eintrag wieder', () => {
+    const g = testGame(3, 44);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    expect(g.round.plies).toBe(1);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    expect(g.round.taken).toEqual([{ player: b, card: expect.objectContaining({ rank: 13, suit: 'H' }), at: 1 }]);
+    expect(g.round.plies).toBe(1); // Nehmen beendet den Zug nicht
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.taken).toEqual([]);
+    expect(g.round.plies).toBe(1);
+  });
+  it('die Teppichkarte wird mit Zeitpunkt vermerkt und beim Zurücklegen wieder gelöscht', () => {
+    const g = testGame(3, 45);
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    const pool = new CardPool();
+    setHand(g, a, pool.takeAll('D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    const carpet = g.round.carpet!;
+    const spec = `${carpet.suit}${carpet.rank === 1 ? 'A' : carpet.rank === 11 ? 'B' : carpet.rank === 12 ? 'D' : carpet.rank === 13 ? 'K' : carpet.rank}`;
+    const pool2 = new CardPool();
+    setHand(g, b, [pool2.take(spec), ...pool2.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10')]);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    expect(g.round.taken.length).toBe(1);
+    expect(g.round.taken[0]).toMatchObject({ player: b, at: 1 });
+    expect(g.round.taken[0].card.id).toBe(carpet.id);
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.taken).toEqual([]);
+  });
+});
+
 describe('Anlegen, Abwurf-Sperre, Joker klauen', () => {
   function opened(g: GameState, pid: number) {
     const p = new CardPool();

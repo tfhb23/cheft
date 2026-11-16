@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { applyAction } from '../engine/actions';
-import { startNextRound } from '../engine/game';
+import { BotLevel, BotStyle, startNextRound } from '../engine/game';
 import { decideAction } from './bot';
 import { testGame, CardPool, setHand } from '../engine/testutil';
-import { isJoker } from '../engine/cards';
+import { isJoker, makeDeck, makeRng } from '../engine/cards';
+import { MEMORY } from './memory';
+import { simulate } from './simulate';
 
 describe('Bots spielen komplette Spiele regelkonform', () => {
   it('spielt 4 Spiele mit 3-4 Bots zu Ende', () => {
@@ -109,28 +111,33 @@ describe('Joker beim Rauskommen mit Paaren', () => {
     return { g, me };
   }
 
-  it('starke Bots warten auf die Teppichkarte, statt Joker in Paare zu stecken, und kommen dann mit echten Paaren raus', () => {
-    for (const level of ['hard', 'master'] as const) {
+  /** Ohne Wahrnehmungsfehler, damit die Regel allein geprüft wird. */
+  const PERFECT = { handMiss: 0, tableMiss: 0 };
+
+  it('mit Geduld (patient) warten Bots auf die Teppichkarte, statt Joker in Paare zu stecken, und kommen dann mit echten Paaren raus', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      const opts = { knobs: { patient: true }, memory: PERFECT };
       const { g, me } = situation(level);
-      const wait = decideAction(g, me);
+      const wait = decideAction(g, me, opts);
       expect(wait.kind).toBe('discard');
       if (wait.kind !== 'discard') continue;
       // Der Partner der Teppichkarte bleibt
-      expect(g.round.players[me].hand.find((c) => c.id === wait.cardId)!.rank === 13 && g.round.players[me].hand.find((c) => c.id === wait.cardId)!.suit === 'D').toBe(false);
+      const dropped = g.round.players[me].hand.find((c) => c.id === wait.cardId)!;
+      expect(dropped.rank === 13 && dropped.suit === 'D').toBe(false);
       expect(applyAction(g, me, wait).ok).toBe(true);
       g.round.turn = { ...g.round.turn, player: me, phase: 'draw', drawSource: null, drawnCardId: null };
-      const draw = decideAction(g, me);
+      const draw = decideAction(g, me, opts);
       expect(draw).toEqual({ kind: 'draw', source: 'carpet' });
       expect(applyAction(g, me, draw).ok).toBe(true);
-      const open = decideAction(g, me);
+      const open = decideAction(g, me, opts);
       expect(open.kind).toBe('lay');
     }
   });
 
-  it('gemütliche und normale Bots kommen sofort raus', () => {
-    for (const level of ['easy', 'normal'] as const) {
+  it('ohne Geduld (Standard aller Spielweisen) kommt jeder Bot sofort raus, die Stufe ändert daran nichts', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
       const { g, me } = situation(level);
-      expect(decideAction(g, me).kind).toBe('lay');
+      expect(decideAction(g, me, { memory: PERFECT }).kind).toBe('lay');
     }
   });
 
@@ -148,5 +155,196 @@ describe('Joker beim Rauskommen mit Paaren', () => {
     const used = a.groups.flat().map((id) => g.round.players[me].hand.find((c) => c.id === id)!);
     expect(used.some((c) => c.id === k.id)).toBe(true);
     expect(used.filter(isJoker).length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------- Gedächtnis und Wahrnehmung im Spiel
+
+describe('Das Gedächtnis ändert Entscheidungen', () => {
+  // Beide Herz 6 liegen tief im Ablagestapel. Der Bot hält Herz 5 und Herz 7 (eine Lücke, die nur die 6 füllt).
+  // Wer sich an die Abwürfe erinnert, weiß: Die Lücke ist tot. Wer sie vergessen hat, hofft weiter.
+  const HAND_IDS = [4, 6, 63, 29, 25, 94, 37, 90, 35, 50, 62, 95, 44, 13, 17];
+  const PILE_IDS = [5, 57, 26, 27, 28, 30, 31, 32, 33, 34, 36, 38, 39, 40, 41, 42, 43, 45, 46, 47, 48, 49, 51, 78, 79, 80, 81, 82, 83, 84, 85, 86];
+  const H7 = 6;
+  const PERFECT = { handMiss: 0, tableMiss: 0 };
+  const FORGETFUL = { span: 0, spread: [1, 1] as [number, number], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 };
+
+  function scenario(pileIds: number[]) {
+    const deck = makeDeck();
+    const g = testGame(4, 11);
+    const me = g.round.starter;
+    g.players[me].isBot = true;
+    g.players[me].bot = { level: 'master', style: 'balanced' };
+    g.round.players[me].turns = 3;
+    const hand = HAND_IDS.map((id) => deck[id]);
+    g.round.discard = pileIds.map((id) => deck[id]);
+    g.round.discardLog = [];
+    g.round.taken = [];
+    g.round.carpet = null;
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'stock', drawnCardId: hand[14].id };
+    return { g, me, hand };
+  }
+
+  it('wer sich erinnert, wirft die tote Lücke ab; wer vergessen hat, behält sie', () => {
+    const { g, me, hand } = scenario(PILE_IDS);
+    const remembers = decideAction(g, me, { memory: PERFECT });
+    const forgot = decideAction(g, me, { memory: FORGETFUL });
+    expect(remembers).toEqual({ kind: 'discard', cardId: H7 });
+    expect(forgot.kind).toBe('discard');
+    if (forgot.kind !== 'discard') return;
+    expect(forgot.cardId).not.toBe(H7);
+    expect(hand.some((c) => c.id === forgot.cardId)).toBe(true);
+    expect(applyAction(structuredClone(g), me, remembers).ok).toBe(true);
+    expect(applyAction(structuredClone(g), me, forgot).ok).toBe(true);
+  });
+  it('Gegenprobe: liegen die Herz 6 nicht im Ablagestapel, behält auch der Mastermind die Lücke', () => {
+    const { g, me } = scenario(PILE_IDS.filter((id) => id !== 5 && id !== 57));
+    const a = decideAction(g, me, { memory: PERFECT });
+    expect(a.kind).toBe('discard');
+    if (a.kind === 'discard') expect(a.cardId).not.toBe(H7);
+  });
+  it('mit der Stufe statt einer Überschreibung: der Mastermind erinnert sich, Gemütlich vergisst die alten Abwürfe', () => {
+    const { g, me } = scenario(PILE_IDS);
+    // Der Stapel ist 31 und 32 Züge alt (4 Spieler: ~8 Runden), weit jenseits der Spanne von Gemütlich und Normal
+    g.players[me].bot = { level: 'master', style: 'balanced' };
+    expect(decideAction(g, me)).toEqual({ kind: 'discard', cardId: H7 });
+    for (const level of ['easy', 'normal'] as const) {
+      g.players[me].bot = { level, style: 'balanced' };
+      const a = decideAction(g, me, { memory: { handMiss: 0, tableMiss: 0 } });
+      expect(a.kind).toBe('discard');
+      if (a.kind === 'discard') expect(a.cardId).not.toBe(H7);
+    }
+  });
+});
+
+describe('Wahrnehmung: reine Funktion des Zustands', () => {
+  it('decideAction verändert den Zustand nicht und entscheidet für denselben Zustand immer gleich', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as BotLevel[]) {
+      let checked = 0;
+      simulate({
+        seed: 410 + checked,
+        rounds: 2,
+        seats: Array.from({ length: 4 }, () => ({ level, style: 'balanced' as BotStyle })),
+        visit: (g, pid) => {
+          if ((g.round.plies ?? 0) % 3 !== 0) return;
+          const before = JSON.stringify(g);
+          const a1 = decideAction(g, pid);
+          const a2 = decideAction(g, pid);
+          expect(a2).toEqual(a1);
+          expect(JSON.stringify(g)).toBe(before);
+          checked++;
+        },
+      });
+      expect(checked).toBeGreaterThan(20);
+    }
+  });
+  it('ein Spielstand ohne Zugzähler und Zeitstempel (aus einer älteren Version) funktioniert weiter', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as BotLevel[]) {
+      simulate({
+        seed: 420,
+        rounds: 1,
+        seats: Array.from({ length: 3 }, () => ({ level, style: 'balanced' as BotStyle })),
+        visit: (g, pid) => {
+          if ((g.round.plies ?? 0) % 5 !== 0) return;
+          const old = structuredClone(g);
+          delete old.round.plies;
+          old.round.taken.forEach((x) => delete x.at);
+          old.round.discardLog = undefined;
+          const a = decideAction(old, pid);
+          expect(applyAction(old, pid, a).ok).toBe(true);
+        },
+      });
+    }
+  });
+  it('Wahrnehmungsfehler wirken: Vergessliche entscheiden öfter anders als mit perfekter Wahrnehmung, der Mastermind nie', () => {
+    const rate = (level: BotLevel) => {
+      let states = 0;
+      let diffs = 0;
+      for (const seed of [430, 431, 432, 433]) {
+        simulate({
+          seed,
+          rounds: 2,
+          seats: Array.from({ length: 4 }, () => ({ level, style: 'balanced' as BotStyle })),
+          visit: (g, pid) => {
+            states++;
+            const full = { span: Infinity, spread: [1, 1] as [number, number], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 };
+            if (JSON.stringify(decideAction(g, pid)) !== JSON.stringify(decideAction(g, pid, { memory: full }))) diffs++;
+          },
+        });
+      }
+      return diffs / states;
+    };
+    const easy = rate('easy');
+    const hard = rate('hard');
+    expect(rate('master')).toBe(0);
+    expect(easy).toBeGreaterThan(0.02);
+    expect(easy).toBeLessThan(0.3); // die Bots spielen weiter vernünftig und nicht zufällig
+    expect(hard).toBeLessThan(easy);
+  }, 120000);
+});
+
+describe('Alle Stufen und Spielweisen in gemischten Runden', () => {
+  const allLevels: BotLevel[] = ['easy', 'normal', 'hard', 'master'];
+  const allStyles: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
+
+  it('24 gemischte Spiele mit 3 bis 4 Bots bleiben regelkonform und enden (simulate wirft bei jeder ungültigen Aktion)', () => {
+    for (let i = 0; i < 24; i++) {
+      const rng = makeRng(5000 + i);
+      const n = 3 + (i % 2);
+      const seats = Array.from({ length: n }, () => ({ level: allLevels[Math.floor(rng() * 4)], style: allStyles[Math.floor(rng() * 8)] }));
+      const res = simulate({ seed: 6000 + i, seats, rounds: 3 });
+      expect(res.state.finished).toBe(true);
+      expect(res.state.history.length).toBe(3);
+      const r = res.state.round;
+      const total = r.stock.length + r.discard.length + (r.carpet ? 1 : 0) + r.players.reduce((s, p) => s + p.hand.length, 0) + r.melds.reduce((s, m) => s + m.cards.length, 0);
+      expect(total).toBe(106);
+    }
+  }, 120000);
+  it('Tische mit lauter Vergesslichen (viele Übersehen-Fehler) enden ebenfalls regelkonform, auch bei Pflichtzügen', () => {
+    for (let i = 0; i < 12; i++) {
+      const n = 3 + (i % 2);
+      const seats = Array.from({ length: n }, (_, k) => ({ level: 'easy' as BotLevel, style: allStyles[(i + k) % 8] }));
+      // verschärft: Es wird deutlich öfter übersehen, als die Stufe es tut
+      const harsh = { handMiss: 0.5, tableMiss: 0.4, missExtra: 2, observe: 0.1 };
+      const res = simulate({ seed: 7000 + i, seats: seats.map((s) => ({ ...s, opts: { memory: harsh } })), rounds: 2 });
+      expect(res.state.finished).toBe(true);
+    }
+  }, 120000);
+  it('die Stufe ändert die Regler der Spielweise nicht (nur das Gedächtnis unterscheidet sie)', async () => {
+    const { knobsFor } = await import('./bot');
+    for (const style of allStyles) {
+      const base = knobsFor({ level: 'normal', style });
+      for (const level of allLevels) expect(knobsFor({ level, style })).toEqual(base);
+    }
+  });
+});
+
+describe('Zufall nach Gedächtnis gewichtet', () => {
+  it('Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, nie der Mastermind', async () => {
+    const { resolveBots } = await import('./names');
+    const rng = makeRng(77);
+    const count: Record<string, number> = { easy: 0, normal: 0, hard: 0, master: 0 };
+    const N = 6000;
+    for (let i = 0; i < N; i++) count[resolveBots([{ level: 'random', style: 'balanced' }], rng)[0].level]++;
+    expect(count.master).toBe(0);
+    expect(count.easy / N).toBeGreaterThan(0.37);
+    expect(count.easy / N).toBeLessThan(0.43);
+    expect(count.normal / N).toBeGreaterThan(0.37);
+    expect(count.normal / N).toBeLessThan(0.43);
+    expect(count.hard / N).toBeGreaterThan(0.17);
+    expect(count.hard / N).toBeLessThan(0.23);
+  });
+  it('bewusst gewählte Stufen bleiben unverändert', async () => {
+    const { resolveBots } = await import('./names');
+    const rng = makeRng(5);
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      expect(resolveBots([{ level, style: 'random' }], rng)[0].level).toBe(level);
+    }
+  });
+  it('die Stufenwerte sind die vereinbarte Spezifikation', () => {
+    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.06, missExtra: 2, observe: 0.4, handMiss: 0.15 });
+    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.03, missExtra: 1, observe: 0.7, handMiss: 0.06 });
+    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.01, missExtra: 0, observe: 0.9, handMiss: 0.01 });
   });
 });
