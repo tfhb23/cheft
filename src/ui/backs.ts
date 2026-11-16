@@ -200,6 +200,18 @@ export const BACK_DESIGNS: BackDesign[] = [
       return (dx <= 0.5 || dy <= 0.5) && n % 2 === 0 ? 'dark' : null;
     },
   },
+  {
+    id: 'ring',
+    name: 'Ring',
+    // Kleiner leerer Kreis (6 Pixel) in der Mitte, im Hintergrund Kreise im Abstand von 3 Pixeln.
+    paint: ({ dx, dy }) => {
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      const r = Math.hypot(dx, dy);
+      if (r > 2.1 && r <= 3.1) return 'cream';
+      if (r <= 5.5) return null;
+      return Math.floor(r) % 3 === 0 ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;
