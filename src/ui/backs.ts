@@ -198,7 +198,7 @@ export const BACK_ORDER = [
   // B: eine runde Blüte oder ein Stern in der Mitte, ruhiger Hintergrund
   'lotus', 'rosette', 'stern',
   // C: große Scheibe oder Medaillon in der Mitte
-  'kranz', 'medaillon',
+  'mond', 'medaillon',
   // D: Fächer-Rand mit Innenfläche
   'faecher', 'muschel',
   // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
@@ -208,11 +208,11 @@ export const BACK_ORDER = [
   // G: Randbilder
   'sonne', 'garten',
   // H: flächendeckende Muster (am dichtesten)
-  'juwel', 'wabe', 'geflecht', 'mosaik', 'gitter',
+  'juwel', 'retro', 'geflecht', 'mosaik', 'gitter',
 ];
 
 /** Frühere Kennungen (gespeicherte Einstellungen) auf die heutigen Namen abbilden. */
-const LEGACY_IDS: Record<string, string> = { 'raute-ecken': 'raute', herati: 'juwel', 'strahlen-1': 'kranz', 'medaillon-schach': 'medaillon', 'faecher-4': 'faecher', 'faecher-3': 'muschel', 'faecher-stern': 'muschel', 'stern-rahmen': 'muschel', 'kartusche-1': 'arabeske', 'ranken-1': 'ranke', 'kartusche-4': 'schnoerkel', 'zwei-kreise': 'zwilling', 'guilloche-3': 'wirbel', 'guilloche-2': 'kristall', 'loewe-sonne': 'sonne', schlacht: 'garten', 'achtecke-1': 'wabe', 'geometrie-3': 'geflecht', 'geometrie-4': 'mosaik', 'gitter-2': 'gitter' };
+const LEGACY_IDS: Record<string, string> = { 'raute-ecken': 'raute', herati: 'juwel', 'strahlen-1': 'mond', kranz: 'mond', 'medaillon-schach': 'medaillon', 'faecher-4': 'faecher', 'faecher-3': 'muschel', 'faecher-stern': 'muschel', 'stern-rahmen': 'muschel', 'kartusche-1': 'arabeske', 'ranken-1': 'ranke', 'kartusche-4': 'schnoerkel', 'zwei-kreise': 'zwilling', 'guilloche-3': 'wirbel', 'guilloche-2': 'kristall', 'loewe-sonne': 'sonne', schlacht: 'garten', 'achtecke-1': 'retro', wabe: 'retro', 'geometrie-3': 'geflecht', 'geometrie-4': 'mosaik', 'gitter-2': 'gitter' };
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
 
