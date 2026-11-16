@@ -858,7 +858,7 @@ export class App {
     if (!entries.length || !pile) return;
     this.peekSuppress = true;
     vibrate(10, this.prefs.vibration);
-    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')), h('div', { class: 'peek-hint' }, t('peek.hint')));
+    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')));
     const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
     const margin = pile.width * 0.7;
     entries.forEach((e, i) => {

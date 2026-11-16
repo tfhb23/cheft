@@ -185,7 +185,9 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .seat-right { grid-column: 3; grid-row: 2; }
 .center { grid-column: 2; grid-row: 2; display: flex; align-items: center; justify-content: center; min-height: calc(var(--card-h) + 16px * var(--s)); min-width: 0; overflow: visible; }
 .table { overflow-x: hidden; }
-.own { grid-column: 1 / 4; grid-row: 3; min-height: calc(var(--card-h) * 0.5); padding: calc(3px * var(--s)) 0 calc(2px * var(--s)); }
+.own { position: relative; grid-column: 1 / 4; grid-row: 3; padding: calc(1px * var(--s)) 0; }
+/* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
+.own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
 .own.drop { outline: calc(2px * var(--s)) dashed var(--orange); outline-offset: calc(-2px * var(--s)); background: var(--orange-pale); }
 .own-label { margin: 0 auto var(--px); width: fit-content; }
 .own .melds { justify-content: center; }
@@ -260,7 +262,6 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 /* Rückblick auf Abwürfe: abgedunkelter Tisch, Karten mit Namensschild, gestrichelte Linie zur Ablage */
 .peek-layer { position: fixed; inset: 0; z-index: 70; pointer-events: none; background: rgba(30, 18, 12, 0.8); }
 .peek-banner { position: absolute; top: calc(10px * var(--s)); left: 0; right: 0; text-align: center; color: var(--cream); font-family: var(--font-head); font-size: calc(11px * var(--s)); letter-spacing: var(--px); }
-.peek-hint { position: absolute; top: calc(25px * var(--s)); left: 0; right: 0; text-align: center; color: var(--sand); font-size: calc(8px * var(--s)); }
 .peek-line { position: absolute; height: 0; border-top: calc(1px * var(--s)) dashed var(--gold); transform-origin: 0 0; opacity: 0.8; }
 .peek-item { position: absolute; display: flex; flex-direction: column; align-items: center; gap: calc(2px * var(--s)); }
 .peek-item .card { outline: calc(1px * var(--s)) dashed var(--gold); outline-offset: calc(2px * var(--s)); }

@@ -268,7 +268,6 @@ export const de: Record<string, string> = {
   'log.discard': '{name} wirft {card} ab.',
   'log.roundWon': '{name} beendet die Runde.',
   'peek.title': 'Rückblick: letzte Abwürfe',
-  'peek.hint': 'Zum Beenden irgendwo tippen',
   'peek.taken': 'genommen von {name}',
   'log.finalTurn': 'Der Stapel ist leer. Der nächste Spieler darf die Teppichkarte nehmen, danach endet die Runde.',
   'log.stockEnd': 'Der Stapel ist leer. Die Runde endet.',
