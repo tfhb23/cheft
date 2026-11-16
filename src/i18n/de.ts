@@ -21,6 +21,8 @@ export const de: Record<string, string> = {
   'btn.saveQuit': 'Speichern & zum Menü',
   'btn.settings': 'Einstellungen',
   'btn.close': 'Schließen',
+  'btn.scores': 'Punkteübersicht',
+  'scores.none': 'Noch keine Runde beendet.',
   'btn.exportSave': 'Spielstand-Code kopieren',
   'btn.importSave': 'Spielstand-Code einfügen',
   'save.copied': 'Spielstand-Code in die Zwischenablage kopiert.',

@@ -2,7 +2,7 @@
  * Oberfläche: Menü, Spielfeld mit Sitzordnung, Drag & Drop, Animationen, Einstellungen.
  * Reines DOM ohne Framework.
  */
-import { Card, isJoker, sortBySuit } from '../engine/cards';
+import { Card, SUITS, Suit, isJoker, shuffle, sortBySuit } from '../engine/cards';
 import { Action, applyAction } from '../engine/actions';
 import {
   GameState,
@@ -105,6 +105,7 @@ type SeatPos = 'top' | 'left' | 'right';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const ICON_BOOK = ['.########.', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.########.', '..........'];
+const ICON_TABLE = ['##########', '#...#....#', '##########', '#...#....#', '#...#....#', '##########', '#...#....#', '#...#....#', '##########', '..........'];
 const ICON_GEAR = ['....##....', '.#.####.#.', '.########.', '..##..##..', '###....###', '###....###', '..##..##..', '.########.', '.#.####.#.', '....##....'];
 
 function pixelIcon(rows: string[]): HTMLElement {
@@ -193,6 +194,9 @@ export class App {
   private botsRunning = false;
   private dealing = false;
   private showSettings = false;
+  private showScores = false;
+  /** Die drei Karten im Menü-Logo (2, 3, 2 mit drei verschiedenen Farben), bei jedem Aufruf des Menüs neu gezogen. */
+  private logoCards: Card[] | null = null;
   private peekTable = false;
   private chooser: { title: string; hint: string; options: { shapes: MeldShape[]; label: string; onPick: () => void }[] } | null = null;
   private toastTimer: number | null = null;
@@ -499,11 +503,11 @@ export class App {
 
   // ------------------------------------------------------------ Menü
   private renderMenu(): HTMLElement {
-    const demo: Card[] = [
-      { id: -1, suit: 'H', rank: 13 },
-      { id: -2, suit: 'J', rank: 0 },
-      { id: -3, suit: 'S', rank: 12 },
-    ];
+    if (!this.logoCards) {
+      const suits: Suit[] = shuffle(SUITS, Math.random);
+      this.logoCards = [2, 3, 2].map((rank, i) => ({ id: -(i + 1), suit: suits[i], rank }));
+    }
+    const demo = this.logoCards;
     const hasSave = !!this.state && !this.state.finished;
     return h(
       'div',
@@ -707,6 +711,8 @@ export class App {
   private goto(screen: Screen): void {
     this.screen = screen;
     this.showSettings = false;
+    this.showScores = false;
+    if (screen === 'menu') this.logoCards = null;
     this.render();
   }
 
@@ -1143,12 +1149,23 @@ export class App {
     }
     for (const id of [...this.fresh]) if (!have.has(id)) this.fresh.delete(id);
 
+    const modeBadge = (mode: string) => h('span', { class: `badge ${mode}` }, t(`mode.${mode}`));
     const header = h(
       'div',
       { class: 'topbar' },
+      h(
+        'button',
+        {
+          class: 'btn icon',
+          title: t('btn.scores'),
+          onclick: () => {
+            this.showScores = true;
+            this.render();
+          },
+        },
+        pixelIcon(ICON_TABLE),
+      ),
       h('span', { class: 'accent' }, t('round', { n: r.no, total: s.settings.rounds })),
-      h('span', { class: 'muted' }, ` · ${s.players[this.me].name}: ${s.totals[this.me]} P.`),
-      h('span', null, ' ', h('span', { class: `badge${me.mode === 'cheft' ? ' cheft' : ''}` }, t(`mode.${me.mode}`)), ' ', h('span', { class: `badge${me.opened ? ' open' : ''}` }, t(me.opened ? 'status.opened' : 'status.notOpened'))),
       h(
         'div',
         { class: 'icons' },
@@ -1166,23 +1183,6 @@ export class App {
           pixelIcon(ICON_GEAR),
         ),
       ),
-    );
-
-    const opponents = h(
-      'div',
-      { class: 'opponents' },
-      ...[...this.seats()]
-        .sort((a, b) => ['left', 'top', 'right'].indexOf(a.pos) - ['left', 'top', 'right'].indexOf(b.pos))
-        .map((seat) => s.players[seat.pid])
-        .map((p) => {
-          const pr = r.players[p.id];
-          return h(
-            'div',
-            { class: `opp${current(s) === p.id && !r.ended ? ' current' : ''}` },
-            h('div', { class: 'name' }, h('span', null, p.name), h('span', { class: 'muted pts' }, `${s.totals[p.id]} P.`)),
-            h('div', { class: 'row-compact' }, h('span', { class: `badge${pr.mode === 'cheft' ? ' cheft' : ''}` }, t(`mode.${pr.mode}`)), ' ', h('span', { class: `badge${pr.opened ? ' open' : ''}` }, t(pr.opened ? 'status.opened' : 'status.notOpened')), h('span', { class: 'cnt' }, h('span', { class: 'minicard' }), `${pr.hand.length}`)),
-          );
-        }),
     );
 
     // Ziele für Anlegen / Klauen
@@ -1208,7 +1208,7 @@ export class App {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
-      const label = h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`);
+      const label = h('div', { class: 'seat-label' }, h('span', { class: 'sl-name' }, s.players[seat.pid].name), modeBadge(pr.mode), h('span', { class: 'sl-cnt' }, t('cards.count', { n: pr.hand.length })));
       const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
       const inner =
         seat.pos === 'top'
@@ -1274,8 +1274,15 @@ export class App {
     const myMelds = r.melds.filter((m) => m.owner === this.me);
     const own = h(
       'div',
-      { class: 'own', dataset: { seat: String(this.me) } },
-      h('div', { class: 'own-label' }, myMelds.length ? `${t('you')} (${t(`mode.${me.mode}`)})` : playPhase && selectedCards.length >= 2 ? t('drop.lay') : ''),
+      { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
+      h(
+        'div',
+        { class: 'own-label seat-label' },
+        h('span', { class: 'sl-name' }, s.players[this.me].name),
+        modeBadge(me.mode),
+        h('span', { class: 'sl-cnt' }, t('cards.count', { n: me.hand.length })),
+        playPhase && selectedCards.length >= 2 ? h('span', { class: 'sl-hint' }, t('drop.lay')) : null,
+      ),
       h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false)), this.me === r.starter ? openCardEl() : null),
     );
     table.appendChild(own);
@@ -1337,10 +1344,11 @@ export class App {
         : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, cls: 'dark' }),
     );
 
-    const game = h('div', { class: 'game' }, header, opponents, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
+    const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
     else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
+    if (this.showScores) game.appendChild(this.renderScores());
     if (this.online?.lobby?.paused) game.appendChild(this.renderPause(this.online.lobby));
     return game;
   }
@@ -2513,6 +2521,25 @@ export class App {
     );
   }
 
+  /** Punkteübersicht aus der Kopfzeile: dieselbe Tabelle wie am Spielende. */
+  private renderScores(): HTMLElement {
+    const s = this.state!;
+    const close = () => {
+      this.showScores = false;
+      this.render();
+    };
+    return h(
+      'div',
+      { class: 'overlay', onclick: (e: Event) => e.target === e.currentTarget && close() },
+      h(
+        'div',
+        { class: 'panel dialog' },
+        s.history.length ? this.renderRoundsTable(s.players.map((p) => p.id)) : h('p', { class: 'muted' }, t('scores.none')),
+        h('button', { class: 'btn', onclick: close }, t('btn.close')),
+      ),
+    );
+  }
+
   private renderRoundEnd(): HTMLElement {
     const s = this.state!;
     const r = s.round;
@@ -2533,7 +2560,7 @@ export class App {
           'td',
           null,
           name(p.id),
-          h('div', { class: 'factors' }, `${t(`mode.${pr.mode}`)} · ${pr.opened ? t('status.opened') : t('status.notOpened')}`),
+          h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true }))) : null,
           s.finished && p.bot ? h('div', { class: 'factors accent' }, `${t(`level.${p.bot.level}`)} · ${t(`style.${p.bot.style}`)}`) : null,
