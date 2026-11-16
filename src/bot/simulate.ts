@@ -47,6 +47,7 @@ export function simulate(o: SimOptions): SimResult {
   g.round.ready = g.round.ready.map(() => true);
   const max = o.maxSteps ?? 40000;
   let steps = 0;
+  const recent: string[] = [];
   while (!g.finished && steps++ < max) {
     if (g.round.ended) {
       startNextRound(g);
@@ -58,7 +59,15 @@ export function simulate(o: SimOptions): SimResult {
     o.visit?.(g, pid);
     const a = decideAction(g, pid, o.seats[pid].opts);
     const res = applyAction(g, pid, a);
-    if (!res.ok) throw new Error(`Ungültige Bot-Aktion ${a.kind} von Platz ${pid} (${o.seats[pid].level}/${o.seats[pid].style}, Seed ${o.seed}): ${res.error}`);
+    recent.push(`${pid}:${a.kind}${a.kind === 'draw' ? '/' + a.source : a.kind === 'discard' || a.kind === 'layOff' ? '#' + a.cardId : a.kind === 'lay' ? '[' + a.groups.map((x) => x.join('+')).join(' ') + ']' : a.kind === 'steal' ? '#' + a.cardId : ''}${res.ok ? '' : '!'}`);
+    if (recent.length > 8) recent.shift();
+    if (!res.ok) {
+      const t = g.round.turn;
+      const hand = g.round.players[pid].hand.map((c) => (c.suit === 'J' ? 'J' : `${c.suit}${c.rank}`)).join(' ');
+      throw new Error(
+        `Ungültige Bot-Aktion ${a.kind} von Platz ${pid} (${o.seats[pid].level}/${o.seats[pid].style}, Seed ${o.seed}): ${res.error} | Zug: Phase ${t.phase}, Quelle ${t.drawSource}, mustUse ${t.mustUseId}, mustOpen ${t.mustOpenWithId}, mustPair ${t.mustPairWithId}, pendingJoker ${t.pendingJokerId}, Aktionen ${t.actions} | Hand: ${hand} | Auslagen: ${g.round.melds.length} | letzte Aktionen: ${recent.join(' ')}`,
+      );
+    }
   }
   if (!g.finished) throw new Error(`Spiel nicht beendet nach ${max} Schritten (Seed ${o.seed})`);
   const roundWins = o.seats.map(() => 0);

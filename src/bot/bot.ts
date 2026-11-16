@@ -214,6 +214,9 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   if (mustUse !== null && hand.some((c) => c.id === mustUse)) {
     const use = useJoker(state, pid, mustUse);
     if (use) return use;
+    // Geht es nur durch Klauen, dann mit genau dieser Karte (sonst bleibt sie als letzte Karte übrig und lässt sich nicht mehr verwenden)
+    const stealWith = findSteal(state, view, pid, k, per, mustUse);
+    if (stealWith) return stealWith;
   }
 
   if (!p.opened) {
@@ -469,7 +472,7 @@ function findLayOff(state: GameState, view: GameState, pid: number, k: Knobs, pe
 }
 
 /** Alle erlaubten Joker-Klauzüge bewerten (Zug durchspielen) und den mit den wenigsten Reststrafpunkten wählen. */
-function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per: Perception): Action | null {
+function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per: Perception, only?: number): Action | null {
   const p = state.round.players[pid];
   if (p.hand.length < 2) return null;
   const options: Extract<Action, { kind: 'steal' }>[] = [];
@@ -478,7 +481,7 @@ function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per
       if (!isJoker(m.cards[i])) continue;
       const rep = jokerRepresents(m, i);
       if (!rep) continue;
-      for (const card of p.hand.filter((c) => c.suit === rep.suit && c.rank === rep.rank)) {
+      for (const card of p.hand.filter((c) => c.suit === rep.suit && c.rank === rep.rank && (only === undefined || c.id === only))) {
         if (overlooksAt(state, pid, per, STEAL_DIFFICULTY, 4, card.id, m.id, i)) continue; // Handüberblick: Klaumöglichkeit nicht gesehen
         if (checkStealJoker(state, pid, m.id, i, card.id).ok) options.push({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id });
       }

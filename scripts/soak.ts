@@ -14,6 +14,9 @@
  *  - Wahrnehmung: Der Mastermind und Pflichtzüge übersehen nie etwas.
  *  - Teppichkarte: nie in einem Paar mit Joker (außer im letzten Zug bei leerem Stapel).
  *  - Rechenzeit einer Entscheidung.
+ *
+ * Mit SOAK_EXTREME=1 bekommt jeder Platz zufällige, auch absurde Werte für Gedächtnis und alle Regler (so, wie spätere Rollen
+ * sie setzen könnten). Dann gelten dieselben Prüfungen: Ein Bot darf nie hängen bleiben oder Unzulässiges tun.
  */
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { cpus } from 'node:os';
@@ -86,9 +89,25 @@ function runGame(i: number, res: Result): void {
   const firstTurnOpenAllowed = rng() < 0.5;
   const mixed = rng() < 0.7; // 30 %: alle Plätze dieselbe Stufe (die Randfälle jeder Stufe)
   const sameLevel = LEVELS[Math.floor(rng() * 4)];
+  const extreme = process.env.SOAK_EXTREME === '1';
+  const wild = () => {
+    const lo = rng() * 1.5;
+    return {
+      memory: { span: rng() * 12, spread: [lo, lo + rng() * 2] as [number, number], accuracy: rng(), form: rng() * 0.5, tableMiss: rng() * 0.6, missExtra: Math.floor(rng() * 3), observe: rng(), handMiss: rng() * 0.9, noise: rng() * 10 },
+      knobs: {
+        ambition: rng(),
+        bold: rng() < 0.5,
+        weighOpening: rng() < 0.7,
+        oppModel: rng() < 0.7,
+        openMargin: rng() < 0.3 ? Math.floor(rng() * 30) : 0,
+        tuning: { mode: (rng() < 0.5 ? 'v1' : 'v2') as 'v1' | 'v2', boldHold: rng() < 0.4, ignoreGrowth: rng() < 0.2, draws: 1 + Math.floor(rng() * 3), wHand: rng() * 3, wBar: rng() * 3, wTime: rng() * 2, holdAt0: rng() * 0.8, holdAt1: rng() * 0.5, t0: rng() * 40, t1: rng() * 60, w0: Math.floor(rng() * 4), w1: rng() * 8, boldAt: 0.3 + rng() * 0.7 },
+      },
+    };
+  };
   const seats = Array.from({ length: n }, () => ({
     level: (mixed ? LEVELS[Math.floor(rng() * 4)] : sameLevel) as BotLevel,
     style: STYLES[Math.floor(rng() * STYLES.length)] as BotStyle,
+    opts: extreme ? wild() : undefined,
   }));
   const bigGap = rng() < 0.4; // viele Spiele mit großem Rückstand von Anfang an (mutiger Modus)
   const tag = `Spiel ${i} (${n} Spieler, ${rounds} Runden, Erstzug ${firstTurnOpenAllowed ? 'erlaubt' : 'gesperrt'}, ${seats.map((s) => `${s.level}/${s.style}`).join(' ')})`;
@@ -125,13 +144,14 @@ function runGame(i: number, res: Result): void {
         // Entscheidung: Zeit, Reinheit, Determinismus
         const level = g.players[pid].bot!.level;
         const t0 = performance.now();
-        const a1 = decideAction(g, pid);
+        const o = seats[pid].opts; // die Sonderwerte des Platzes (Extrem-Modus), sonst keine
+        const a1 = decideAction(g, pid, o);
         const ms = performance.now() - t0;
         res.maxMs = Math.max(res.maxMs, ms);
         if (ms > 250) res.slow++;
         if (plies % 3 === 0) {
           const before = JSON.stringify(g);
-          const a2 = decideAction(g, pid);
+          const a2 = decideAction(g, pid, o);
           if (JSON.stringify(a2) !== JSON.stringify(a1)) fail(`Entscheidung nicht deterministisch (${level}): ${JSON.stringify(a1)} gegen ${JSON.stringify(a2)}`);
           if (JSON.stringify(g) !== before) fail('decideAction hat den Zustand verändert');
           count('Reinheit und Determinismus');
@@ -139,10 +159,10 @@ function runGame(i: number, res: Result): void {
         // Kein Mogeln und Neustart aus dem Speicher
         if (plies % 4 === 1) {
           const alt = reshuffleHidden(g, pid, rng);
-          if (JSON.stringify(decideAction(alt, pid)) !== JSON.stringify(a1)) fail(`Entscheidung hängt von verdeckten Karten ab (${level})`);
+          if (JSON.stringify(decideAction(alt, pid, o)) !== JSON.stringify(a1)) fail(`Entscheidung hängt von verdeckten Karten ab (${level})`);
           count('Kein Mogeln');
           const restored = JSON.parse(JSON.stringify(g));
-          if (JSON.stringify(decideAction(restored, pid)) !== JSON.stringify(a1)) fail(`Entscheidung nach JSON-Neustart anders (${level})`);
+          if (JSON.stringify(decideAction(restored, pid, o)) !== JSON.stringify(a1)) fail(`Entscheidung nach JSON-Neustart anders (${level})`);
           count('Neustart aus JSON');
         }
         // Erinnerung

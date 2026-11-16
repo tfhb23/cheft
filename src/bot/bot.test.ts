@@ -5,6 +5,7 @@ import { decideAction, nextPlayerRisk, perceivedGroups, similarity } from './bot
 import { testGame, CardPool, setHand } from '../engine/testutil';
 import { isJoker, makeDeck, makeRng } from '../engine/cards';
 import { MEMORY, memoryFor, perceive } from './memory';
+import { interpretMeld } from '../engine/melds';
 import { checkLay } from '../engine/game';
 import { simulate } from './simulate';
 
@@ -901,5 +902,54 @@ describe('nextPlayerRisk: Wahrscheinlichkeit, dass der Nächste die Karte nimmt'
     const t2 = { player: w.next, kind: 'take' as const, cands: exact('H9') };
     const d2 = { player: w.next, kind: 'decline' as const, cands: exact('H9') };
     expect(nextPlayerRisk(w.g, w.me, card('H9'), [t2, d2])).toBeCloseTo(0.2 * (1 - 0.2), 9);
+  });
+});
+
+describe('Genommene Ablagekarte, die nur durch Klauen verwendbar ist', () => {
+  const deck = makeDeck();
+  const card = (suit: string, rank: number, nth = 0) => deck.filter((c) => c.suit === suit && c.rank === rank)[nth];
+
+  /** Zwei Folgen mit Joker an Position 3: Herz 5, 6, (7) und Pik 5, 6, (7). Der Bot ist draußen und hat Herz 7 genommen, außerdem Pik 7. */
+  function scene() {
+    const g = testGame(4, 61, { rounds: 5 });
+    const me = g.round.starter;
+    g.players[me].isBot = true;
+    g.players[me].bot = { level: 'master', style: 'balanced' };
+    const joker = deck.filter((c) => c.suit === 'J');
+    const mk = (id: number, suit: string, j: (typeof joker)[number]) => ({ ...interpretMeld([card(suit, 5), card(suit, 6), j])!, id, owner: (me + 1) % 4 });
+    // Die Pik-Folge liegt zuerst: Bei Gleichstand nähme die frühere Logik die erste Möglichkeit, also die Pik 7
+    g.round.melds = [mk(1, 'S', joker[1]), mk(2, 'H', joker[0])];
+    g.round.nextMeldId = 3;
+    const taken = card('H', 7);
+    const hand = [taken, card('S', 7), card('C', 2), card('D', 9), card('H', 12), card('D', 3), card('S', 13), card('C', 11)];
+    g.round.players[me].opened = true;
+    g.round.players[me].turns = 4;
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'discard', drawnCardId: taken.id, mustUseId: taken.id };
+    return { g, me, taken };
+  }
+
+  it('der Bot klaut genau mit der genommenen Karte, nicht mit der anderen Siebenerkarte', () => {
+    const { g, me, taken } = scene();
+    const a = decideAction(g, me, { memory: { handMiss: 0, tableMiss: 0 } });
+    expect(a.kind).toBe('steal');
+    if (a.kind === 'steal') {
+      expect(a.cardId).toBe(taken.id);
+      expect(applyAction(g, me, a).ok).toBe(true);
+    }
+  });
+  it('danach kann er den geklauten Joker verwenden und die Runde regelkonform fortsetzen (bei jedem Gedächtnis)', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      const { g, me } = scene();
+      g.players[me].bot = { level, style: 'balanced' };
+      let steps = 0;
+      while (g.round.turn.player === me && steps++ < 8) {
+        const a = decideAction(g, me);
+        const res = applyAction(g, me, a);
+        expect(res.ok).toBe(true);
+        if (a.kind === 'discard') break;
+      }
+      expect(g.round.turn.player).not.toBe(me); // der Zug wurde ordentlich beendet
+    }
   });
 });
