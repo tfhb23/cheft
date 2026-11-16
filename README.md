@@ -48,18 +48,21 @@ Die Stufe eines Bots ist sein Gedächtnis. Sie setzt keine Spielregler, nur dies
 | Tagesform | Gute und schlechte Runden verschieben Spanne, Genauigkeit und Aufmerksamkeit |
 | Tisch-Aufmerksamkeit | Chance, eine fremde Auslage in einem Zug zu übersehen; wächst mit der Zahl der ausgelegten Karten |
 | Beobachtung | Chance, dass ein offenes Nehmen eines Mitspielers überhaupt registriert wird |
+| Sorgfalt | Entscheidungsfehler beim Abwurf: Mit einer Wahrscheinlichkeit, die mit dem Abstand der Bewertungen schnell abfällt, nimmt der Bot auch mal die zweit- oder drittbeste Karte, nie eine deutlich schlechtere (Streuung 0 = immer die beste); ein guter Tag macht sorgfältiger |
 | Handüberblick | Grundchance, eine mögliche Kombination, ein Anlegen oder Klauen mit der eigenen Hand zu übersehen; jede Kombination wird einzeln geprüft, einfache (Dreiersatz, Paar) seltener, schwierige (lange Folge, Joker, Ass, Klauen) öfter |
 
-| Gedächtnis | Spanne | Streuung | Genauigkeit | Tagesform | Übersehen (voller Tisch) | Beobachtung | Handüberblick |
-|---|---|---|---|---|---|---|---|
-| Vergesslich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 12 % (1 bis 3 Züge) | 40 % | 40 % |
-| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 6 % (1 bis 2 Züge) | 70 % | 20 % |
-| Scharfsinnig | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 2 % (1 Zug) | 90 % | 7 % |
-| Mastermind | unbegrenzt | keine | 1,0 | keine | 0 % | 100 % | 0 % |
+| Gedächtnis | Spanne | Streuung | Genauigkeit | Tagesform | Übersehen (voller Tisch) | Beobachtung | Handüberblick | Sorgfalt (Streuung) |
+|---|---|---|---|---|---|---|---|---|
+| Vergesslich | 3 Runden | ×0 bis ×2 | 0,75 | ±30 % | 8 % (1 bis 3 Züge) | 40 % | 20 % | 1,5 |
+| Normal | 5 Runden | ×0,3 bis ×1,7 | 0,85 | ±20 % | 4 % (1 bis 2 Züge) | 70 % | 12 % | 0,9 |
+| Scharfsinnig | 9 Runden | ×0,7 bis ×1,3 | 0,93 | ±10 % | 2 % (1 Zug) | 90 % | 6 % | 0,6 |
+| Mastermind | unbegrenzt | keine | 1,0 | keine | 0 % | 100 % | 0 % | 0 |
 
 Vergessen ist eine Treppe: exakt („Herz Bube“), dann eine Achse verschwommen („roter Bube“ oder „Pik-Bildkarte“), dann nur der Eindruck („schwarze Bildkarte“), dann vergessen (bei S = Spanne der einzelnen Karte nach 0,5 S, 1 S und 2,5 S). Bildkarten verwechselt man eher im Wert, Zahlkarten eher in der Farbe (Herz/Karo, Pik/Kreuz). Joker bleiben doppelt so lange im Kopf und werden nie verwechselt, eigene Abwürfe merkt man sich 1,5-mal so lange. Teppichkarte, oberste Ablagekarte und die Auslagen liegen offen und werden nicht vergessen, aber mit der Tisch-Aufmerksamkeit gelegentlich übersehen (eine Blindphase dauert höchstens 1 bis 3 eigene Züge, danach folgt immer ein aufmerksamer Zug). Bei Pflichtzügen (Joker verwenden, genommene Karte nutzen, Paar mit der Teppichkarte) wird nichts übersehen. Übersieht ein Bot eine Kombination der Erstmeldung, legt er die übrigen aus, wenn sie allein regelkonform sind (z. B. noch 51 Augen), sonst wartet er bis zum nächsten Zug.
 
-Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Vergesslich ≈ 20 %, Normal ≈ 24 %, Scharfsinnig ≈ 27 %, Mastermind ≈ 30 %. Gemessen (1920 Spiele, ±2 %): 18,7 / 23,5 / 28,1 / 29,7 %, Strafpunkte pro Runde 48,9 / 45,2 / 42,7 / 42,1.
+**Gegner-Gedächtnis:** Beim Abwerfen schätzt der Bot, wie wahrscheinlich der **nächste Spieler** (nur er kann die Karte nehmen) die Karte braucht. Hinweise sind, was er offen genommen hat (er sammelt in diese Richtung, genaue Karte voll, gleicher Wert oder gleiche Farbe in Reichweite einer Folge mit 4/9), was er selbst abgeworfen hat und was er liegen ließ, obwohl er es hätte nehmen können; das zieht das Risiko wieder ab. Die Regeln bestimmen, ob er überhaupt nehmen darf: Von einem Cheft-Spieler nimmt kein Rommé-Spieler eine Karte (Risiko 0), ein Cheft-Spieler nimmt frei (1), ein Rommé-Spieler nur, wenn er sie sofort anlegen kann (0,7, wenn draußen) oder damit rauskommt (0,2). Die Hinweise verblassen wie jede Erinnerung und gehen mit Beobachtung und Spanne der Stufe ein: Der Mastermind kennt sie alle, ein Vergesslicher hat die meisten bald vergessen.
+
+Kalibrierung: `npm run calibrate -- 480 5 balanced full` lässt alle vier Gedächtnisse am selben Tisch gegeneinander spielen (rotierende Plätze und Geber, parallel auf allen Kernen). Varianten `memory`, `perception` und `none` messen den Beitrag einzelner Regler und die Kontrolle. Zielwerte am Vierertisch (fair = 25 %): Vergesslich ≈ 20 %, Normal ≈ 24 %, Scharfsinnig ≈ 27 %, Mastermind ≈ 30 %. Gemessen (1920 Spiele, ±2 %): 17,0 / 22,0 / 28,5 / 32,6 %, Strafpunkte pro Runde 55,7 / 51,7 / 47,7 / 45,8; über 5760 Spiele gemittelt 16,7 / 22,9 / 28,3 / 32,1 %. Die Siegquote ist stark vom Kartenglück verrauscht, die Strafpunkte sind das genauere Maß; Vergleiche gelingen am besten auf denselben Spielen (gleicher Startindex). Die Sorgfalt wirkt stark: Allein Streuung 3 kostet gegen perfekte Gegner etwa 5,7 Strafpunkte pro Runde, deshalb sind Handüberblick und Tisch gegenüber der Sorgfalt-losen Fassung abgesenkt (`npm run sensitivity`).
 
 ## Bot-Strategie: Erstmeldung abwägen, hinten mutig sein
 

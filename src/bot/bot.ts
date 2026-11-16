@@ -22,7 +22,7 @@ import {
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
 import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
-import { Cand, MemoryParams, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, recall } from './memory';
+import { Cand, MemoryParams, Signal, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, pickByScore, recall } from './memory';
 
 export interface Knobs {
   /** Zusätzliche Augen über der Grenze, bevor der Bot rauskommt. */
@@ -65,6 +65,8 @@ export interface Knobs {
   tuning?: Partial<Tuning>;
   /** Mutiger Modus beim Zurückliegen erlauben (siehe strategy.ts). Aus nur für Vergleiche und Tests. */
   bold: boolean;
+  /** Gegner-Gedächtnis: Abwurf nach dem, was der nächste Spieler nimmt, abwirft und liegen lässt. Aus: nur nach seinen genommenen Karten. */
+  oppModel: boolean;
 }
 
 /** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
@@ -96,6 +98,7 @@ export function knobsFor(profile: BotProfile): Knobs {
     ambition: 0.4,
     weighOpening: true,
     bold: true,
+    oppModel: true,
   };
   // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
@@ -633,8 +636,51 @@ function blockPenalty(c: Card, cands: Cand[]): number {
   return s / cands.length;
 }
 
+/**
+ * Wie sehr gleicht die Karte c den Karten einer (womöglich verschwommenen) Erinnerung? 1 = genau diese Karte,
+ * 4/9 = gleicher Wert oder dieselbe Farbe in Reichweite einer Folge (Verhältnis wie die frühere Blockierwertung 9 zu 4).
+ */
+export function similarity(c: Card, cands: Cand[]): number {
+  let s = 0;
+  for (const t of cands) {
+    if (t.suit === 'J') continue;
+    if (t.suit === c.suit && t.rank === c.rank) s += 1;
+    else if (t.rank === c.rank) s += 4 / 9;
+    else if (t.suit === c.suit && Math.abs(t.rank - c.rank) <= 2) s += 4 / 9;
+  }
+  return cands.length ? s / cands.length : 0;
+}
+
+/**
+ * Gegner-Gedächtnis: Wie wahrscheinlich nimmt der nächste Spieler die Karte c, wenn ich sie abwerfe (0 bis 1)?
+ * Wer sie nehmen darf, richtet sich nach den Regeln (von einem Cheft-Spieler nimmt kein Rommé-Spieler eine Karte; ein
+ * Rommé-Spieler nur, wenn er sie sofort anlegen oder damit rauskommen kann). Dann zählt, was er genommen hat (er sammelt in
+ * diese Richtung), abgezogen, was er abgeworfen oder liegen gelassen hat, obwohl er es hätte nehmen können.
+ */
+export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: Signal[]): number {
+  const r = state.round;
+  const me = r.players[pid];
+  const ni = nextIndex(state, pid);
+  const next = r.players[ni];
+  let elig: number;
+  if (me.mode === 'cheft' && next.mode === 'romme') elig = 0;
+  else if (next.mode === 'cheft') elig = 1;
+  else elig = next.opened ? 0.7 : 0.2;
+  if (elig === 0) return 0;
+  let pos = 0;
+  let neg = 0;
+  for (const s of signals) {
+    if (s.player !== ni) continue;
+    const sim = similarity(c, s.cands);
+    if (s.kind === 'take') pos += sim;
+    else if (s.kind === 'throw') neg += 0.5 * sim;
+    else neg += (elig >= 0.7 ? 0.6 : 0.2) * sim;
+  }
+  return Math.min(1, elig * Math.max(0, pos - neg));
+}
+
 /** Wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt (nach dem, was der Bot noch weiß). */
-function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception): number {
+function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception, oppModel: boolean): number {
   const r = state.round;
   const p = r.players[pid];
   const memory = recall(state, pid, per);
@@ -652,8 +698,7 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
       });
     }
   }
-  let bestCard = pool[0];
-  let bestScore = -Infinity;
+  const scores: number[] = [];
   for (const c of pool) {
     const keep = keepValue(c, p.hand, un, p.mode, p.opened);
     let score = -keep;
@@ -661,15 +706,14 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
     else score += p.opened ? penaltyValue(c) * 0.9 : penaltyValue(c) * 0.12;
     if (isJoker(c)) score -= 500;
     // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
-    for (const t of nextTaken) score -= blockPenalty(c, t.cands);
+    if (oppModel) score -= 9 * nextPlayerRisk(state, pid, c, memory.signals);
+    else for (const t of nextTaken) score -= blockPenalty(c, t.cands);
     if (next.mode === 'cheft' && !next.opened) score -= 1;
     if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) score -= 25;
-    if (score > bestScore) {
-      bestScore = score;
-      bestCard = c;
-    }
+    scores.push(score);
   }
-  return bestCard.id;
+  // Sorgfalt: Wer ungenau entscheidet, nimmt manchmal eine fast gleich gute andere Karte
+  return pool[pickByScore(state, pid, per, scores)].id;
 }
 
 /** Sichtbare Kopien einer Karte (Ablage ohne oberste Karte, Auslagen). */
@@ -691,7 +735,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception)
   // Wer auf die Teppichkarte wartet, wirft deren Partner nicht weg
   const mate = k.patient && !p.opened && waitForCarpet(state, pid, k) ? carpetMate(state, pid) : null;
   if (mate && pool.length > 1) pool = pool.filter((c) => c.id !== mate.id);
-  if (k.counting) return masterDiscard(state, pid, pool, per);
+  if (k.counting) return masterDiscard(state, pid, pool, per, k.oppModel);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);

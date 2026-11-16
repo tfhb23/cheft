@@ -19,12 +19,11 @@ const NO_MEMORY: Partial<MemoryParams> = { span: 0, observe: 0 };
 
 const CASES: [string, Partial<MemoryParams>][] = [
   ['Kontrolle: perfekt', {}],
-  ['Handüberblick 15 %', { handMiss: 0.15 }],
-  ['Handüberblick 30 %', { handMiss: 0.3 }],
-  ['Handüberblick 50 %', { handMiss: 0.5 }],
-  ['Tisch übersehen 6 % (1 bis 3 Züge)', { tableMiss: 0.06, missExtra: 2 }],
-  ['Tisch übersehen 20 % (1 bis 3 Züge)', { tableMiss: 0.2, missExtra: 2 }],
-  ['Gedächtnis wie Vergesslich (ohne Übersehen)', { ...MEMORY.easy, ...NO_PERCEPTION }],
+  ['Sorgfalt: Streuung 1,5', { noise: 1.5 }],
+  ['Sorgfalt: Streuung 3', { noise: 3 }],
+  ['Sorgfalt: Streuung 6', { noise: 6 }],
+  ['Sorgfalt: Streuung 12', { noise: 12 }],
+  ['Handüberblick 40 %', { handMiss: 0.4 }],
   ['Gar kein Gedächtnis (Spanne 0, nichts beobachtet)', NO_MEMORY],
   ['Vergesslich komplett', { ...MEMORY.easy }],
   ['Normal komplett', { ...MEMORY.normal }],

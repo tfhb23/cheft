@@ -17,6 +17,7 @@ import {
   comboDifficulty,
   layOffDifficulty,
   overlooksAt,
+  pickByScore,
   candKey,
   candidates,
   goodDay,
@@ -35,7 +36,7 @@ const keyOf = (c: Card) => (isJoker(c) ? 'J' : `${c.suit}${c.rank}`);
 const card = (key: string, nth = 0): Card => deck.filter((c) => keyOf(c) === key)[nth];
 
 /** Ein Gedächtnis ohne Zufall und ohne Fehler, mit festem Zeitplan: Spanne 3 Runden (bei 4 Spielern 12 Züge). */
-const STEADY: MemoryParams = { span: 3, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 };
+const STEADY: MemoryParams = { span: 3, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0 };
 const BLACK = deck.filter((c) => c.suit === 'S' || c.suit === 'C');
 
 /** Leerer Tisch: nur das, was ein Test selbst hineinlegt. Spieler 0 hat keine Handkarten. */
@@ -221,6 +222,7 @@ describe('MEMORY: die vier Stufen sind eine saubere Rangfolge', () => {
       expect(b.observe).toBeGreaterThan(a.observe);
       expect(b.tableMiss).toBeLessThan(a.tableMiss);
       expect(b.handMiss).toBeLessThan(a.handMiss);
+      expect(b.noise).toBeLessThan(a.noise);
       expect(b.form).toBeLessThan(a.form);
       expect(b.spread[1] - b.spread[0]).toBeLessThan(a.spread[1] - a.spread[0]);
       expect(b.missExtra).toBeLessThanOrEqual(a.missExtra);
@@ -228,13 +230,14 @@ describe('MEMORY: die vier Stufen sind eine saubere Rangfolge', () => {
   });
   it('nur der Mastermind ist perfekt, alle anderen sind es nie ganz', () => {
     const m = MEMORY.master;
-    expect(m).toMatchObject({ span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 });
+    expect(m).toMatchObject({ span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0 });
     for (const p of [MEMORY.easy, MEMORY.normal, MEMORY.hard]) {
       expect(p.span).toBeLessThan(Infinity);
       expect(p.accuracy).toBeLessThan(1);
       expect(p.observe).toBeLessThan(1);
       expect(p.tableMiss).toBeGreaterThan(0);
       expect(p.handMiss).toBeGreaterThan(0);
+      expect(p.noise).toBeGreaterThan(0);
       expect(p.form).toBeGreaterThan(0);
       expect(p.spread[0]).toBeLessThan(p.spread[1]);
     }
@@ -413,8 +416,8 @@ describe('perceive: Wahrnehmung eines Zuges', () => {
     expect(tableLoad(table(1, 8))).toBe(1);
     expect(tableLoad(table(1, 4))).toBe(0.5);
     const full = rate('easy', 8);
-    expect(full).toBeGreaterThan(0.15);
-    expect(full).toBeLessThan(0.26);
+    expect(full).toBeGreaterThan(0.1);
+    expect(full).toBeLessThan(0.2);
     expect(rate('easy', 2)).toBeLessThan(full * 0.5);
     expect(rate('normal', 8)).toBeLessThan(full);
     expect(rate('hard', 8)).toBeLessThan(rate('normal', 8));
@@ -473,12 +476,12 @@ describe('overlooks: Handüberblick', () => {
     return miss / total;
   };
   it('trifft ungefähr die Quote der Stufe', () => {
-    expect(frac('easy')).toBeGreaterThan(0.34);
-    expect(frac('easy')).toBeLessThan(0.44);
-    expect(frac('normal')).toBeGreaterThan(0.17);
-    expect(frac('normal')).toBeLessThan(0.23);
-    expect(frac('hard')).toBeGreaterThan(0.05);
-    expect(frac('hard')).toBeLessThan(0.09);
+    expect(frac('easy')).toBeGreaterThan(0.16);
+    expect(frac('easy')).toBeLessThan(0.24);
+    expect(frac('normal')).toBeGreaterThan(0.09);
+    expect(frac('normal')).toBeLessThan(0.15);
+    expect(frac('hard')).toBeGreaterThan(0.04);
+    expect(frac('hard')).toBeLessThan(0.08);
   });
   it('der Mastermind und Pflichtzüge übersehen nie etwas', () => {
     expect(frac('master')).toBe(0);
@@ -954,18 +957,165 @@ describe('overlooksAt: die Schwierigkeit skaliert die Grundchance', () => {
   it('Schwierigkeit 0 wird nie übersehen, doppelte Schwierigkeit doppelt so oft, große Schwierigkeit fast immer', () => {
     expect(rate('normal', 0)).toBe(0);
     const base = rate('normal', 1);
-    expect(base).toBeGreaterThan(0.17);
-    expect(base).toBeLessThan(0.23);
+    expect(base).toBeGreaterThan(0.09);
+    expect(base).toBeLessThan(0.15);
     expect(rate('normal', 2) / base).toBeGreaterThan(1.8);
     expect(rate('normal', 2) / base).toBeLessThan(2.2);
     expect(rate('normal', 0.5) / base).toBeGreaterThan(0.4);
     expect(rate('normal', 0.5) / base).toBeLessThan(0.6);
-    expect(rate('easy', 2.5)).toBeGreaterThan(0.9); // 0,4 × 2,5 = 1: gedeckelt, nie über 100 %
+    expect(rate('easy', 10)).toBeGreaterThan(0.99); // 0,22 × 10 > 1: gedeckelt, nie über 100 %
   });
   it('der Mastermind und Pflichtzüge übersehen bei keiner Schwierigkeit etwas', () => {
     for (const diff of [0.5, 1, 2.5]) {
       expect(rate('master', diff)).toBe(0);
       expect(rate('easy', diff, true)).toBe(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------- Sorgfalt (Entscheidungsfehler)
+
+describe('pickByScore: Sorgfalt bei der Wahl', () => {
+  const pickRate = (level: 'easy' | 'normal' | 'hard' | 'master', scores: number[], forced = false, noise?: number) => {
+    const counts = new Array(scores.length).fill(0);
+    let n = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const g = bare(seed * 29);
+      for (let t = 0; t < 40; t++) {
+        g.round.players[0].turns = t;
+        const per = perceive(g, 0, noise === undefined ? MEMORY[level] : { ...MEMORY[level], noise }, forced);
+        counts[pickByScore(g, 0, per, scores)]++;
+        n++;
+      }
+    }
+    return counts.map((c) => c / n);
+  };
+
+  it('der Mastermind und Pflichtzüge nehmen immer die beste Möglichkeit', () => {
+    expect(pickRate('master', [1, 5, 3])).toEqual([0, 1, 0]);
+    expect(pickRate('easy', [1, 5, 3], true)).toEqual([0, 1, 0]);
+    expect(pickRate('easy', [1, 5, 3], false, 0)).toEqual([0, 1, 0]);
+  });
+  it('bei nur einer Möglichkeit oder gleich guten wird nichts verfälscht (die Wahl liegt dann gleichmäßig)', () => {
+    expect(pickRate('easy', [7])).toEqual([1]);
+    const even = pickRate('easy', [4, 4, 4, 4]);
+    for (const p of even) expect(p).toBeGreaterThan(0.18);
+  });
+  it('Fehler sind Beinahe-Treffer: Eine fast gleich gute Karte wird oft, eine deutlich schlechtere praktisch nie gewählt', () => {
+    const [best, near, far] = pickRate('easy', [10, 9, -20]); // noise 3: Abstand 1 ist Kleinigkeit, Abstand 30 nie
+    expect(best).toBeGreaterThan(0.45);
+    expect(near).toBeGreaterThan(0.25);
+    expect(far).toBeLessThan(0.002);
+  });
+  it('je besser das Gedächtnis, desto sorgfältiger', () => {
+    const scores = [10, 8, 6];
+    const best = (level: 'easy' | 'normal' | 'hard') => pickRate(level, scores)[0];
+    expect(best('easy')).toBeLessThan(best('normal'));
+    expect(best('normal')).toBeLessThan(best('hard'));
+    expect(best('hard')).toBeGreaterThan(0.8);
+  });
+  it('ein guter Tag macht sorgfältiger, ein schlechter schlampiger (Tagesform)', () => {
+    const scores = [10, 8, 6];
+    const g = bare(3);
+    g.round.players[0].turns = 5;
+    const base = perceive(g, 0, MEMORY.easy);
+    const rate = (goodDay: number) => {
+      let hits = 0;
+      for (let seed = 1; seed <= 400; seed++) {
+        const gs = bare(seed);
+        gs.round.players[0].turns = seed % 17;
+        const per = { ...perceive(gs, 0, MEMORY.easy), goodDay };
+        if (pickByScore(gs, 0, per, scores) === 0) hits++;
+      }
+      return hits / 400;
+    };
+    void base;
+    expect(rate(0.3)).toBeGreaterThan(rate(0));
+    expect(rate(0)).toBeGreaterThan(rate(-0.3));
+  });
+  it('dasselbe zum selben Zeitpunkt gibt dieselbe Wahl, in anderen Zügen und bei anderen Schlüsseln eine neue', () => {
+    const g = bare(9);
+    const per = perceive(g, 0, MEMORY.easy);
+    const scores = [5, 5, 5, 5, 5];
+    const a = Array.from({ length: 60 }, (_, k) => pickByScore(g, 0, per, scores, k));
+    expect(Array.from({ length: 60 }, (_, k) => pickByScore(g, 0, per, scores, k))).toEqual(a);
+    expect(new Set(a).size).toBeGreaterThan(1);
+    g.round.players[0].turns = 4;
+    expect(Array.from({ length: 60 }, (_, k) => pickByScore(g, 0, perceive(g, 0, MEMORY.easy), scores, k))).not.toEqual(a);
+  });
+  it('rechnet bei sehr großen Abständen (Joker mit −500) sauber, auch bei kleiner Streuung', () => {
+    const r = pickRate('easy', [3, -500, 2], false, 0.0001);
+    expect(r[1]).toBe(0);
+    expect(r[0] + r[2]).toBeCloseTo(1, 9);
+    expect(Number.isNaN(r[0])).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------- Gegner-Gedächtnis
+
+describe('recall: Hinweise auf die Absichten der Mitspieler', () => {
+  const H9 = card('H9');
+  const H10 = card('H10');
+  const kinds = (g: GameState, params: MemoryParams = STEADY, pid = 0) => recall(g, pid, perceive(g, pid, params)).signals.map((s) => `${s.kind}:${s.player}`);
+
+  it('offen genommene Karten sind ein Hinweis "nimmt" (und stehen weiter in takes)', () => {
+    const g = bare();
+    g.round.plies = 4;
+    g.round.taken = [{ player: 2, card: H9, at: 4 }];
+    const r = recall(g, 0, perceive(g, 0, STEADY));
+    expect(r.signals).toEqual([{ player: 2, kind: 'take', cands: [{ suit: 'H', rank: 9 }] }]);
+    expect(r.takes).toEqual([{ player: 2, cands: [{ suit: 'H', rank: 9 }] }]);
+  });
+  it('eine Karte im Ablagestapel heißt: Der Abwerfer braucht sie nicht, und der Nächste hat sie liegen lassen', () => {
+    const g = bare();
+    g.round.discard = [H9, ...BLACK.slice(0, 3)]; // H9 liegt unter drei Karten
+    g.round.discardedBy = { [H9.id]: 2 };
+    expect(kinds(g)).toContain('throw:2');
+    expect(kinds(g)).toContain('decline:3'); // Spieler 3 kommt nach Spieler 2
+    expect(kinds(g).filter((k) => k.endsWith(':2') && k.startsWith('decline'))).toEqual([]);
+  });
+  it('über sich selbst sammelt der Bot keine Hinweise: eigene Abwürfe und was er selbst liegen ließ', () => {
+    const g = bare();
+    g.round.discard = [H9, H10, ...BLACK.slice(0, 2)];
+    g.round.discardedBy = { [H9.id]: 0, [H10.id]: 3 }; // H9 hat der Bot selbst abgeworfen, H10 Spieler 3 (danach käme der Bot)
+    const ks = kinds(g);
+    expect(ks).toContain('throw:3');
+    expect(ks).toContain('decline:1'); // Spieler 1 hat H9 (vom Bot) liegen lassen
+    expect(ks.some((k) => k.endsWith(':0'))).toBe(false);
+  });
+  it('ohne bekannten Abwerfer (alte Spielstände) gibt es keine Hinweise aus dem Ablagestapel', () => {
+    const g = bare();
+    g.round.discard = [H9, ...BLACK.slice(0, 3)];
+    g.round.discardedBy = undefined;
+    g.round.discardLog = undefined;
+    expect(kinds(g)).toEqual([]);
+  });
+  it('die Hinweise verblassen wie die Erinnerung: erst unscharf, dann nur der Eindruck, dann weg', () => {
+    const sizeAt = (age: number) => {
+      const g = bare();
+      g.round.discard = [H9, ...BLACK.slice(0, age)];
+      g.round.discardedBy = { [H9.id]: 2 };
+      const s = recall(g, 0, perceive(g, 0, STEADY)).signals.find((x) => x.kind === 'throw' && x.player === 2);
+      return s ? s.cands.length : 0;
+    };
+    expect(sizeAt(3)).toBe(1); // exakt
+    expect(sizeAt(8)).toBeGreaterThanOrEqual(2); // eine Achse verschwommen: Farbe (2) oder Wert (hier 8, 9, 10)
+    expect(sizeAt(8)).toBeLessThanOrEqual(3);
+    expect(sizeAt(20)).toBeGreaterThan(sizeAt(8)); // nur der Eindruck: viele Kandidaten
+    expect(sizeAt(40)).toBe(0); // vergessen: kein Hinweis mehr
+  });
+  it('der Mastermind kennt alle Hinweise exakt, der Vergessliche verliert sie schneller', () => {
+    const count = (level: 'easy' | 'master') => {
+      let n = 0;
+      for (let seed = 1; seed <= 20; seed++) {
+        const g = bare(seed);
+        g.round.discard = [...BLACK.slice(0, 40)];
+        g.round.discardedBy = Object.fromEntries(g.round.discard.map((c, i) => [c.id, 1 + (i % 3)]));
+        const per = perceive(g, 0, MEMORY[level]);
+        n += recall(g, 0, per).signals.length;
+      }
+      return n;
+    };
+    expect(count('master')).toBeGreaterThan(count('easy'));
   });
 });

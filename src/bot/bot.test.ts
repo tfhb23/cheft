@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { applyAction } from '../engine/actions';
 import { BotLevel, BotStyle, startNextRound } from '../engine/game';
-import { decideAction, perceivedGroups } from './bot';
+import { decideAction, nextPlayerRisk, perceivedGroups, similarity } from './bot';
 import { testGame, CardPool, setHand } from '../engine/testutil';
 import { isJoker, makeDeck, makeRng } from '../engine/cards';
 import { MEMORY, memoryFor, perceive } from './memory';
@@ -344,9 +344,9 @@ describe('Zufall nach Gedächtnis gewichtet', () => {
     }
   });
   it('die Stufenwerte sind die vereinbarte Spezifikation', () => {
-    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.12, missExtra: 2, observe: 0.4, handMiss: 0.4 });
-    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.06, missExtra: 1, observe: 0.7, handMiss: 0.2 });
-    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.07 });
+    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5 });
+    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9 });
+    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6 });
   });
 });
 
@@ -395,10 +395,11 @@ describe('Handüberblick: einzelne Kombinationen werden übersehen', () => {
   });
   it('die einfache Folge fehlt, die Sätze reichen noch: manchmal eine Teil-Erstmeldung statt gar nichts', () => {
     const o = outcomes('easy');
-    expect(o.partial).toBeGreaterThan(o.n * 0.1);
-    expect(o.partial).toBeLessThan(o.n * 0.35);
-    expect(o.none).toBeGreaterThan(o.n * 0.3); // fehlt ein Satz, reichen die Augen nicht mehr
-    expect(o.full).toBeGreaterThan(o.n * 0.2);
+    expect(o.partial).toBeGreaterThan(o.n * 0.08);
+    expect(o.partial).toBeLessThan(o.n * 0.28);
+    expect(o.none).toBeGreaterThan(o.n * 0.15); // fehlt ein Satz, reichen die Augen nicht mehr
+    expect(o.none).toBeLessThan(o.n * 0.4);
+    expect(o.full).toBeGreaterThan(o.n * 0.4);
     expect(o.full + o.partial + o.none).toBe(o.n);
   });
   it('je besser die Aufmerksamkeit, desto öfter sieht der Bot die ganze Erstmeldung', () => {
@@ -424,10 +425,10 @@ describe('Handüberblick: einzelne Kombinationen werden übersehen', () => {
       }
     }
     expect(missedRun).toBeGreaterThan(missedSet * 1.3);
-    expect(missedSet / n).toBeGreaterThan(0.04); // Normal: 20 % × (Satz ≈ 0,65) ≈ 13 %
-    expect(missedSet / n).toBeLessThan(0.22);
-    expect(missedRun / n).toBeGreaterThan(0.1); // 20 % × (Folge ≈ 0,98) ≈ 20 %
-    expect(missedRun / n).toBeLessThan(0.32);
+    expect(missedSet / n).toBeGreaterThan(0.03); // Normal: 12 % × (Satz ≈ 0,65) ≈ 8 %
+    expect(missedSet / n).toBeLessThan(0.14);
+    expect(missedRun / n).toBeGreaterThan(0.07); // 12 % × (Folge ≈ 0,98) ≈ 12 %
+    expect(missedRun / n).toBeLessThan(0.2);
   });
 });
 
@@ -758,15 +759,147 @@ describe('Handüberblick bei Paar-Erstmeldungen (Cheft): ganz oder gar nicht, mi
   });
   it('die Fehlerquote liegt bei der Grundchance mal der mittleren Schwierigkeit (Normal ≈ 10 %, nicht ≈ 40 % wie bei fünf Einzelwürfen)', () => {
     const normal = run('normal').missed;
-    expect(normal).toBeGreaterThan(0.06);
-    expect(normal).toBeLessThan(0.14);
-    expect(run('easy').missed).toBeGreaterThan(0.14);
-    expect(run('easy').missed).toBeLessThan(0.3);
+    expect(normal).toBeGreaterThan(0.03);
+    expect(normal).toBeLessThan(0.09);
+    expect(run('easy').missed).toBeGreaterThan(0.07);
+    expect(run('easy').missed).toBeLessThan(0.16);
     expect(run('hard').missed).toBeLessThan(0.06);
   });
   it('der Mastermind und Pflichtzüge übersehen auch hier nichts', () => {
     expect(run('master').missed).toBe(0);
     const { g, me, groups } = setup(7, 'easy', 0);
     expect(perceivedGroups(g, me, groups, perceive(g, me, memoryFor('easy'), true), 1)).toEqual(groups);
+  });
+});
+
+describe('Gegner-Gedächtnis: Was wirft man dem nächsten Spieler hin?', () => {
+  const deck = makeDeck();
+  const PERFECT = { handMiss: 0, tableMiss: 0 };
+  const HAND_IDS = [14, 54, 37, 63, 65, 78, 41, 87, 56, 22, 84, 85, 32, 93, 1];
+  const X = 65; // Karo Ass: ohne Hinweis die Abwurfkarte
+  const TWIN = 13; // Karo Ass, die andere Kopie
+
+  /** Der Bot (Rommé, schon draußen) hat die Hand oben; der Nächste ist ein Cheft-Spieler. */
+  function scene() {
+    const g = testGame(4, 21);
+    const me = g.round.starter;
+    const next = (me + 1) % 4;
+    g.players[me].bot = { level: 'master', style: 'balanced' };
+    g.round.players[me].turns = 5;
+    g.round.players[me].opened = true;
+    g.round.players[next].mode = 'cheft';
+    g.round.cheftAnnounced = true;
+    const hand = HAND_IDS.map((id) => deck[id]);
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'stock', drawnCardId: hand[14].id };
+    g.round.discard = [];
+    g.round.taken = [];
+    g.round.discardedBy = {};
+    g.round.discardLog = [];
+    g.round.plies = 6;
+    return { g, me, next };
+  }
+  const discardOf = (g: ReturnType<typeof testGame>, me: number, knobs: object = {}) => {
+    const a = decideAction(g, me, { memory: PERFECT, knobs });
+    expect(a.kind).toBe('discard');
+    return a.kind === 'discard' ? a.cardId : -1;
+  };
+
+  it('ohne Hinweis wirft der Bot Karo Ass ab', () => {
+    const { g, me } = scene();
+    expect(discardOf(g, me)).toBe(X);
+  });
+  it('hat der nächste Spieler (Cheft) die andere Kopie genommen, behält der Bot sie und wirft etwas anderes ab', () => {
+    const { g, me, next } = scene();
+    g.round.taken = [{ player: next, card: deck[TWIN], at: 5 }];
+    expect(discardOf(g, me)).not.toBe(X);
+  });
+  it('hat er sie danach selbst wieder abgeworfen, ist das Interesse weg: Der Bot wirft Karo Ass wieder ab', () => {
+    const { g, me, next } = scene();
+    g.round.taken = [{ player: next, card: deck[TWIN], at: 3 }];
+    g.round.discard = [deck[TWIN]];
+    g.round.discardedBy = { [TWIN]: next };
+    g.round.discardLog = [{ player: next, card: deck[TWIN] }];
+    expect(discardOf(g, me)).toBe(X);
+  });
+  it('ein Hinweis, der nur für den Spieler dahinter gilt, ändert nichts: Nur der nächste Spieler bekommt den Abwurf', () => {
+    const { g, me, next } = scene();
+    g.round.taken = [{ player: (next + 1) % 4, card: deck[TWIN], at: 5 }];
+    expect(discardOf(g, me)).toBe(X);
+  });
+});
+
+describe('nextPlayerRisk: Wahrscheinlichkeit, dass der Nächste die Karte nimmt', () => {
+  const deck = makeDeck();
+  const card = (spec: string, nth = 0) => deck.filter((c) => (c.suit === 'J' ? 'J' : `${c.suit}${c.rank}`) === spec)[nth];
+  const exact = (spec: string) => [{ suit: spec[0] as 'H', rank: Number(spec.slice(1)) }];
+  function world(opts: { me: 'romme' | 'cheft'; next: 'romme' | 'cheft'; nextOpened?: boolean }) {
+    const g = testGame(4, 5);
+    const me = g.round.starter;
+    const next = (me + 1) % 4;
+    g.round.players[me].mode = opts.me;
+    g.round.players[next].mode = opts.next;
+    g.round.players[next].opened = !!opts.nextOpened;
+    return { g, me, next };
+  }
+
+  it('similarity: genau diese Karte 1, gleicher Wert oder gleiche Farbe in Reichweite 4/9, sonst 0; Joker zählen nicht', () => {
+    expect(similarity(card('H9'), exact('H9'))).toBe(1);
+    expect(similarity(card('S9'), exact('H9'))).toBeCloseTo(4 / 9, 9);
+    expect(similarity(card('H11'), exact('H9'))).toBeCloseTo(4 / 9, 9);
+    expect(similarity(card('H12'), exact('H9'))).toBe(0);
+    expect(similarity(card('S2'), exact('H9'))).toBe(0);
+    expect(similarity(card('H9'), [{ suit: 'J', rank: 0 }])).toBe(0);
+    // verschwommene Erinnerung: Mittel über die Kandidaten
+    expect(similarity(card('H9'), [{ suit: 'H', rank: 9 }, { suit: 'D', rank: 9 }])).toBeCloseTo((1 + 4 / 9) / 2, 9);
+    expect(similarity(card('H9'), [])).toBe(0);
+  });
+  it('von einem Cheft-Spieler nimmt ein Rommé-Spieler nie eine Karte (Regel): Risiko 0', () => {
+    const { g, me, next } = world({ me: 'cheft', next: 'romme' });
+    expect(nextPlayerRisk(g, me, card('H9'), [{ player: next, kind: 'take', cands: exact('H9') }])).toBe(0);
+  });
+  it('ein Cheft-Spieler nimmt frei: volles Risiko für die Karte, die er gesammelt hat', () => {
+    const { g, me, next } = world({ me: 'romme', next: 'cheft' });
+    expect(nextPlayerRisk(g, me, card('H9'), [{ player: next, kind: 'take', cands: exact('H9') }])).toBe(1);
+    expect(nextPlayerRisk(g, me, card('S9'), [{ player: next, kind: 'take', cands: exact('H9') }])).toBeCloseTo(4 / 9, 9);
+    expect(nextPlayerRisk(g, me, card('C2'), [{ player: next, kind: 'take', cands: exact('H9') }])).toBe(0);
+  });
+  it('ein Rommé-Spieler nimmt nur, wenn er die Karte sofort anlegen oder damit rauskommen kann: draußen 0,7, sonst 0,2', () => {
+    const sig = (next: number) => [{ player: next, kind: 'take' as const, cands: exact('H9') }];
+    const a = world({ me: 'romme', next: 'romme', nextOpened: true });
+    expect(nextPlayerRisk(a.g, a.me, card('H9'), sig(a.next))).toBeCloseTo(0.7, 9);
+    const b = world({ me: 'romme', next: 'romme', nextOpened: false });
+    expect(nextPlayerRisk(b.g, b.me, card('H9'), sig(b.next))).toBeCloseTo(0.2, 9);
+  });
+  it('ohne Hinweise ist das Risiko 0; Hinweise anderer Spieler zählen nicht', () => {
+    const { g, me, next } = world({ me: 'romme', next: 'cheft' });
+    expect(nextPlayerRisk(g, me, card('H9'), [])).toBe(0);
+    expect(nextPlayerRisk(g, me, card('H9'), [{ player: (next + 1) % 4, kind: 'take', cands: exact('H9') }])).toBe(0);
+  });
+  it('mehrere Hinweise addieren sich, begrenzt auf 1', () => {
+    const { g, me, next } = world({ me: 'romme', next: 'cheft' });
+    const sigs = [
+      { player: next, kind: 'take' as const, cands: exact('H9') },
+      { player: next, kind: 'take' as const, cands: exact('H9') },
+    ];
+    expect(nextPlayerRisk(g, me, card('H9'), sigs)).toBe(1);
+  });
+  it('was er abgeworfen oder liegen gelassen hat, senkt das Risiko (liegen lassen zählt bei einem, der frei nehmen darf, stärker)', () => {
+    const { g, me, next } = world({ me: 'romme', next: 'cheft' });
+    const take = { player: next, kind: 'take' as const, cands: exact('H9') };
+    const base = nextPlayerRisk(g, me, card('H9'), [take]);
+    const thrown = nextPlayerRisk(g, me, card('H9'), [take, { player: next, kind: 'throw', cands: exact('H9') }]);
+    const declined = nextPlayerRisk(g, me, card('H9'), [take, { player: next, kind: 'decline', cands: exact('H9') }]);
+    expect(thrown).toBeCloseTo(0.5, 9);
+    expect(declined).toBeCloseTo(0.4, 9);
+    expect(base).toBeGreaterThan(thrown);
+    expect(thrown).toBeGreaterThan(declined);
+    // Nur Gegenhinweise ohne "nimmt" ergeben nie ein negatives Risiko
+    expect(nextPlayerRisk(g, me, card('H9'), [{ player: next, kind: 'throw', cands: exact('H9') }])).toBe(0);
+    // Ein Rommé-Spieler, der nicht frei nehmen darf, "lässt" weniger aussagekräftig liegen (0,2 statt 0,6)
+    const w = world({ me: 'romme', next: 'romme', nextOpened: false });
+    const t2 = { player: w.next, kind: 'take' as const, cands: exact('H9') };
+    const d2 = { player: w.next, kind: 'decline' as const, cands: exact('H9') };
+    expect(nextPlayerRisk(w.g, w.me, card('H9'), [t2, d2])).toBeCloseTo(0.2 * (1 - 0.2), 9);
   });
 });

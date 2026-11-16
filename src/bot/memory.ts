@@ -40,13 +40,19 @@ export interface MemoryParams {
    * oben oder unten, Klauen) öfter: Die Chance wird mit der Schwierigkeit multipliziert (siehe comboDifficulty).
    */
   handMiss: number;
+  /**
+   * Sorgfalt (Entscheidungsfehler): Streuung der Abwurfwahl in Punkten des Bewertungsmaßes. 0 = immer die beste Karte.
+   * Je größer, desto öfter fällt die Wahl auf eine fast gleich gute zweit- oder drittbeste Karte; deutlich schlechtere
+   * Karten werden praktisch nie gewählt (Fehler sind Beinahe-Treffer, keine Ausreißer).
+   */
+  noise: number;
 }
 
 export const MEMORY: Record<BotLevel, MemoryParams> = {
-  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.12, missExtra: 2, observe: 0.4, handMiss: 0.4 },
-  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.06, missExtra: 1, observe: 0.7, handMiss: 0.2 },
-  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.07 },
-  master: { span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 },
+  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5 },
+  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9 },
+  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6 },
+  master: { span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0 },
 };
 
 export function memoryFor(level: BotLevel, override: Partial<MemoryParams> = {}): MemoryParams {
@@ -55,7 +61,7 @@ export function memoryFor(level: BotLevel, override: Partial<MemoryParams> = {})
 
 // ---------------------------------------------------------------- Deterministischer Zufall
 
-const SALT = { form: 1, span: 2, mis: 3, axis: 4, observe: 5, blind: 6, blindLen: 7, hand: 8 } as const;
+const SALT = { form: 1, span: 2, mis: 3, axis: 4, observe: 5, blind: 6, blindLen: 7, hand: 8, care: 9 } as const;
 
 function mix(h: number, v: number): number {
   h = Math.imul(h ^ (v | 0), 0x9e3779b1);
@@ -221,6 +227,28 @@ export function overlooks(state: GameState, pid: number, per: Perception, ...key
 }
 
 /**
+ * Sorgfalt: Wählt aus bewerteten Möglichkeiten eine aus. Der Mastermind (noise 0) nimmt immer die beste; wer ungenauer
+ * entscheidet, nimmt mit einer Wahrscheinlichkeit, die mit dem Abstand zur besten schnell abfällt (Softmax), auch mal eine
+ * fast gleich gute andere. Ein guter Tag macht sorgfältiger, ein schlechter schlampiger. Pflichtzüge sind sorgfältig.
+ * Derselbe Zustand würfelt immer gleich.
+ */
+export function pickByScore(state: GameState, pid: number, per: Perception, scores: number[], ...keys: number[]): number {
+  let best = 0;
+  for (let i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i;
+  const t = per.params.noise * Math.max(0, 1 - per.goodDay);
+  if (per.forced || !(t > 0) || scores.length < 2) return best;
+  const top = scores[best];
+  const w = scores.map((v) => Math.exp((v - top) / t));
+  const total = w.reduce((a, b) => a + b, 0);
+  let u = roll(state, pid, SALT.care, per.turn, state.round.turn.actions, ...keys) * total;
+  for (let i = 0; i < w.length; i++) {
+    u -= w[i];
+    if (u <= 0) return i;
+  }
+  return best;
+}
+
+/**
  * Wie schwer ist eine Kombination zu erkennen? Ein Satz aus drei Karten oder ein Paar springt ins Auge, eine lange Folge,
  * ein Joker oder ein Ass (oben oder unten angelegt) dagegen erkennt man leichter nicht. Das Mittel über die Kombinationen,
  * die Bots in echten Spielen sehen, ist 1 (siehe COMBO_SCALE und die Kalibrierung).
@@ -267,6 +295,19 @@ export interface Recall {
   unseen: Unseen;
   /** Offen genommene Karten der Mitspieler, so scharf, wie der Bot sie noch im Kopf hat. */
   takes: { player: number; cands: Cand[] }[];
+  /**
+   * Was der Bot über die Absichten der Mitspieler weiß (Gegner-Gedächtnis), jeweils so scharf, wie er es noch im Kopf hat:
+   * 'take' = der Spieler hat diese Karte offen genommen (er sammelt in diese Richtung),
+   * 'throw' = der Spieler hat sie abgeworfen (er braucht sie nicht),
+   * 'decline' = sie lag nach dem Abwurf des Vorgängers oben und der Spieler hat sie liegen lassen, obwohl er sie hätte nehmen können.
+   */
+  signals: Signal[];
+}
+
+export interface Signal {
+  player: number;
+  kind: 'take' | 'throw' | 'decline';
+  cands: Cand[];
 }
 
 interface PublicEvent {
@@ -330,6 +371,7 @@ export function recall(state: GameState, pid: number, per: Perception): Recall {
   const [lo, hi] = params.spread;
 
   const takes: Recall['takes'] = [];
+  const signals: Signal[] = [];
   for (const ev of publicEvents(state)) {
     const card = ev.card;
     const id = card.id;
@@ -348,9 +390,17 @@ export function recall(state: GameState, pid: number, per: Perception): Recall {
     const cands = candidates(card, stage, roll(state, pid, SALT.axis, id));
     if (cands.length === 0) continue;
     if (!exact.has(id)) for (const c of cands) sub(candKey(c), 1 / cands.length);
-    if (isTake && ev.by !== null) takes.push({ player: ev.by, cands });
+    if (isTake && ev.by !== null) {
+      takes.push({ player: ev.by, cands });
+      signals.push({ player: ev.by, kind: 'take', cands });
+    }
+    if (ev.kind === 'discard' && ev.by !== null) {
+      if (ev.by !== pid) signals.push({ player: ev.by, kind: 'throw', cands });
+      const decliner = (ev.by + 1) % n;
+      if (decliner !== pid && decliner !== ev.by) signals.push({ player: decliner, kind: 'decline', cands });
+    }
   }
   let total = 0;
   for (const v of copies.values()) total += v;
-  return { unseen: { copies, total }, takes };
+  return { unseen: { copies, total }, takes, signals };
 }
