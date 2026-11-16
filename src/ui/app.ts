@@ -516,13 +516,37 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        hasSave && h('button', { class: 'btn primary', onclick: () => this.continueGame() }, t('btn.continue')),
-        h('button', { class: `btn${hasSave ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
-        h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
-        this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
-        h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
-        h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
+        h(
+          'div',
+          { class: 'menu-group' },
+          hasSave && h('button', { class: 'btn primary', onclick: () => this.continueGame() }, t('btn.continue')),
+          h('button', { class: `btn${hasSave ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
+          h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
+        ),
+        h(
+          'div',
+          { class: 'menu-group' },
+          h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
+          this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
+        ),
+        h(
+          'div',
+          { class: 'menu-group' },
+          h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
+          h(
+            'button',
+            {
+              class: 'btn',
+              onclick: () => {
+                this.showSettings = true;
+                this.render();
+              },
+            },
+            t('btn.settings'),
+          ),
+        ),
       ),
+      this.showSettings ? this.renderSettings() : null,
     );
   }
 
@@ -1860,6 +1884,7 @@ export class App {
   }
 
   private renderSettings(): HTMLElement {
+    const inGame = this.screen === 'game';
     return h(
       'div',
       {
@@ -1875,7 +1900,7 @@ export class App {
         'div',
         { class: 'panel dialog' },
         h('h2', null, t('btn.settings')),
-        this.online && this.state ? h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
+        inGame && this.online && this.state ? h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
         this.choice(
           t('settings.speed'),
           [
@@ -1927,8 +1952,8 @@ export class App {
             this.disarm();
           },
         ),
-        h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')),
-        this.online && this.state && !this.state.finished
+        inGame ? h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')) : null,
+        inGame && this.online && this.state && !this.state.finished
           ? h(
               'button',
               {
@@ -1942,11 +1967,13 @@ export class App {
               t('btn.pause'),
             )
           : null,
-        this.online ? null : h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')),
-        this.online ? null : h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')),
-        this.online
-          ? h('button', { class: 'btn danger', onclick: () => this.leaveOnline(true) }, t('lobby.leave'))
-          : h('button', { class: 'btn danger', onclick: () => this.quitGame() }, t('btn.quit')),
+        inGame && !this.online ? h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')) : null,
+        inGame && !this.online ? h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')) : null,
+        !inGame
+          ? null
+          : this.online
+            ? h('button', { class: 'btn danger', onclick: () => this.leaveOnline(true) }, t('lobby.leave'))
+            : h('button', { class: 'btn danger', onclick: () => this.quitGame() }, t('btn.quit')),
         h(
           'button',
           {
