@@ -1294,7 +1294,7 @@ export class App {
       'div',
       { class: 'stock-wrap' },
       r.carpet
-        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: (drawPhase && !canCarpet) || (this.armed !== null && this.armed !== 'carpet' && canCarpet), onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
+        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: this.armed !== null && this.armed !== 'carpet' && canCarpet, onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
       this.stockEl(canStock, drawPhase),
       r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
