@@ -430,3 +430,79 @@ describe('Handüberblick: einzelne Kombinationen werden übersehen', () => {
     expect(missedRun / n).toBeLessThan(0.32);
   });
 });
+
+describe('Wer hinten liegt, spielt mutiger (Hand, früher Cheft)', () => {
+  const PERFECT = { handMiss: 0, tableMiss: 0 };
+  /** Ein Bot in der Spielphase, der Erstmeldung noch nicht gelegt hat. `behind`: Strafpunkte Rückstand auf die anderen. */
+  function scene(specs: string[], behind: number, level: 'easy' | 'normal' | 'hard' | 'master' = 'master') {
+    const g = testGame(4, 31, { rounds: 5 });
+    const p = new CardPool();
+    const me = g.round.starter;
+    g.players[me].isBot = true;
+    g.players[me].bot = { level, style: 'balanced' };
+    g.round.players[me].turns = 4;
+    g.totals = g.totals.map((_, i) => (i === me ? behind : 0));
+    const hand = p.takeAll(...specs);
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'stock', drawnCardId: hand[hand.length - 1].id };
+    return { g, me, hand };
+  }
+  // Vier Paare plus Einzelkarten, keine Rommé-Erstmeldung möglich
+  const PAIRS = ['HK', 'HK', 'S9', 'S9', 'D5', 'D5', 'C3', 'C3', 'H2', 'D8', 'S4', 'C10', 'H6', 'D12', 'S1'];
+  // Drei Sätze und eine Folge (93 Augen mit 12 Karten); drei Karten bleiben: Hand in Reichweite
+  const NEAR_HAND = ['SK', 'HK', 'DK', 'SD', 'HD', 'DD', 'S7', 'H7', 'D7', 'H3', 'H4', 'H5', 'C2', 'D9', 'S8'];
+
+  it('mit vier Paaren sagt ein Zurückliegender Cheft an, ein Gleichauf-Bot nicht', () => {
+    const behind = scene(PAIRS, 120);
+    expect(decideAction(behind.g, behind.me, { memory: PERFECT })).toEqual({ kind: 'declareCheft' });
+    const even = scene(PAIRS, 0);
+    expect(decideAction(even.g, even.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
+  });
+  it('der mutige Modus lässt sich abschalten (Gegenprobe)', () => {
+    const behind = scene(PAIRS, 120);
+    expect(decideAction(behind.g, behind.me, { memory: PERFECT, knobs: { bold: false } }).kind).not.toBe('declareCheft');
+  });
+  it('auch der Mastermind wagt das: Der mutige Modus hängt am Tabellenstand, nicht am Gedächtnis', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      const s = scene(PAIRS, 120, level);
+      expect(decideAction(s.g, s.me, { memory: PERFECT }).kind).toBe('declareCheft');
+    }
+  });
+  it('nur vier Paare reichen nicht zu Cheft für einen, der vorn liegt, und drei Paare auch nicht für den Zurückliegenden', () => {
+    const three = scene(['HK', 'HK', 'S9', 'S9', 'D5', 'D5', 'C3', 'H2', 'D8', 'S4', 'C10', 'H6', 'D12', 'S1', 'C7'], 120);
+    expect(decideAction(three.g, three.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
+  });
+  it('wer hinten liegt und fast eine Hand hat, wartet auf die Hand, statt mit 12 von 15 Karten rauszukommen', () => {
+    const behind = scene(NEAR_HAND, 120);
+    const a = decideAction(behind.g, behind.me, { memory: PERFECT });
+    expect(a.kind).toBe('discard');
+    // Gegenprobe: gleichauf legt er die Erstmeldung sofort (93 Augen)
+    const even = scene(NEAR_HAND, 0);
+    expect(decideAction(even.g, even.me, { memory: PERFECT }).kind).toBe('lay');
+    // und ohne mutigen Modus legt auch der Zurückliegende
+    const off = scene(NEAR_HAND, 120);
+    expect(decideAction(off.g, off.me, { memory: PERFECT, knobs: { bold: false } }).kind).toBe('lay');
+  });
+  it('hat ein Gegner schon die Erstmeldung gelegt, wartet auch der Mutige nicht auf die Hand', () => {
+    const s = scene(NEAR_HAND, 120);
+    s.g.round.players[(s.me + 1) % 4].opened = true;
+    s.g.round.lastRommeOpening = 55;
+    expect(decideAction(s.g, s.me, { memory: PERFECT }).kind).toBe('lay');
+  });
+  it('alle Rollen spielen mit dem mutigen Modus regelkonform durch (große Rückstände von Anfang an)', () => {
+    for (let i = 0; i < 8; i++) {
+      const n = 3 + (i % 2);
+      const seats = Array.from({ length: n }, (_, k) => ({ level: (['easy', 'normal', 'hard', 'master'] as const)[(i + k) % 4], style: 'balanced' as BotStyle }));
+      const res = simulate({
+        seed: 8100 + i,
+        seats,
+        rounds: 3,
+        visit: (g) => {
+          // Von Anfang an klare Unterschiede im Tabellenstand, damit der mutige Modus oft greift
+          if (g.round.no === 1 && (g.round.plies ?? 0) === 0) g.totals = g.totals.map((_, j) => (j === 0 ? 150 : 0));
+        },
+      });
+      expect(res.state.finished).toBe(true);
+    }
+  }, 120000);
+});
