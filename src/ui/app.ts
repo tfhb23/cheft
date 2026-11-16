@@ -2370,7 +2370,7 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'))),
+        h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode')),
         list,
         isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
         ...settings,
