@@ -71,8 +71,8 @@ const FORMULA_DESIGNS: BackDesign[] = [
     },
   },
   {
-    id: 'raute-ecken',
-    name: 'Raute mit Ecken',
+    id: 'raute',
+    name: 'Raute',
     // Große Raute (7 Ringe) im Rautengitter (alle 6 Pixel), dunkler Rand und Eck-Klammern in Creme, die an die weiße Kontur stoßen.
     paint: ({ dx, dy }) => {
       const m6 = (n: number) => ((n % 6) + 6) % 6;
@@ -87,8 +87,8 @@ const FORMULA_DESIGNS: BackDesign[] = [
     },
   },
   {
-    id: 'herati',
-    name: 'Herati',
+    id: 'juwel',
+    name: 'Juwel',
     // Rauten-Zellen mit goldenen Knoten und Zickzack-Rand (Herati-Muster), dazwischen feines Raster.
     paint: ({ dx, dy }) => {
       if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
@@ -194,22 +194,25 @@ export function backDetail(d: BackDesign): number {
  */
 export const BACK_ORDER = [
   // A: kaum Elemente, vor allem ein Hintergrundmuster
-  'classic', 'raute-ecken', 'ring',
+  'classic', 'raute', 'ring',
   // B: eine runde Blüte oder ein Stern in der Mitte, ruhiger Hintergrund
   'lotus', 'rosette', 'stern',
   // C: große Scheibe oder Medaillon in der Mitte
-  'strahlen-1', 'medaillon-schach',
+  'kranz', 'medaillon',
   // D: Fächer-Rand mit Innenfläche
-  'faecher-4', 'faecher-stern',
+  'faecher', 'muschel',
   // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
-  'kartusche-1', 'ranken-1', 'kartusche-4', 'zwei-kreise',
+  'arabeske', 'ranke', 'schnoerkel', 'zwilling',
   // F: Wellenlinien-Rosetten
-  'guilloche-3', 'guilloche-2',
+  'wirbel', 'kristall',
   // G: Randbilder
-  'loewe-sonne', 'schlacht',
+  'sonne', 'garten',
   // H: flächendeckende Muster (am dichtesten)
-  'herati', 'achtecke-1', 'gitter-1', 'gitter-4', 'geometrie-3', 'geometrie-4', 'gitter-2',
+  'juwel', 'wabe', 'geflecht', 'mosaik', 'gitter',
 ];
+
+/** Frühere Kennungen (gespeicherte Einstellungen) auf die heutigen Namen abbilden. */
+const LEGACY_IDS: Record<string, string> = { 'raute-ecken': 'raute', herati: 'juwel', 'strahlen-1': 'kranz', 'medaillon-schach': 'medaillon', 'faecher-4': 'faecher', 'faecher-3': 'muschel', 'faecher-stern': 'muschel', 'stern-rahmen': 'muschel', 'kartusche-1': 'arabeske', 'ranken-1': 'ranke', 'kartusche-4': 'schnoerkel', 'zwei-kreise': 'zwilling', 'guilloche-3': 'wirbel', 'guilloche-2': 'kristall', 'loewe-sonne': 'sonne', schlacht: 'garten', 'achtecke-1': 'wabe', 'geometrie-3': 'geflecht', 'geometrie-4': 'mosaik', 'gitter-2': 'gitter' };
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
 
@@ -221,5 +224,6 @@ export const BACK_UNSORTED: string[] = ALL_DESIGNS.filter((d) => !BACK_ORDER.inc
 export const DEFAULT_BACK = 'classic';
 
 export function backDesign(id: string | undefined): BackDesign {
-  return BACK_DESIGNS.find((d) => d.id === id) ?? BACK_DESIGNS.find((d) => d.id === DEFAULT_BACK)!;
+  const key = id && LEGACY_IDS[id] ? LEGACY_IDS[id] : id;
+  return BACK_DESIGNS.find((d) => d.id === key) ?? BACK_DESIGNS.find((d) => d.id === DEFAULT_BACK)!;
 }
