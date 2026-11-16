@@ -132,6 +132,7 @@ export const de: Record<string, string> = {
   'you': 'Du',
   'bot.name': 'Bot {n}',
   'round': 'Runde {n}/{total}',
+  'round.word': 'Runde',
   'mode.romme': 'Rommé',
   'mode.cheft': 'Cheft',
   'status.opened': 'draußen',

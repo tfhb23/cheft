@@ -703,7 +703,7 @@ export class App {
     return h(
       'div',
       { class: 'game' },
-      h('div', { class: 'topbar' }, h('button', { class: 'btn', onclick: () => this.goto(this.rulesFrom) }, t('btn.back')), h('h2', null, t('btn.rules'))),
+      h('div', { class: 'topbar rules-bar' }, h('button', { class: 'btn', onclick: () => this.goto(this.rulesFrom) }, t('btn.back')), h('h2', null, t('btn.rules'))),
       h('div', { class: 'rules' }, ...RULES_DE.map((sec) => h('div', null, h('h3', null, sec.title), h('ul', null, ...sec.items.map((i) => h('li', null, i)))))),
     );
   }
@@ -1165,7 +1165,7 @@ export class App {
         },
         pixelIcon(ICON_TABLE),
       ),
-      h('span', { class: 'accent' }, t('round', { n: r.no, total: s.settings.rounds })),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
       h(
         'div',
         { class: 'icons' },

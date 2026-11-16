@@ -162,16 +162,19 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .rules li { margin-bottom: calc(2px * var(--s)); }
 
 /* ---------- Kopfzeile und Gegner */
-.topbar { display: flex; align-items: center; gap: calc(4px * var(--s)); padding: calc(2px * var(--s)) calc(4px * var(--s)); background: var(--panel); border-bottom: var(--px) solid var(--ink); min-height: calc(16px * var(--s)); }
+.topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 5; display: flex; align-items: flex-start; gap: calc(4px * var(--s)); padding: calc(2px * var(--s)) calc(3px * var(--s)); pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+.topbar .round-no { margin-top: calc(2px * var(--s)); }
+@media (max-width: 520px) { .topbar .rl { display: none; } }
+.rules-bar { position: static; align-items: center; background: var(--panel); border-bottom: var(--px) solid var(--ink); }
 .topbar .accent { white-space: nowrap; }
 .topbar .icons { margin-left: auto; display: flex; gap: calc(2px * var(--s)); }
-.game { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.game { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .game > * { flex: none; }
 .game > .table { flex: 1; }
 .game > .rules { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-/* Spielweise neben dem Namen: Rommé grün, Cheft orange */
+/* Spielweise neben dem Namen: Rommé unauffällig, Cheft orange */
 .badge { display: inline-block; padding: 0 calc(2px * var(--s)); background: var(--sand); color: var(--ink-soft); font-size: calc(7px * var(--s)); line-height: 1.4; border: var(--px) solid var(--sand-dark); }
-.badge.romme { background: var(--green); color: var(--cream); border-color: var(--ink-soft); }
 .badge.cheft { background: var(--orange); color: var(--cream); border-color: var(--orange-dark); }
 
 /* ---------- Tisch */
