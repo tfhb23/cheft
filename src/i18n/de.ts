@@ -194,7 +194,7 @@ export const de: Record<string, string> = {
   'btn.ready': 'Bereit',
   'wait.sorting': 'Karten sortieren, dann „Bereit“ drücken.',
   'wait.others': 'Warten auf: {names}',
-  'wait.openCard': 'Offene Karte für {name}',
+  'wait.openCard': 'Offene Karte',
   'log.start': '{name} beginnt.',
   'turn.you.mustUse': 'Die genommene Karte muss sofort angelegt, ausgelegt oder zum Joker-Klauen verwendet werden.',
   'err.rommeDiscardCheft': 'Diese Karte hat ein Cheft-Spieler abgeworfen. Als Rommé-Spieler darfst du sie nicht nehmen.',
