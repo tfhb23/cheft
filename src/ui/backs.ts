@@ -151,25 +151,6 @@ const FORMULA_DESIGNS: BackDesign[] = [
     },
   },
   {
-    id: 'sonne',
-    name: 'Sonne',
-    // Sonne mit gezacktem Rand in der Mitte, im Hintergrund Kreise mit Achsenkreuz, Viertel-Medaillons in den Ecken.
-    paint: ({ dx, dy }) => {
-      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
-      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
-      const r = Math.hypot(dx, dy);
-      if (r <= 4) return r <= 1.5 ? 'gold' : r <= 3 ? 'cream' : 'dark';
-      const zack = 5.2 + (Math.abs(Math.cos(6 * Math.atan2(dy, dx))) > 0.5 ? 1.6 : 0);
-      if (r <= zack + (r > 5 ? 1 : 0)) return r > 4.8 ? 'cream' : 'main';
-      const e = 13 - dx + (19 - dy);
-      if (e >= 0 && e <= 6) return ring(e + 1, ['dark', 'cream', 'dark', 'cream', 'dark', 'dark']);
-      if (r <= 8.5) return null;
-      const n = Math.floor(r);
-      if (n % 4 === 0) return 'dark';
-      return (dx <= 0.5 || dy <= 0.5) && n % 2 === 0 ? 'dark' : null;
-    },
-  },
-  {
     id: 'ring',
     name: 'Ring',
     // Kleiner leerer Kreis (6 Pixel) in der Mitte, im Hintergrund Kreise im Abstand von 3 Pixeln.
@@ -215,19 +196,19 @@ export const BACK_ORDER = [
   // A: kaum Elemente, vor allem ein Hintergrundmuster
   'classic', 'raute-ecken', 'ring',
   // B: eine runde Blüte oder ein Stern in der Mitte, ruhiger Hintergrund
-  'lotus', 'sonne', 'rosette', 'stern',
+  'lotus', 'rosette', 'stern',
   // C: große Scheibe oder Medaillon in der Mitte
   'strahlen-1', 'medaillon-schach',
-  // D: Rahmen mit Schachbrett- oder Punktfläche innen
-  'faecher-3', 'faecher-4', 'stern-rahmen', 'faecher-2',
+  // D: Fächer-Rand mit Innenfläche
+  'faecher-4', 'faecher-stern',
   // E: dunkler Grund mit hellen Linien, Spiralen und Rosetten
-  'kartusche-1', 'ranken-1', 'kartusche-2', 'kartusche-3', 'kartusche-4', 'ranken-2', 'zwei-kreise',
+  'kartusche-1', 'ranken-1', 'kartusche-4', 'zwei-kreise',
   // F: Wellenlinien-Rosetten
-  'guilloche-3', 'guilloche-1', 'guilloche-2',
+  'guilloche-3', 'guilloche-2',
   // G: Randbilder
   'loewe-sonne', 'schlacht',
   // H: flächendeckende Muster (am dichtesten)
-  'herati', 'achtecke-1', 'gitter-1', 'gitter-4', 'geometrie-3', 'geometrie-5', 'gitter-2', 'gitter-3', 'geometrie-1', 'geometrie-2', 'geometrie-4',
+  'herati', 'achtecke-1', 'gitter-1', 'gitter-4', 'geometrie-3', 'geometrie-4', 'gitter-2',
 ];
 
 const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
