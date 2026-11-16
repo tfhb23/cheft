@@ -31,7 +31,7 @@ import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } from '../net/client';
 import { RoundView } from '../engine/view';
-import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
+import { play, setSoundEnabled, unlockAudio, vibrate, SoundName } from './sound';
 import { randomForgottenName } from './names';
 import { packSave, unpackSave } from './savecode';
 
@@ -103,6 +103,14 @@ interface Drag {
 type SeatPos = 'top' | 'left' | 'right';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Kurzer Impuls für jede eigene Aktion. */
+const VIB_SHORT = 30;
+
+/** Je Quelle ein eigener, aber verwandter Ton beim Ziehen. */
+function drawSound(source: 'stock' | 'discard' | 'carpet'): SoundName {
+  return source === 'stock' ? 'drawStock' : source === 'discard' ? 'drawDiscard' : 'drawCarpet';
+}
 
 const ICON_BOOK = ['.########.', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.########.', '..........'];
 const ICON_TABLE = ['##########', '#...#....#', '##########', '#...#....#', '#...#....#', '##########', '#...#....#', '#...#....#', '##########', '..........'];
@@ -882,7 +890,7 @@ export class App {
     const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
     if (!entries.length || !pile) return;
     this.peekSuppress = true;
-    vibrate(10, this.prefs.vibration);
+    vibrate(VIB_SHORT, this.prefs.vibration);
     const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')));
     const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
     const margin = pile.width * 0.7;
@@ -973,7 +981,7 @@ export class App {
       const probe = applyAction(structuredClone(s), this.me, action);
       if (!probe.ok) {
         this.toast(t(probe.error, probe.params), true);
-        play('error');
+        this.errorFx();
         return false;
       }
       if (!this.net || !this.net.connected) {
@@ -990,7 +998,7 @@ export class App {
     if (res.ok) this.noteModes();
     if (!res.ok) {
       this.toast(t(res.error, res.params), true);
-      play('error');
+      this.errorFx();
       return false;
     }
     this.afterOwnAction(action, s);
@@ -1015,18 +1023,29 @@ export class App {
     }
     if (action.kind === 'discard') this.fresh.clear();
     if (action.kind === 'draw') {
-      play('card');
-      vibrate(10, this.prefs.vibration);
+      play(drawSound(action.source));
+      vibrate(VIB_SHORT, this.prefs.vibration);
     } else if (action.kind === 'discard') {
       play('discard');
-      vibrate(15, this.prefs.vibration);
-    } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') play('lay');
+      vibrate(VIB_SHORT, this.prefs.vibration);
+    } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') {
+      play('lay');
+      vibrate(VIB_SHORT, this.prefs.vibration);
+    } else if (action.kind === 'ready' || action.kind === 'undoDraw') play('tick');
+  }
+
+  /** Fehler: tiefer Ton und zweimal kurz. */
+  private errorFx(): void {
+    play('error');
+    vibrate([30, 60, 30], this.prefs.vibration);
   }
 
   private onRoundEnded(): void {
     const r = this.state!.round.result!;
-    if (r.winner === this.me) play('win');
-    vibrate(30, this.prefs.vibration);
+    if (r.winner === this.me) {
+      play('win');
+      vibrate([40, 60, 40, 60, 80], this.prefs.vibration);
+    } else play('lose');
   }
 
   private botDelay(): number {
@@ -1085,7 +1104,7 @@ export class App {
         this.save();
         this.render();
         if (action.kind === 'draw') {
-          play('card');
+          play(drawSound(action.source));
           if (drawInfo) this.flyDraw(drawInfo);
           void flip(this.root, before, {});
         } else {
@@ -1634,6 +1653,7 @@ export class App {
 
   // ------------------------------------------------------------ Eingaben
   private toggleSelect(id: number): void {
+    play('tick');
     if (this.selected.has(id)) this.selected.delete(id);
     else this.selected.add(id);
     this.targetMode = false;
@@ -1702,7 +1722,7 @@ export class App {
       if (!chk.ok) firstError = { error: chk.error, params: chk.params };
     }
     this.toast(t(firstError?.error ?? 'err.invalidMeld', firstError?.params), true);
-    play('error');
+    this.errorFx();
     return false;
   }
 
@@ -1764,7 +1784,7 @@ export class App {
     const targets = layOffTargets(s, this.me, card.id).filter((x) => x.meld.id === m.id);
     if (targets.length === 0) {
       this.toast(t(s.round.players[this.me].opened ? 'err.cannotAdd' : 'err.notOpened'), true);
-      play('error');
+      this.errorFx();
       return false;
     }
     return this.layOffWithChoice(m, card);
@@ -1822,7 +1842,8 @@ export class App {
         this.armed = null;
         this.render();
       }, 5000);
-      vibrate(10, this.prefs.vibration);
+      play('tick');
+      vibrate(VIB_SHORT, this.prefs.vibration);
       this.render();
       return;
     }
@@ -1855,7 +1876,7 @@ export class App {
         this.declareCheft(true);
       } else {
         this.toast(`${t(draw.error, draw.params)} ${t('hint.cheftDouble')}`, true);
-        play('error');
+        this.errorFx();
       }
       return;
     }
@@ -1921,7 +1942,7 @@ export class App {
           (v) => {
             this.prefs.vibration = v as boolean;
             // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
-            if (this.prefs.vibration && !vibrate(150, true)) this.toast(t('settings.vibration.fail'), true);
+            if (this.prefs.vibration && !vibrate(300, true)) this.toast(t('settings.vibration.fail'), true);
           },
         ),
         this.choice(
@@ -2146,7 +2167,7 @@ export class App {
     const modes = s.round.players.map((p) => p.mode);
     if (s.round.no === this.lastModesRound && modes.some((m, i) => m === 'cheft' && this.lastModes[i] === 'romme')) {
       play('cheft');
-      vibrate(80, this.prefs.vibration);
+      if (modes[this.me] === 'cheft' && this.lastModes[this.me] === 'romme') vibrate(250, this.prefs.vibration);
     }
     this.lastModes = modes;
     this.lastModesRound = s.round.no;
@@ -2209,7 +2230,7 @@ export class App {
     if (u.last && u.last.pid !== this.me) {
       const seat = this.seatRect(u.last.pid);
       const k = u.last.action.kind;
-      if (k === 'draw') play('card');
+      if (u.last.action.kind === 'draw') play(drawSound(u.last.action.source));
       else if (k === 'discard') play('discard');
       else if (k === 'lay' || k === 'layOff') play('lay');
       if (drawInfo) this.flyDraw(drawInfo);

@@ -1,5 +1,5 @@
 /** Kleine Pixel-Sounds per WebAudio, ohne Dateien. */
-export type SoundName = 'card' | 'discard' | 'lay' | 'win' | 'error' | 'cheft';
+export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'discard' | 'lay' | 'win' | 'lose' | 'error' | 'tick' | 'cheft';
 
 let ctx: AudioContext | null = null;
 let enabled = false;
@@ -74,7 +74,24 @@ export function play(name: SoundName): void {
   if (!ctx) return;
   switch (name) {
     case 'card':
+    case 'drawStock':
       blip(880, 0.05, 'square', 0.05);
+      break;
+    case 'drawDiscard':
+      // Verwandt mit dem Stapel-Ton, aber tiefer und etwas weicher
+      blip(659, 0.06, 'square', 0.05);
+      break;
+    case 'drawCarpet':
+      // Zwei schnelle Töne aufwärts: die besondere Karte
+      blip(784, 0.04, 'square', 0.05);
+      blip(1047, 0.06, 'square', 0.05, 0.05);
+      break;
+    case 'tick':
+      blip(1320, 0.02, 'square', 0.012);
+      break;
+    case 'lose':
+      blip(330, 0.12, 'triangle', 0.05);
+      blip(262, 0.2, 'triangle', 0.05, 0.11);
       break;
     case 'discard':
       blip(440, 0.07, 'triangle', 0.07);
@@ -125,11 +142,11 @@ export function vibrationSupported(): boolean {
   return 'vibrate' in navigator || isIos();
 }
 
-/** Kurze Impulse unter etwa 25 ms spüren viele Android-Geräte nicht, deshalb mindestens 40 ms. Gibt zurück, ob der Impuls ausgelöst werden konnte. */
-export function vibrate(ms: number, on: boolean): boolean {
+/** Vibrationsmuster in Millisekunden. Einzelne Impulse unter 30 ms spüren viele Android-Geräte nicht. Gibt zurück, ob der Impuls ausgelöst werden konnte. */
+export function vibrate(pattern: number | number[], on: boolean): boolean {
   if (!on) return true;
   try {
-    if ('vibrate' in navigator) return navigator.vibrate(Math.max(40, ms * 2));
+    if ('vibrate' in navigator) return navigator.vibrate(typeof pattern === 'number' ? Math.max(30, pattern) : pattern);
     if (isIos()) {
       iosTick();
       return true;

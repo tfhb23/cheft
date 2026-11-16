@@ -134,7 +134,8 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .card.selected { outline: calc(2px * var(--s)) solid var(--orange); outline-offset: calc(-1 * var(--px)); }
 .card.glow { outline: calc(2px * var(--s)) solid var(--orange); outline-offset: var(--px); box-shadow: 0 0 0 calc(4px * var(--s)) var(--orange-pale); }
 .card.fresh { outline: calc(2px * var(--s)) solid var(--green); outline-offset: var(--px); }
-.card.dim { opacity: 0.45; }
+/* Abgeblendet ohne Durchscheinen: Hintergrund wird hellgrau, Zeichen blasser (keine Transparenz, sonst sieht man die Karte darunter) */
+.card.dim { filter: grayscale(0.5) contrast(0.6) brightness(1.08); }
 /* Vorgewählt (erstes Tippen beim Ziehen): kräftiger Rahmen, noch einmal tippen zieht */
 .card.armed { outline: calc(3px * var(--s)) solid var(--orange-dark); outline-offset: var(--px); box-shadow: 0 0 0 calc(6px * var(--s)) var(--gold); }
 .card.hidden-anim { visibility: hidden; }
