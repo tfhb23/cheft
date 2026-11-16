@@ -333,16 +333,37 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
   const wantCheft = p.mode === 'cheft' || maxPairs(hand) >= 5;
   if (wantCheft && r.turn.mustOpenWithId === null) {
     // Beste Paar-Erstmeldung, wahlweise ohne Joker (die bleiben dann auf der Hand)
+    // Die Teppichkarte bildet ihr Paar nur mit der genau gleichen Karte, nie mit einem Joker: Dieses Paar steht fest,
+    // die übrigen vier (oder sechs) Paare dürfen Joker enthalten.
+    const carpetId = r.turn.mustPairWithId;
+    const carpetCard = carpetId === null ? undefined : hand.find((c) => c.id === carpetId);
+    const twin = carpetCard ? hand.find((c) => c.id !== carpetCard.id && !isJoker(c) && sameCard(c, carpetCard)) : undefined;
     const pairOpening = (allowJokers: boolean): Best | null => {
       let found: Best | null = null;
+      if (carpetId !== null && !(carpetCard && twin)) return null; // ohne genaue Zwillingskarte ist die Teppichkarte nicht verwendbar
       for (let kk = 0; kk < n; kk++) {
         if (hand[kk].id === must) continue;
-        const rest = hand.filter((c, i) => i !== kk && (allowJokers || !isJoker(c)));
-        const part = findPartition(rest, { types: ALL_TYPES, pairCounts: [5, 7], allowSkip: true, mustInclude: must === null ? [] : [must] });
-        if (!part || part.used === 0) continue;
-        const groups = groupsOf(part.melds);
+        if (twin && hand[kk].id === twin.id) continue;
+        let groups: number[][];
+        let used: number;
+        let augen: number;
+        if (carpetCard && twin) {
+          const rest = hand.filter((c, i) => i !== kk && c.id !== carpetCard.id && c.id !== twin.id && (allowJokers || !isJoker(c)));
+          const part = findPartition(rest, { types: ALL_TYPES, pairCounts: [4, 6], allowSkip: true });
+          if (!part || part.used === 0) continue;
+          groups = [[carpetCard.id, twin.id], ...groupsOf(part.melds)];
+          used = part.used + 2;
+          augen = part.augen;
+        } else {
+          const rest = hand.filter((c, i) => i !== kk && (allowJokers || !isJoker(c)));
+          const part = findPartition(rest, { types: ALL_TYPES, pairCounts: [5, 7], allowSkip: true, mustInclude: must === null ? [] : [must] });
+          if (!part || part.used === 0) continue;
+          groups = groupsOf(part.melds);
+          used = part.used;
+          augen = part.augen;
+        }
         if (!checkLay(state, pid, groups).ok) continue;
-        if (!found || part.used > found.used || (part.used === found.used && part.augen > found.augen)) found = { groups, used: part.used, augen: part.augen };
+        if (!found || used > found.used || (used === found.used && augen > found.augen)) found = { groups, used, augen };
       }
       return found;
     };

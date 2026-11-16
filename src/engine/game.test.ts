@@ -250,6 +250,116 @@ describe('Cheft', () => {
   });
 });
 
+describe('Teppichkarte: nur mit der genau gleichen Karte, nie mit einem Joker', () => {
+  /** Spieler b ist am Zug (Ziehphase); die Teppichkarte ist Herz Dame, a hat schon abgeworfen. */
+  function scene(seed: number, hand: (p: CardPool) => ReturnType<CardPool['takeAll']>) {
+    const g = testGame(3, seed);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    g.round.carpet = p.take('HD');
+    setHand(g, a, p.takeAll('D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, hand(p));
+    return { g, b, carpet: g.round.carpet! };
+  }
+  const twin = (p: CardPool) => p.take('HD');
+
+  it('mit einem Joker als einzigem Partner darf die Teppichkarte nicht genommen werden, auch wenn so fünf Paare entstünden', () => {
+    // vier echte Paare, ein Joker und keine zweite Herz Dame: Früher ging "Teppichkarte + Joker" als fünftes Paar durch
+    const { g, b } = scene(11, (p) => p.takeAll('J', 'C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10'));
+    const r = checkDraw(g, b, 'carpet');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('err.carpetNeedsPair');
+    expect(doDraw(g, b, 'carpet').ok).toBe(false);
+    expect(g.round.carpet).not.toBeNull();
+    expect(g.round.players[b].mode).toBe('romme'); // und er wird auch nicht zum Cheft-Spieler
+  });
+  it('mit der genau gleichen Karte und vier weiteren Paaren darf sie genommen werden; Joker dürfen eines der anderen Paare füllen', () => {
+    const { g, b, carpet } = scene(12, (p) => [twin(p), ...p.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'J', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10')]);
+    expect(checkDraw(g, b, 'carpet').ok).toBe(true);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    const h = g.round.players[b].hand;
+    const mate = h.find((c) => c.id !== carpet.id && c.rank === 12 && c.suit === 'H')!;
+    const find = (suit: string, rank: number, nth = 0) => h.filter((c) => c.suit === suit && c.rank === rank)[nth];
+    const joker = h.find(isJoker)!;
+    const res = doLay(g, b, [[carpet.id, mate.id], [find('C', 7, 0).id, find('C', 7, 1).id], [find('H', 2, 0).id, find('H', 2, 1).id], [find('S', 9, 0).id, find('S', 9, 1).id], [joker.id, find('D', 13).id]]);
+    expect(res.ok).toBe(true);
+  });
+  it('die Teppichkarte mit einem Joker zu legen wird abgelehnt, mit der genau gleichen Karte nicht', () => {
+    // Zwillingskarte, vier echte Paare und ein Joker: Mit Joker + Teppichkarte wären es ebenfalls fünf Paare, aber das ist verboten
+    const { g, b, carpet } = scene(13, (p) => [twin(p), ...p.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'J', 'H5', 'H8', 'S3', 'S4')]);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    const h = g.round.players[b].hand;
+    const mate = h.find((c) => c.id !== carpet.id && c.rank === 12 && c.suit === 'H')!;
+    const find = (suit: string, rank: number, nth = 0) => h.filter((c) => c.suit === suit && c.rank === rank)[nth];
+    const joker = h.find(isJoker)!;
+    const pairs = [
+      [find('C', 7, 0).id, find('C', 7, 1).id],
+      [find('H', 2, 0).id, find('H', 2, 1).id],
+      [find('S', 9, 0).id, find('S', 9, 1).id],
+      [find('D', 13, 0).id, find('D', 13, 1).id],
+    ];
+    const bad = checkLay(g, b, [[carpet.id, joker.id], ...pairs]);
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error).toBe('err.carpetNoJoker');
+    expect(doLay(g, b, [[carpet.id, joker.id], ...pairs]).ok).toBe(false);
+    expect(g.round.players[b].hand.length).toBe(15); // nichts wurde gelegt
+    expect(g.round.melds.length).toBe(0);
+    // Dieselben fünf Paare mit der genau gleichen Karte statt des Jokers sind gültig
+    expect(checkLay(g, b, [[carpet.id, mate.id], ...pairs]).ok).toBe(true);
+    expect(doLay(g, b, [[carpet.id, mate.id], ...pairs]).ok).toBe(true);
+  });
+  it('die übrigen vier Paare müssen auch ohne die Teppichkarte zusammenkommen (Joker dürfen mitzählen)', () => {
+    // Zwillingskarte plus nur drei echte Paare: zu wenig
+    const few = scene(14, (p) => [twin(p), ...p.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10', 'C3')]);
+    expect(checkDraw(few.g, few.b, 'carpet').ok).toBe(false);
+    // dieselbe Hand, aber ein Joker macht den König zum vierten Paar: genug
+    const joker = scene(14, (p) => [twin(p), ...p.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'J', 'H8', 'S3', 'S4', 'D10', 'C3')]);
+    expect(checkDraw(joker.g, joker.b, 'carpet').ok).toBe(true);
+    // Der Joker kann nicht gleichzeitig der Partner der Teppichkarte und der des Königs sein: ohne Zwilling bleibt es verboten
+    const none = scene(14, (p) => p.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'J', 'H8', 'S3', 'S4', 'D10', 'C3'));
+    expect(checkDraw(none.g, none.b, 'carpet').ok).toBe(false);
+  });
+  it('im letzten Zug bei leerem Stapel zählt die Teppichkarte wie eine normale Karte: Sie darf auch mit einem Joker ein Paar bilden', () => {
+    const g = testGame(3, 15);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    g.round.stock = [];
+    g.round.carpet = p.take('HD');
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('C2', 'D12', 'H5'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    expect(g.round.finalTurn).toBe(true);
+    setHand(g, b, p.takeAll('J', 'C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8'));
+    expect(checkDraw(g, b, 'carpet').ok).toBe(true);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    expect(g.round.turn.mustPairWithId).toBeNull(); // kein Zwang, kein Teppichkarten-Paar
+    const h = g.round.players[b].hand;
+    const carpet = h.find((c) => c.suit === 'H' && c.rank === 12)!;
+    const joker = h.find(isJoker)!;
+    const find = (suit: string, rank: number, nth = 0) => h.filter((c) => c.suit === suit && c.rank === rank)[nth];
+    const res = doLay(g, b, [[carpet.id, joker.id], [find('C', 7, 0).id, find('C', 7, 1).id], [find('H', 2, 0).id, find('H', 2, 1).id], [find('S', 9, 0).id, find('S', 9, 1).id], [find('D', 13, 0).id, find('D', 13, 1).id]]);
+    expect(res.ok).toBe(true);
+  });
+  it('die Ablagekarte verträgt sich weiter mit Jokern: Dort darf ein Joker als Partner dienen', () => {
+    const g = testGame(3, 16);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    const top = g.round.discard[g.round.discard.length - 1];
+    g.round.players[b].mode = 'cheft';
+    setHand(g, b, p.takeAll('J', 'C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10'));
+    expect(top.rank).toBe(13);
+    expect(checkDraw(g, b, 'discard').ok).toBe(true);
+  });
+});
+
 describe('Bereit-Phase und Ablage nach dem Rauskommen', () => {
   it('vor dem Start sind keine Züge möglich', () => {
     const g = testGame(3, 31);

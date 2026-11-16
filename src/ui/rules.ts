@@ -49,7 +49,7 @@ export const RULES_DE: RuleSection[] = [
       'Wer von der Ablage zieht, ohne damit als Rommé-Spieler sofort rauszukommen, sagt damit unwiderruflich Cheft an. Cheft kann auch per Knopf angesagt werden.',
       'Rauskommen mit genau 5 Paaren (10 Karten) oder 7 Paaren (Hand machen). 6 Paare gibt es nicht: Nach 5 Paaren werden die restlichen 4 Karten als 2 weitere Paare auf einmal oder als Rommé-Kombinationen bzw. Anlegen bei fremden Rommé-Kombinationen verwertet.',
       'Ein Cheft-Spieler darf immer die oberste Ablagekarte nehmen.',
-      'Die Teppichkarte darf nur ein Cheft-Spieler nehmen, und nur, wenn er damit im selben Zug ein Paar vervollständigt und rauskommt.',
+      'Die Teppichkarte darf nur ein Cheft-Spieler nehmen, und nur, wenn er damit im selben Zug ein Paar vervollständigt und rauskommt. Ihr Paar bildet sie ausschließlich mit der genau gleichen Karte, nie mit einem Joker (die einzige Stelle, an der ein Joker nicht einspringen darf). Erst im letzten Zug bei leerem Stapel zählt sie wie eine normale Stapelkarte.',
     ],
   },
   {

@@ -454,8 +454,11 @@ export function checkDraw(state: GameState, pid: number, source: DrawSource): Re
   if (r.stock.length === 0) return OK; // Stapel leer: Teppichkarte wie vom Stapel, ohne Bedingungen
   if (p.opened) return fail('err.carpetOnlyCheft');
   if (firstTurnBlocked(state, pid)) return fail('err.firstTurn');
-  const mate = p.hand.some((c) => isJoker(c) || sameCard(c, r.carpet!));
-  if (!mate || maxPairs([...p.hand, r.carpet]) < 5) return fail('err.carpetNeedsPair');
+  // Die Teppichkarte bildet ihr Paar nur mit der genau gleichen Karte, nie mit einem Joker (die einzige Stelle, an der ein
+  // Joker nicht einspringt). Die übrigen Paare dürfen Joker enthalten: Insgesamt braucht es fünf.
+  const carpet = r.carpet;
+  const twin = p.hand.findIndex((c) => !isJoker(c) && sameCard(c, carpet));
+  if (twin < 0 || maxPairs(p.hand.filter((_, i) => i !== twin)) < 4) return fail('err.carpetNeedsPair');
   return OK;
 }
 
@@ -602,8 +605,10 @@ export function checkLay(state: GameState, pid: number, groups: number[][]): Res
       if (rommeShapes.length > 0) return fail('err.sixPairs');
     }
     if (carpetId !== null) {
-      const inPair = shapes.some((s) => s.type === 'pair' && s.cards.some((c) => c.id === carpetId));
-      if (!inPair) return fail('err.carpetNeedsPair');
+      const carpetPair = shapes.find((s) => s.type === 'pair' && s.cards.some((c) => c.id === carpetId));
+      if (!carpetPair) return fail('err.carpetNeedsPair');
+      // Die Teppichkarte darf nur mit der genau gleichen Karte ein Paar bilden, nicht mit einem Joker
+      if (carpetPair.cards.some(isJoker)) return fail('err.carpetNoJoker');
     }
   } else {
     if (carpetId !== null && !p.opened) return fail('err.carpetNeedsPair');

@@ -518,3 +518,101 @@ describe('Wer hinten liegt, spielt mutiger (Hand, früher Cheft)', () => {
     }
   }, 120000);
 });
+
+describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mit einem Joker', () => {
+  const PERFECT = { handMiss: 0, tableMiss: 0 };
+  /** Cheft-Spieler in der Ziehphase; Teppichkarte ist Herz Dame, die Ablage ist leer, der Stapel voll. */
+  function drawScene(specs: string[]) {
+    const g = testGame(4, 41, { rounds: 5 });
+    const p = new CardPool();
+    const me = g.round.starter;
+    g.players[me].isBot = true;
+    g.players[me].bot = { level: 'master', style: 'balanced' };
+    g.round.carpet = p.take('HD');
+    g.round.discard = [];
+    g.round.players[me].mode = 'cheft';
+    g.round.cheftAnnounced = true;
+    g.round.players[me].turns = 3;
+    const hand = p.takeAll(...specs);
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'draw', drawSource: null, drawnCardId: null };
+    return { g, me, hand };
+  }
+  // vier echte Paare, ein Joker, zwei Einzelkarten (der Joker bräuchte nur irgendeine Karte zum fünften Paar)
+  const NO_TWIN = ['J', 'C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10'];
+  const WITH_TWIN = ['HD', 'C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'J', 'H5', 'H8', 'S3', 'S4'];
+
+  it('mit einem Joker, aber ohne die zweite Herz Dame, zieht der Bot die Teppichkarte nicht (er zieht vom Stapel)', () => {
+    const { g, me } = drawScene(NO_TWIN);
+    expect(decideAction(g, me, { memory: PERFECT })).toEqual({ kind: 'draw', source: 'stock' });
+  });
+  it('mit der zweiten Herz Dame und vier weiteren Paaren nimmt er sie und legt sie mit genau dieser Karte', () => {
+    const { g, me } = drawScene(WITH_TWIN);
+    const draw = decideAction(g, me, { memory: PERFECT });
+    expect(draw).toEqual({ kind: 'draw', source: 'carpet' });
+    expect(applyAction(g, me, draw).ok).toBe(true);
+    const lay = decideAction(g, me, { memory: PERFECT });
+    expect(lay.kind).toBe('lay');
+    if (lay.kind !== 'lay') return;
+    const hand = g.round.players[me].hand;
+    const carpetPair = lay.groups.find((grp) => grp.includes(g.round.turn.mustPairWithId!))!;
+    expect(carpetPair.length).toBe(2);
+    const cards = carpetPair.map((id) => hand.find((c) => c.id === id)!);
+    expect(cards.some(isJoker)).toBe(false);
+    expect(cards[0].suit).toBe(cards[1].suit);
+    expect(cards[0].rank).toBe(cards[1].rank);
+    expect(applyAction(g, me, lay).ok).toBe(true);
+  });
+  it('das gilt für jede Stufe, Spielweise und auch in einem Pflichtzug (mit Joker auf der Hand)', () => {
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      for (const style of ['balanced', 'cheft', 'gambler', 'joker'] as const) {
+        const { g, me } = drawScene(WITH_TWIN);
+        g.players[me].bot = { level, style };
+        const draw = decideAction(g, me);
+        if (draw.kind !== 'draw' || draw.source !== 'carpet') continue; // ein Bot darf auch vom Stapel ziehen
+        expect(applyAction(g, me, draw).ok).toBe(true);
+        const lay = decideAction(g, me);
+        expect(lay.kind).toBe('lay');
+        expect(applyAction(g, me, lay).ok).toBe(true);
+        const pair = g.round.melds.find((m) => m.type === 'pair' && m.cards.some((c) => c.id === g.round.turn.mustPairWithId));
+        expect(pair).toBeDefined();
+        expect(pair!.cards.some(isJoker)).toBe(false);
+      }
+    }
+  });
+  it('in vielen echten Spielen liegt die Teppichkarte nie mit einem Joker in einem Paar, ein Bot bleibt nie hängen', () => {
+    let carpetTakes = 0;
+    let checkedPairs = 0;
+    for (let i = 0; i < 40; i++) {
+      const seats = Array.from({ length: 4 }, (_, k) => ({
+        level: (['easy', 'normal', 'hard', 'master'] as const)[(i + k) % 4],
+        style: (['cheft', 'gambler', 'joker', 'balanced'] as const)[(i + 2 * k) % 4] as BotStyle,
+      }));
+      const carpetIds = new Set<number>();
+      const check = (g: Parameters<typeof decideAction>[0]) => {
+        for (const m of g.round.melds) {
+          if (m.type === 'pair' && m.cards.some((c) => carpetIds.has(c.id))) {
+            checkedPairs++;
+            expect(m.cards.some(isJoker)).toBe(false);
+          }
+        }
+      };
+      simulate({
+        seed: 9100 + i,
+        seats,
+        rounds: 3,
+        visit: (g) => {
+          const id = g.round.turn.mustPairWithId;
+          if (id !== null && g.round.turn.drawSource === 'carpet' && !carpetIds.has(id)) {
+            carpetIds.add(id);
+            carpetTakes++;
+          }
+          check(g);
+        },
+      });
+    }
+    // Es muss auch wirklich Teppichkarten gegeben haben, sonst prüft der Test nichts
+    expect(carpetTakes).toBeGreaterThan(0);
+    expect(checkedPairs).toBeGreaterThan(0);
+  }, 180000);
+});
