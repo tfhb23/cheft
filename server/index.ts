@@ -67,10 +67,11 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse): Promise<v
 // ---------------------------------------------------------------- Protokoll
 
 type ClientMsg =
-  | { type: 'create'; name: string }
-  | { type: 'join'; room: string; name: string }
+  | { type: 'create'; name: string; back?: string }
+  | { type: 'join'; room: string; name: string; back?: string }
   | { type: 'rejoin'; room: string; token: string; snap?: string }
-  | { type: 'claim'; room: string; pid: number; name: string }
+  | { type: 'claim'; room: string; pid: number; name: string; back?: string }
+  | { type: 'setBack'; back: string }
   | { type: 'pause'; on: boolean }
   | { type: 'rename'; name: string }
   | { type: 'leave' }
@@ -188,7 +189,7 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'create': {
       leave(c);
       const room = rooms.create();
-      const r = room.addHuman(msg.name);
+      const r = room.addHuman(msg.name, msg.back);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       room.hostPid = r.pid;
       joined(c, room, r.pid, r.token);
@@ -204,7 +205,7 @@ function handle(c: Conn, msg: ClientMsg): void {
         return send(c, { type: 'claimable', room: room.code, seats: free });
       }
       leave(c);
-      const r = room.addHuman(msg.name);
+      const r = room.addHuman(msg.name, msg.back);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       joined(c, room, r.pid, r.token);
       return;
@@ -226,7 +227,7 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'claim': {
       const room = rooms.get(msg.room);
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      const r = room.claim(Number(msg.pid), msg.name);
+      const r = room.claim(Number(msg.pid), msg.name, Date.now(), msg.back);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       for (const o of conns) if (o !== c && o.room === room && o.pid === r.pid) o.room = null;
       leave(c);
@@ -237,6 +238,14 @@ function handle(c: Conn, msg: ClientMsg): void {
       const room = c.room;
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
       const r = room.rename(c.pid, String(msg.name ?? ''));
+      if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
+      broadcast(room);
+      return;
+    }
+    case 'setBack': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const r = room.setBack(c.pid, String(msg.back ?? ''));
       if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
       broadcast(room);
       return;

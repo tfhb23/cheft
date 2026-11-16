@@ -505,7 +505,7 @@ export class App {
 
   private cardEl(
     card: Card | 'back' | 'back2' | 'slot',
-    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string } = {},
+    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
   ): HTMLElement {
     const off = atlasOffset(this.atlas.index(card));
     const sc = opts.mini ? '1' : opts.small ? 'var(--so)' : 'var(--s)';
@@ -515,6 +515,12 @@ export class App {
       title: opts.title ?? (typeof card === 'string' ? '' : cardName(card)),
       onclick: opts.onClick,
     });
+    // Fremdes Rückseiten-Design (Mehrspieler): als eigenes Bild über den Atlas legen
+    if (opts.backId && (card === 'back' || card === 'back2')) {
+      el.style.backgroundImage = `url(${backThumb(opts.backId, card === 'back' ? 'a' : 'b')})`;
+      el.style.backgroundSize = '100% 100%';
+      el.style.backgroundPosition = '0 0';
+    }
     if (typeof card !== 'string' && !opts.mini) el.dataset.cardId = String(card.id);
     return el;
   }
@@ -1288,8 +1294,9 @@ export class App {
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
       const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length });
       // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
+      const backId = this.seatBack(seat.pid);
       const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
-      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
       const inner =
         seat.pos === 'top'
           ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl))
@@ -2003,9 +2010,21 @@ export class App {
     return h('div', { class: 'option' }, fieldLabel(t('settings.cardBack')), backChoiceRow(items, this.prefs.cardDesign, (id) => this.setCardDesign(id)));
   }
 
+  /** Rückseite, mit der die verdeckten Handkarten eines Platzes gezeichnet werden: online das Design des Spielers (Bots: stabil aus Raumcode und Platz abgeleitet, bei allen gleich), sonst nichts (= das eigene). */
+  private seatBack(pid: number): string | undefined {
+    const o = this.online;
+    const seat = o?.lobby?.seats.find((x) => x.pid === pid);
+    if (!o || !seat || pid === this.me) return undefined;
+    if (!seat.isBot) return seat.back ? backDesign(seat.back).id : undefined;
+    let hsh = 7;
+    for (const ch of `${o.room}/${pid}`) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+    return BACK_DESIGNS[hsh % BACK_DESIGNS.length].id;
+  }
+
   private setCardDesign(id: string): void {
     this.prefs.cardDesign = backDesign(id).id;
     this.savePrefs();
+    this.net?.setBack(this.prefs.cardDesign);
     this.atlas = buildAtlas(this.prefs.cardDesign);
     document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
     this.render();
@@ -2097,7 +2116,7 @@ export class App {
 
   private createRoom(): void {
     const name = this.playerName();
-    this.connectOnline(() => this.net!.create(name));
+    this.connectOnline(() => this.net!.create(name, this.prefs.cardDesign));
   }
 
   private joinRoom(): void {
@@ -2108,7 +2127,7 @@ export class App {
     }
     const name = this.playerName();
     this.claimChoice = null;
-    this.connectOnline(() => this.net!.join(code, name));
+    this.connectOnline(() => this.net!.join(code, name, this.prefs.cardDesign));
   }
 
   private resumeOnline(): void {
@@ -2313,7 +2332,7 @@ export class App {
         'div',
         { class: 'panel' },
         hint(t('claim.hint')),
-        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name))),
+        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign))),
         backBtn(() => this.back()),
       ),
     );

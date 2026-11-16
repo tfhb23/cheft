@@ -403,4 +403,15 @@ describe('Räume', () => {
     expect(room.state!.players[0].name).toBe('Anna');
     expect(room.lobbyView().seats[0].name).toBe('Anna');
   });
+
+  it('Kartenrückseiten: pro Spieler gespeichert, geprüft, umstellbar; Bots haben keine', () => {
+    const room = new Rooms(5).create();
+    room.addHuman('A', 'mond');
+    room.addHuman('B', '<script>');
+    room.addBot({ level: 'easy', style: 'random' });
+    expect(room.seats.map((s) => s.back)).toEqual(['mond', undefined, undefined]);
+    expect(room.setBack(1, 'teppich').ok).toBe(true);
+    expect(room.setBack(2, 'teppich').ok).toBe(false); // Bots haben keine eigene Rückseite
+    expect(room.lobbyView().seats.map((s) => s.back)).toEqual(['mond', 'teppich', undefined]);
+  });
 });
