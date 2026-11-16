@@ -306,6 +306,8 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .summary-row span { white-space: nowrap; }
 
 /* ===== 4/5 Design Guide (nutzt dieselben Bausteine wie das Spiel) ===== */
+/* Im Design Guide darf man Text markieren und kopieren (im Spiel ist das überall aus, damit man nichts versehentlich markiert) */
+.view-body.guide, .view-body.guide * { user-select: text; -webkit-user-select: text; }
 .guide-intro { display: flex; flex-direction: column; gap: var(--gap-stack); margin-bottom: var(--gap-group); }
 .guide-toc { display: flex; flex-wrap: wrap; gap: var(--gap-tight); }
 .guide-toc .btn { flex: 0 0 auto; }
