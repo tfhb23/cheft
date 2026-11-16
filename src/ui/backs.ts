@@ -34,11 +34,13 @@ export const BACK_DESIGNS: BackDesign[] = [
   {
     id: 'classic',
     name: 'Klassik',
-    // Das bisherige feine Rautengitter (Diagonalen alle 4 Pixel), ohne Mittelstück
+    // Feines Rautengitter: Diagonalen in beide Richtungen alle 4 Pixel, von der Mitte aus gezählt und deshalb an beiden
+    // Achsen gespiegelt (u, v sind Abstände zur Mitte mit Vorzeichen; ±u und ±v erzeugen dieselbe Menge von Linien)
     paint: ({ x, y }) => {
-      const xx = x + BACK_FIELD.inset;
-      const yy = y + BACK_FIELD.inset;
-      return (xx + yy) % 4 === 0 || (xx - yy + 400) % 4 === 0 ? 'dark' : null;
+      const u = x - (BACK_FIELD.w - 1) / 2;
+      const v = y - (BACK_FIELD.h - 1) / 2;
+      const m = (n: number) => ((n % 4) + 4) % 4;
+      return m(u + v) === 0 || m(u - v) === 0 ? 'dark' : null;
     },
   },
 ];

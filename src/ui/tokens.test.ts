@@ -138,4 +138,20 @@ describe('Kartenrückseiten', () => {
       }
     }
   });
+
+  it('alle Designs sind an beiden Achsen perfekt symmetrisch und der Hintergrund ist nie einfarbig', async () => {
+    const { BACK_DESIGNS, BACK_FIELD } = await import('./backs');
+    for (const d of BACK_DESIGNS) {
+      const at = (x: number, y: number) => d.paint({ x, y, dx: Math.abs(x - (BACK_FIELD.w - 1) / 2), dy: Math.abs(y - (BACK_FIELD.h - 1) / 2) });
+      const seen = new Set<string | null>();
+      for (let y = 0; y < BACK_FIELD.h; y++) {
+        for (let x = 0; x < BACK_FIELD.w; x++) {
+          expect(at(x, y), `${d.id} (${x},${y}) spiegelt waagerecht`).toBe(at(BACK_FIELD.w - 1 - x, y));
+          expect(at(x, y), `${d.id} (${x},${y}) spiegelt senkrecht`).toBe(at(x, BACK_FIELD.h - 1 - y));
+          seen.add(at(x, y));
+        }
+      }
+      expect(seen.size, `${d.id}: mindestens zwei Farben im Feld`).toBeGreaterThan(1);
+    }
+  });
 });
