@@ -96,6 +96,70 @@ export const BACK_DESIGNS: BackDesign[] = [
       return m4(d) === 0 || m4(dx - dy) === 0 ? 'dark' : null;
     },
   },
+  {
+    id: 'toranj',
+    name: 'Toranj',
+    // Persisches Medaillon (Toranj): Raute in der Mitte, Anhänger oben und unten, Viertel-Medaillons in den Ecken,
+    // im Hintergrund ein Rautengitter alle 6 Pixel.
+    paint: ({ dx, dy }) => {
+      const m6 = (n: number) => ((n % 6) + 6) % 6;
+      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      const d = dx + dy;
+      if (d <= 7) return ring(d, ['gold', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream']);
+      const dp = dx + Math.abs(dy - 13.5);
+      if (dp <= 2) return ring(dp, ['gold', 'cream', 'dark']);
+      if (dx <= 0.5 && dy >= 9.5 && dy <= 10.5) return 'dark';
+      if (dx <= 0.5 && dy >= 8.5 && dy <= 11.5) return 'cream';
+      const e = 13 - dx + (19 - dy);
+      if (e >= 0 && e <= 6) return ring(e + 1, ['dark', 'cream', 'dark', 'cream', 'dark', 'dark', 'cream']);
+      if (d <= 8.5 || dp <= 3.5 || e <= 8) return null;
+      return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
+    },
+  },
+  {
+    id: 'herati',
+    name: 'Herati',
+    // Rauten-Zellen mit goldenen Knoten und Zickzack-Rand (Herati-Muster), dazwischen feines Raster.
+    paint: ({ dx, dy }) => {
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      if (Math.max(dx - 11.5, dy - 17.5) >= 0) return Math.floor(dy >= 17.5 ? dx : dy) % 2 === 0 ? 'cream' : null;
+      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
+      for (const cx of [0, 8]) {
+        for (const cy of [4, 12]) {
+          const d = Math.abs(dx - cx) + Math.abs(dy - cy);
+          if (d <= 3) return ring(d, ['gold', 'cream', 'dark', 'cream']);
+        }
+      }
+      if ((Math.abs(dx - 4) < 0.6 || Math.abs(dx - 12) < 0.6) && (Math.abs(dy) < 0.6 || Math.abs(dy - 8) < 0.6 || Math.abs(dy - 16) < 0.6)) return 'gold';
+      return (Math.floor(dx) + Math.floor(dy)) % 4 === 0 ? 'dark' : null;
+    },
+  },
+  {
+    id: 'rosette',
+    name: 'Rosette',
+    // Rosette mit zwölf Blättchen, Viertel-Medaillons in den Ecken, Zickzack-Rand, Punktraster im Hintergrund.
+    paint: ({ dx, dy }) => {
+      const ring = (d: number, seq: readonly BackRole[]) => seq[Math.max(0, Math.min(Math.ceil(d) - 1, seq.length - 1))];
+      if (Math.max(dx - 12.5, dy - 18.5) >= 0) return 'dark';
+      if (Math.max(dx - 11.5, dy - 17.5) >= 0) return Math.floor(dy >= 17.5 ? dx : dy) % 2 === 0 ? 'cream' : null;
+      const r = Math.hypot(dx, dy);
+      if (r <= 7.6) {
+        if (r <= 1.5) return 'gold';
+        if (r <= 3.2) return 'cream';
+        if (r <= 4.2) return 'dark';
+        if (r <= 6.5) {
+          const petal = Math.abs(Math.cos(4 * Math.atan2(dy, dx))) > 0.55;
+          return r > 5.4 ? (petal ? 'cream' : 'dark') : petal ? 'dark' : 'main';
+        }
+        return 'cream';
+      }
+      const e = 13 - dx + (19 - dy);
+      if (e >= 0 && e <= 5) return ring(e + 1, ['dark', 'cream', 'dark', 'cream', 'dark']);
+      if (r <= 10) return null;
+      return Math.floor(dx) % 4 === 1 && Math.floor(dy) % 4 === 1 ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;
