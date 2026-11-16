@@ -173,6 +173,10 @@ export class App {
   private armedTimer: number | null = null;
   /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
   private forgottenName = randomForgottenName();
+  /** Kein Name eingegeben: der Ersatzname ist nur ein Vorschlag. */
+  private autoName(): boolean {
+    return !this.prefs.name.trim();
+  }
   private playerName(): string {
     return this.prefs.name.trim() || this.forgottenName;
   }
@@ -259,7 +263,7 @@ export class App {
       if (this.linkRoom !== code) return; // abgebrochen oder schon drin
       if (net.connected) {
         this.nav.replaceUrl('/');
-        net.join(code, this.playerName());
+        net.join(code, this.playerName(), undefined, this.autoName());
       } else if (Date.now() - t0 < 90000) setTimeout(wait, 200);
       else {
         this.linkRoom = null;
@@ -2144,7 +2148,7 @@ export class App {
 
   private createRoom(): void {
     const name = this.playerName();
-    this.connectOnline(() => this.net!.create(name, this.prefs.cardDesign));
+    this.connectOnline(() => this.net!.create(name, this.prefs.cardDesign, this.autoName()));
   }
 
   private joinRoom(): void {
@@ -2155,7 +2159,7 @@ export class App {
     }
     const name = this.playerName();
     this.claimChoice = null;
-    this.connectOnline(() => this.net!.join(code, name, this.prefs.cardDesign));
+    this.connectOnline(() => this.net!.join(code, name, this.prefs.cardDesign, this.autoName()));
   }
 
   private resumeOnline(): void {
@@ -2360,7 +2364,7 @@ export class App {
         'div',
         { class: 'panel' },
         hint(t('claim.hint')),
-        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign))),
+        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign, this.autoName()))),
         backBtn(() => this.back()),
       ),
     );

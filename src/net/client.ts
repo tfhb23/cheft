@@ -183,11 +183,12 @@ export class NetClient {
     return true;
   }
 
-  create(name: string, back?: string): void {
-    this.send({ type: 'create', name, back });
+  /** auto: der Name wurde nicht gewählt, sondern ist ein Vorschlag; ist er vergeben, vergibt der Server einen anderen freien. */
+  create(name: string, back?: string, auto = false): void {
+    this.send({ type: 'create', name, back, auto });
   }
-  join(room: string, name: string, back?: string): void {
-    this.send({ type: 'join', room: room.toUpperCase(), name, back });
+  join(room: string, name: string, back?: string, auto = false): void {
+    this.send({ type: 'join', room: room.toUpperCase(), name, back, auto });
   }
   /** Eigene Kartenrückseite den anderen mitteilen (nur Anzeige). */
   setBack(back: string): void {
@@ -212,8 +213,8 @@ export class NetClient {
   backToLobby(): void {
     this.send({ type: 'lobby', op: 'backToLobby' });
   }
-  claim(room: string, pid: number, name: string, back?: string): void {
-    this.send({ type: 'claim', room, pid, name, back });
+  claim(room: string, pid: number, name: string, back?: string, auto = false): void {
+    this.send({ type: 'claim', room, pid, name, back, auto });
   }
   rename(name: string): void {
     this.send({ type: 'rename', name });

@@ -67,10 +67,10 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse): Promise<v
 // ---------------------------------------------------------------- Protokoll
 
 type ClientMsg =
-  | { type: 'create'; name: string; back?: string }
-  | { type: 'join'; room: string; name: string; back?: string }
+  | { type: 'create'; name: string; auto?: boolean; back?: string }
+  | { type: 'join'; room: string; name: string; auto?: boolean; back?: string }
   | { type: 'rejoin'; room: string; token: string; snap?: string }
-  | { type: 'claim'; room: string; pid: number; name: string; back?: string }
+  | { type: 'claim'; room: string; pid: number; name: string; auto?: boolean; back?: string }
   | { type: 'setBack'; back: string }
   | { type: 'pause'; on: boolean }
   | { type: 'rename'; name: string }
@@ -189,7 +189,7 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'create': {
       leave(c);
       const room = rooms.create();
-      const r = room.addHuman(msg.name, msg.back);
+      const r = room.addHuman(msg.name, msg.back, msg.auto === true);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       room.hostPid = r.pid;
       joined(c, room, r.pid, r.token);
@@ -205,7 +205,7 @@ function handle(c: Conn, msg: ClientMsg): void {
         return send(c, { type: 'claimable', room: room.code, seats: free });
       }
       leave(c);
-      const r = room.addHuman(msg.name, msg.back);
+      const r = room.addHuman(msg.name, msg.back, msg.auto === true);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       joined(c, room, r.pid, r.token);
       return;
@@ -227,7 +227,7 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'claim': {
       const room = rooms.get(msg.room);
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      const r = room.claim(Number(msg.pid), msg.name, Date.now(), msg.back);
+      const r = room.claim(Number(msg.pid), msg.name, Date.now(), msg.back, msg.auto === true);
       if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
       for (const o of conns) if (o !== c && o.room === room && o.pid === r.pid) o.room = null;
       leave(c);

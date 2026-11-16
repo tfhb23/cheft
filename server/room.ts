@@ -8,6 +8,7 @@ import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '.
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots } from '../src/bot/names';
+import { FORGOTTEN_NAMES } from '../src/ui/names';
 
 export type Speed = 'normal' | 'fast';
 
@@ -125,11 +126,24 @@ export class Room {
   }
 
   // ------------------------------------------------------------ Lobby
-  addHuman(name: string, back?: string): { pid: number; token: string } | Result {
+  /**
+   * Hat jemand keinen Namen gewählt (auto), ist der vorgeschlagene Name aber schon vergeben, bekommt er einen anderen
+   * freien Ersatznamen statt einer Nummer. Selbst gewählte Namen behalten die Nummer („Anna 2“).
+   */
+  private nameFor(clean: string, auto: boolean, taken: (n: string) => boolean, number: number): string {
+    if (!taken(clean)) return clean;
+    if (auto) {
+      const free = FORGOTTEN_NAMES.filter((n) => !taken(n));
+      if (free.length) return free[Math.floor(this.rng() * free.length)];
+    }
+    return `${clean} ${number}`;
+  }
+
+  addHuman(name: string, back?: string, auto = false): { pid: number; token: string } | Result {
     if (this.started) return fail('net.alreadyStarted');
     if (this.seats.length >= MAX_PLAYERS) return fail('net.full');
     const clean = sanitizeName(name) || `Spieler ${this.seats.length + 1}`;
-    const unique = this.seats.some((s) => s.name === clean) ? `${clean} ${this.seats.length + 1}` : clean;
+    const unique = this.nameFor(clean, auto, (n) => this.seats.some((s) => s.name === n), this.seats.length + 1);
     const pid = this.seats.length;
     const token = makeToken(this.rng);
     this.seats.push({ pid, name: unique, isBot: false, token, back: sanitizeBack(back), connected: true });
@@ -280,7 +294,7 @@ export class Room {
   }
 
   /** Ein neuer Spieler übernimmt einen Bot-Platz oder den Platz eines länger abwesenden Spielers. */
-  claim(pid: number, name: string, now = Date.now(), back?: string): { pid: number; token: string } | Result {
+  claim(pid: number, name: string, now = Date.now(), back?: string, auto = false): { pid: number; token: string } | Result {
     if (!this.state) return fail('net.notStarted');
     if (this.state.finished) return fail('net.alreadyStarted');
     const seat = this.seats[pid];
@@ -288,7 +302,7 @@ export class Room {
     if (!this.isClaimable(seat, now)) return fail('net.seatTaken');
     const clean = sanitizeName(name) || `Spieler ${pid + 1}`;
     const taken = (n: string) => this.seats.some((o) => o.pid !== pid && o.name === n);
-    const unique = taken(clean) ? `${clean} ${pid + 1}` : clean;
+    const unique = this.nameFor(clean, auto, taken, pid + 1);
     const token = makeToken(this.rng);
     seat.isBot = false;
     delete seat.bot;

@@ -414,4 +414,17 @@ describe('Räume', () => {
     expect(room.setBack(2, 'teppich').ok).toBe(false); // Bots haben keine eigene Rückseite
     expect(room.lobbyView().seats.map((s) => s.back)).toEqual(['mond', 'teppich', undefined]);
   });
+
+  it('Ohne gewählten Namen bekommt man bei Kollision einen anderen freien Ersatznamen statt einer Nummer', () => {
+    const room = new Rooms(41).create();
+    room.addHuman('Bourne', undefined, true);
+    for (let i = 0; i < 3; i++) room.addHuman('Bourne', undefined, true);
+    const names = room.seats.map((x) => x.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.some((n) => /\d$/.test(n) && n.startsWith('Bourne'))).toBe(false);
+    const manual = new Rooms(42).create();
+    manual.addHuman('Anna');
+    manual.addHuman('Anna'); // selbst gewählt: bekommt weiter die Nummer
+    expect(manual.seats[1].name).toBe('Anna 2');
+  });
 });

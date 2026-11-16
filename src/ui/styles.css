@@ -235,11 +235,11 @@ details > * + * { margin-top: var(--gap-tight); }
 .meld.clickable { cursor: pointer; }
 
 /* Stapel, Teppichkarte, Ablage */
-.piles { display: grid; grid-template-columns: auto auto; align-items: center; justify-content: center; column-gap: var(--pile-gap); row-gap: var(--gap-hair); font-size: var(--fs-micro); color: var(--text-muted); }
+.piles { display: grid; grid-template-columns: auto auto; align-items: start; justify-content: center; column-gap: var(--pile-gap); row-gap: var(--gap-hair); font-size: var(--fs-micro); color: var(--text-muted); }
 /* Beschriftungen in einer Reihe; "Stapel" mittig unter der Stapelkarte, nicht unter Stapel und Teppichkarte zusammen */
 .pile-label { text-align: center; }
 .pile-label.stock-label { width: var(--card-w); margin-left: var(--stock-shift); justify-self: start; }
-.stock-wrap { position: relative; margin-left: var(--stock-shift); }
+.stock-wrap { position: relative; margin-left: var(--stock-shift); margin-top: var(--discard-y); } /* Stapelkarte und Ablage-Platz beginnen auf gleicher Höhe, egal wie dick der Stapel ist */
 .stock-wrap .count-on-card { pointer-events: none; position: absolute; left: var(--count-x); top: var(--count-y); width: var(--count-size); height: var(--count-size); background: var(--surface-field); border: var(--bw) solid var(--line); color: var(--text-strong); font-size: var(--fs-body); line-height: calc(var(--count-size) - 2 * var(--bw)); text-align: center; z-index: 2; }
 .carpet { position: absolute; top: 0; left: var(--carpet-shift); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
 .carpet .card { box-shadow: var(--sh-card); }
