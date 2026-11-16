@@ -173,6 +173,16 @@ export function nextIndex(state: GameState, i: number): number {
   return (i + 1) % state.players.length;
 }
 
+/**
+ * Reihenfolge der Spalten in Punkteübersichten: Der Startspieler der ersten Runde zuerst, danach die anderen in
+ * Spielreihenfolge. Hängt nicht von Namen oder Punkten ab und bleibt über alle Runden gleich.
+ */
+export function scoreOrder(state: GameState): number[] {
+  const n = state.players.length;
+  const first = (((state.round.starter - (state.round.no - 1)) % n) + n) % n;
+  return Array.from({ length: n }, (_, i) => (first + i) % n);
+}
+
 export function dealRound(state: GameState, no: number, dealer: number): RoundState {
   const rng = makeRng(state.seed + no * 7919);
   let deck = shuffle(makeDeck(), rng);

@@ -4,6 +4,9 @@
  * Die Kapitel unten haben dieselben Nummern wie der Design Guide.
  */
 
+/* Überschriftenschrift Tiny5 Duo (OFL), nur Schnitt 700, Teilmenge Latein; siehe fonts/LICENSE-Tiny5Duo.txt */
+@font-face { font-family: 'Tiny5 Duo'; font-weight: 700; font-style: normal; font-display: swap; src: url('./fonts/Tiny5Duo-700.woff2') format('woff2'); }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
@@ -292,6 +295,10 @@ table.scores tr.winner td { color: var(--text-accent); font-weight: var(--fw-bol
 .choose-meld .card { margin-left: var(--px-ov-meld); }
 .choose-meld .card:first-child { margin-left: 0; }
 /* Punkteverlauf */
+/* Alle Spielerspalten gleich breit, egal wie lang die Namen sind */
+table.rounds { table-layout: fixed; }
+table.rounds th, table.rounds td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.rounds th:first-child, table.rounds td:first-child { width: var(--w-round-label); }
 table.rounds td.cell { position: relative; }
 table.rounds .bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--surface-highlight); z-index: 0; }
 table.rounds td.cell.win .bar { background: var(--surface-positive); }

@@ -303,7 +303,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     code: `${f.css}: ${f.value}`,
     stage: () => h('div', { style: { fontFamily: `var(${f.css})`, fontSize: 'var(--fs-body)' } }, sample),
     stageCls: 'flat' as const,
-    facts: [['Quelle', f.css === '--font-body' ? '@fontsource/vt323 (latin, latin-ext), geladen in main.ts' : '@fontsource/pixelify-sans 600 (latin, latin-ext), geladen in main.ts']],
+    facts: [['Quelle', f.css === '--font-body' ? '@fontsource/vt323 (latin, latin-ext), geladen in main.ts' : 'Tiny5 Duo 700 (Google Fonts, OFL), selbst eingebunden: src/ui/fonts, @font-face in styles.css']],
   }));
   const weightSpecs: Spec[] = WEIGHT_TOKENS.map((w) => ({
     id: w.id,
@@ -646,7 +646,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       'div',
       { style: { width: '100%', display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gridTemplateRows: 'auto calc(3 * var(--size-btn-icon)) auto auto auto auto', gap: 'var(--gap-tight)' } },
       box('6.01', 'Kopfzeile', { gridColumn: '1 / 4' }),
-      box('6.11', 'Sitz oben (nur bei 3 Bots)', { gridColumn: '1 / 4' }),
+      box('6.11', 'Sitz oben (bei 4 Spielern)', { gridColumn: '1 / 4' }),
       box('6.12', 'Sitz links', {}),
       box('6.14', 'Mitte: Stapel, Teppichkarte, Ablage', {}),
       box('6.13', 'Sitz rechts', {}),
@@ -708,10 +708,50 @@ export function chapters(env: GuideEnv): Chapter[] {
 
   // ----- 7 Fenster
   const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { margin: '0 auto' } }, ...children);
-  const roundsTable = (): HTMLElement =>
-    h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, h('th', null, ''), h('th', { class: 'num' }, 'Du'), h('th', { class: 'num' }, 'Emil'))), h('tbody', null,
-      h('tr', null, h('td', { class: 'muted' }, t('round.short', { n: 1 })), h('td', { class: 'num cell win' }, h('div', { class: 'bar', style: { width: '0%' } }), h('span', { class: 'sum' }, '0'), h('span', { class: 'delta' }, '·')), h('td', { class: 'num cell' }, h('div', { class: 'bar', style: { width: '60%' } }), h('span', { class: 'sum' }, '38'), h('span', { class: 'delta' }, '+38'))),
-      h('tr', null, h('td', { class: 'muted' }, t('round.short', { n: 2 })), h('td', { class: 'num cell' }, h('div', { class: 'bar', style: { width: '40%' } }), h('span', { class: 'sum' }, '25'), h('span', { class: 'delta' }, '+25')), h('td', { class: 'num cell win' }, h('div', { class: 'bar', style: { width: '60%' } }), h('span', { class: 'sum' }, '38'), h('span', { class: 'delta' }, '·')))));
+  // Standard sind vier Spieler: Spalten in Spielreihenfolge ab dem Startspieler der ersten Runde (App.renderRoundsTable)
+  const players4 = ['Emil', 'Du', 'Zhao', 'Neo'];
+  const roundPoints = [
+    [14, 100, 28, 100],
+    [48, 0, 200, 36],
+    [16, 2, 100, 4],
+    [0, 25, 12, 60],
+  ];
+  const roundsTable = (): HTMLElement => {
+    const sums = players4.map(() => 0);
+    const total = players4.map((_, i) => roundPoints.reduce((a, r) => a + r[i], 0));
+    const max = Math.max(...total);
+    return h(
+      'table',
+      { class: 'scores rounds' },
+      h('thead', null, h('tr', null, h('th', null, ''), ...players4.map((n) => h('th', { class: 'num' }, n)))),
+      h(
+        'tbody',
+        null,
+        ...roundPoints.map((r, ri) => {
+          const win = r.indexOf(Math.min(...r));
+          return h(
+            'tr',
+            null,
+            h('td', { class: 'muted' }, t('round.short', { n: ri + 1 })),
+            ...r.map((pts, i) => {
+              sums[i] += pts;
+              return h('td', { class: `num cell${win === i && pts === 0 ? ' win' : ''}` }, h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } }), h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, pts ? `+${pts}` : '·'));
+            }),
+          );
+        }),
+      ),
+    );
+  };
+  /** Zeile der Auswertung; `rest`: offene Restkarten (opened) oder verdeckte (closed). */
+  const h2row = (winner: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string): HTMLElement =>
+    h(
+      'tr',
+      { class: winner ? 'winner' : '' },
+      h('td', null, name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
+      h('td', { class: 'num' }, base, factor ? h('div', { class: 'factors' }, factor) : null),
+      h('td', { class: 'num' }, total),
+      h('td', { class: 'num' }, sum),
+    );
   const windows: Spec[] = [
     { id: '7.01', name: 'Fenster (Grundform)', where: 'Alle Fenster: Titel, Inhalt, Knöpfe auf Abdunkelung; max. 230 u breit', code: 'windowEl(children, onBackdrop?)', sel: '.overlay > .dialog', stage: () => dlg(h('h2', null, t('pause.title')), h('p', null, t('pause.text')), btn(t('pause.resume'), undefined, { variant: 'primary' })), stageCls: 'flat', live: 'box', liveSel: '.dialog' },
     { id: '7.02', name: 'Entscheidung', where: 'Cheft ansagen: Abbrechen | Aktion (primär)', code: 'askDialog({ buttons: [Abbrechen, Aktion] })', stage: () => dlg(h('h2', null, t('confirm.cheft.title')), h('p', null, t('confirm.cheft')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
@@ -719,8 +759,28 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '7.04', name: 'Eingabe', where: 'Spielstand-Code einfügen', code: 'askDialog({ input })', stage: () => dlg(h('h2', null, t('btn.importSave')), h('p', null, t('save.prompt')), h('textarea', { class: 'text', rows: '3', placeholder: '…' }), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.load'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.05', name: 'Information', where: 'Code zum Kopieren, wenn die Zwischenablage nicht geht', code: 'askDialog({ back: true })', stage: () => dlg(h('h2', null, t('lobby.copy')), h('textarea', { class: 'text', rows: '2', readonly: 'readonly' }, 'https://cheft.beigi.eu/232'), backBtn(() => undefined)), stageCls: 'flat' },
     { id: '7.06', name: 'Einstellungen', where: 'Menü (Zahnrad im Spiel): Tempo, Vibration, Sounds, Bildschirm, Karte ziehen; im Spiel zusätzlich Pause, Spielstand, Abbrechen', code: 'App.renderSettings()', stage: () => dlg(h('h2', null, t('btn.settings')), choiceDemo(), btn(t('btn.exportSave')), btn(t('btn.quit'), undefined, { variant: 'danger' }), backBtn(() => undefined)), stageCls: 'flat' },
-    { id: '7.07', name: 'Punkteübersicht', where: 'Punkte-Piktogramm in der Kopfzeile; am Spielende in der Auswertung', code: 'App.renderRoundsTable() · table.scores.rounds', sel: 'table.rounds', stage: () => dlg(roundsTable(), backBtn(() => undefined)), stageCls: 'flat' },
-    { id: '7.08', name: 'Auswahl der Kombination', where: 'Wenn Karten sich verschieden auslegen lassen; Joker-Ende', code: '.choose-option · App.renderChooser()', sel: '.choose-option', stage: () => dlg(h('h2', null, t('choose.title')), hint(t('choose.hint')), h('div', { class: 'choose-option' }, h('div', { class: 'choose-melds' }, h('div', { class: 'choose-meld' }, c(card('H', 4, -801), { mini: true }), c(card('H', 5, -802), { mini: true }), c(card('H', 6, -803), { mini: true }))), hint(t('choose.augen', { n: 15 }))), btn(t('btn.cancel'))), stageCls: 'flat' },
+    { id: '7.07', name: 'Punkteübersicht', where: 'Punkte-Piktogramm in der Kopfzeile; am Spielende in der Auswertung. Vier Spieler, alle Spalten gleich breit, Reihenfolge ab dem Startspieler der ersten Runde in Spielreihenfolge', code: 'App.renderRoundsTable() · table.scores.rounds', sel: 'table.rounds', stage: () => dlg(roundsTable(), backBtn(() => undefined)), stageCls: 'flat' },
+    {
+      id: '7.08',
+      name: 'Auswahl der Kombination',
+      where: 'Wenn Karten sich verschieden auslegen lassen (hier: ♥5 ♦5 ♣5 ♠5 ♥6 ♥7 Joker, drei Möglichkeiten mit 41, 41 und 38 Augen); auch Joker-Ende',
+      code: '.choose-option · App.renderChooser()',
+      sel: '.choose-option',
+      stage: () => {
+        const k = (suit: Card['suit'], rank: number, id: number) => c(card(suit, rank, id), { mini: true });
+        const option = (meldCards: Child[][], augen: number) => h('div', { class: 'choose-option' }, h('div', { class: 'choose-melds' }, ...meldCards.map((m) => h('div', { class: 'choose-meld' }, ...m))), hint(t('choose.augen', { n: augen })));
+        const jk = () => c(jack, { mini: true });
+        return dlg(
+          h('h2', null, t('choose.title')),
+          hint(t('choose.hint')),
+          option([[k('H', 6, -811), k('H', 7, -812), jk()], [k('C', 5, -813), k('D', 5, -814), k('H', 5, -815), k('S', 5, -816)]], 41),
+          option([[k('H', 5, -821), k('H', 6, -822), k('H', 7, -823), jk()], [k('C', 5, -824), k('D', 5, -825), k('S', 5, -826)]], 41),
+          option([[k('H', 5, -831), k('H', 6, -832), k('H', 7, -833)], [k('C', 5, -834), k('D', 5, -835), jk(), k('S', 5, -836)]], 38),
+          btn(t('btn.cancel')),
+        );
+      },
+      stageCls: 'flat',
+    },
     { id: '7.09', name: 'Pause', where: 'Online: Spiel angehalten (keine „Zurück“-Möglichkeit, nur Weiter)', code: 'App.renderPause()', stage: () => dlg(h('h2', null, t('pause.title')), h('p', null, t('pause.waiting', { names: 'Emil' })), btn(t('pause.resumeAnyway'), undefined, { variant: 'primary' }), hint(t('wait.others', { names: 'Zhao' }), true)), stageCls: 'flat' },
     {
       id: '7.10',
@@ -730,8 +790,11 @@ export function chapters(env: GuideEnv): Chapter[] {
       sel: 'table.scores:not(.rounds)',
       stage: () => dlg(h('h2', null, t('roundEnd.title', { n: 2 })), h('p', null, t('roundEnd.winner', { name: 'Emil' })), h('p', { class: 'accent' }, t('roundEnd.hand')),
         h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
-          h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil', h('div', { class: 'factors' }, t('mode.romme'))), h('td', { class: 'num' }, '0', h('div', { class: 'factors' }, t('factor.hand'))), h('td', { class: 'num' }, '0'), h('td', { class: 'num' }, '0')),
-            h('tr', null, h('td', null, 'Du', h('div', { class: 'factors' }, t('mode.cheft')), h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` })))), h('td', { class: 'num' }, '100'), h('td', { class: 'num' }, '100'), h('td', { class: 'num' }, '100')))),
+          h('tbody', null,
+            h2row(true, 'Emil', 'romme', null, '0', t('factor.hand'), '0', '14'),
+            h2row(false, 'Neo', 'romme', 'opened', '36', '', '36', '136'),
+            h2row(false, 'Du', 'cheft', 'closed', '100', t('factor.cheftLost'), '200', '302'),
+            h2row(false, 'Zhao', 'romme', 'closed', '100', '', '100', '228'))),
         h('div', { class: 'btn-row' }, btn(t('btn.peekTable')), btn(t('btn.nextRound'), undefined, { variant: 'primary' }))),
       stageCls: 'flat',
     },
@@ -742,7 +805,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       where: 'Nach der letzten Runde: Sieger, Auswertung mit Rollen der Bots (Stufe · Spielweise, orange), Punkteverlauf',
       code: 'App.renderRoundEnd() · .factors.accent · table.rounds',
       stage: () => dlg(h('h2', null, t('gameEnd.title')), h('p', null, t('gameEnd.winner', { name: 'Emil', n: 38 })),
-        h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil', h('div', { class: 'factors' }, t('mode.romme')), h('div', { class: 'factors accent' }, `${t('level.hard')} · ${t('style.sprinter')}`)), h('td', { class: 'num' }, '0'), h('td', { class: 'num' }, '38')))),
+        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Du'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Du' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i]); r.firstElementChild!.append(h('div', { class: 'factors accent' }, n === 'Du' ? '' : `${t(['level.hard', 'level.easy', 'level.master'][i % 3])} · ${t(['style.sprinter', 'style.counter', 'style.gambler'][i % 3])}`)); return r; }))),
         h('div', null, h('h3', null, t('gameEnd.rounds')), roundsTable()),
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',
@@ -878,7 +941,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       n: 2,
       title: 'Typografie',
-      intro: 'Zwei Schriften: VT323 für Text, Pixelify Sans (600) für Überschriften. Sieben Größen. Die Spezifikation unter jedem Muster ist live aus dem Element gelesen, nicht abgeschrieben.',
+      intro: 'Zwei Schriften: VT323 für Text, Tiny5 Duo Bold (700) für Überschriften. Sieben Größen. Die Spezifikation unter jedem Muster ist live aus dem Element gelesen, nicht abgeschrieben.',
       groups: [
         { title: 'Schriftarten', specs: fontSpecs },
         { title: 'Schriftschnitte', specs: weightSpecs },

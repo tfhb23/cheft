@@ -122,16 +122,16 @@ export interface ValueToken {
   use: string;
 }
 
-/** Schriftarten. VT323 ist die Textschrift, Pixelify Sans (600) die Überschriftenschrift. */
+/** Schriftarten. VT323 ist die Textschrift, Tiny5 Duo Bold (700) die Überschriftenschrift. */
 export const FONT_TOKENS: ValueToken[] = [
   { id: '2.01', css: '--font-body', name: 'Textschrift', value: "'VT323', 'Courier New', monospace", use: 'Alle Texte, Buttons, Tabellen, Eingaben' },
-  { id: '2.02', css: '--font-head', name: 'Überschriftenschrift', value: "'Pixelify Sans', 'VT323', monospace", use: 'Logo, h2, h3, Rückblick-Banner' },
+  { id: '2.02', css: '--font-head', name: 'Überschriftenschrift', value: "'Tiny5 Duo', 'VT323', monospace", use: 'Logo, h2, h3, Rückblick-Banner' },
 ];
 
 /** Schriftschnitte, die tatsächlich geladen sind (main.ts) bzw. synthetisch erzeugt werden. */
 export const WEIGHT_TOKENS: ValueToken[] = [
   { id: '2.03', css: '--fw-regular', name: 'Normal (400)', value: '400', use: 'VT323: alle Texte' },
-  { id: '2.04', css: '--fw-head', name: 'Halbfett (600)', value: '600', use: 'Pixelify Sans: alle Überschriften' },
+  { id: '2.04', css: '--fw-head', name: 'Fett (700)', value: '700', use: 'Tiny5 Duo Bold: alle Überschriften (800 ExtraBold wäre eine Zeile hier plus Schnitt in styles.css)' },
   { id: '2.05', css: '--fw-bold', name: 'Fett (synthetisch)', value: 'bold', use: 'Vom Browser erzeugtes Fett: Sieger-Zeile in der Auswertung (VT323 hat kein eigenes Fett)' },
 ];
 
@@ -273,6 +273,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Design Guide (ca. 65 Zeichen)' },
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
+  { id: '3.110', css: '--w-round-label', name: 'Breite Rundenspalte', units: 14, use: 'Punkteverlauf: erste Spalte („R1“); alle Spielerspalten teilen sich den Rest gleichmäßig' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
   { id: '3.93', css: '--size-icon-glyph', name: 'Größe Piktogramm', units: 10, use: 'Pixel-Piktogramm im Icon-Button (10 × 10 Pixel)' },

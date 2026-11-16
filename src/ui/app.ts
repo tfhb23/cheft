@@ -16,6 +16,7 @@ import {
   current,
   layOffTargets,
   newGame,
+  scoreOrder,
   startNextRound,
   tableThreshold,
   winnerOfGame,
@@ -2486,7 +2487,7 @@ export class App {
   private renderScores(): HTMLElement {
     const s = this.state!;
     return windowEl(
-      [s.history.length ? this.renderRoundsTable(s.players.map((p) => p.id)) : h('p', { class: 'muted' }, t('scores.none')), backBtn(() => this.back())],
+      [s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')), backBtn(() => this.back())],
       () => this.back(),
     );
   }
@@ -2538,7 +2539,7 @@ export class App {
         h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
         h('tbody', null, ...rows),
       ),
-      s.finished ? this.renderRoundsTable(ordered.map((p) => p.id)) : null,
+      s.finished ? this.renderRoundsTable(scoreOrder(s)) : null,
       h(
         'div',
         { class: 'btn-row' },
