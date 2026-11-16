@@ -111,7 +111,7 @@ describe('Design Guide', () => {
 
   it('Nummern der Elemente sind eindeutig und gültig', () => {
     expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ids) expect(id).toMatch(/^\d{1,2}\.\d{2}$/);
+    for (const id of ids) expect(id).toMatch(/^\d{1,2}\.\d{2,3}$/);
   });
 
   it('Etiketten-Ziele haben gültige Selektoren-Texte', () => {
@@ -153,5 +153,13 @@ describe('Kartenrückseiten', () => {
       }
       expect(seen.size, `${d.id}: mindestens zwei Farben im Feld`).toBeGreaterThan(1);
     }
+  });
+
+  it('jedes Design steht genau einmal in der Reihenfolge einfach → prunkvoll', async () => {
+    const { BACK_DESIGNS, BACK_ORDER, BACK_UNSORTED } = await import('./backs');
+    expect(BACK_UNSORTED).toEqual([]);
+    expect(new Set(BACK_ORDER).size).toBe(BACK_ORDER.length);
+    expect(BACK_DESIGNS.length).toBe(BACK_ORDER.length);
+    expect(BACK_DESIGNS.length).toBeGreaterThanOrEqual(41);
   });
 });

@@ -1,8 +1,11 @@
+import { QUADRANT_DESIGNS, QuadrantDesign } from './backs-data';
+
 /**
  * Kartenrückseiten zur Auswahl (Einstellungen). Jeder Spieler wählt für sich, auch mitten im Spiel; das Design wird
  * nur lokal gezeichnet und hat keinen Einfluss auf den Spielstand oder die Mitspieler.
  *
- * Neues Design: einen Eintrag in BACK_DESIGNS ergänzen. `paint` bekommt je Pixel des Felds (26 × 38, innerhalb des
+ * Neues Design: einen Eintrag in FORMULA_DESIGNS (Formel) oder eine Viertelfläche in backs-data.ts ergänzen; die Reihenfolge in den
+ * Einstellungen ergibt sich automatisch aus dem Detailgrad (backDetail). `paint` bekommt je Pixel des Felds (26 × 38, innerhalb des
  * Rahmens) die Koordinaten und liefert eine Farbrolle oder null (Grundfarbe). Der Rahmen (Tinte, Hauptfarbe, weiße
  * Kontur, abgerundete Ecken) ist für alle Designs gleich und kommt aus sprites.ts.
  *
@@ -30,7 +33,7 @@ export interface BackDesign {
 /** Feldgröße innerhalb des Rahmens. */
 export const BACK_FIELD = { w: 26, h: 38, inset: 3 };
 
-export const BACK_DESIGNS: BackDesign[] = [
+const FORMULA_DESIGNS: BackDesign[] = [
   {
     id: 'classic',
     name: 'Klassik',
@@ -214,8 +217,51 @@ export const BACK_DESIGNS: BackDesign[] = [
   },
 ];
 
-export const DEFAULT_BACK = BACK_DESIGNS[0].id;
+/** Design aus einer Viertelfläche (obere linke Ecke, 13 × 19 Pixel), an beiden Achsen gespiegelt. */
+function fromQuadrant(q: QuadrantDesign): BackDesign {
+  const roles: Record<string, BackRole | null> = { '.': null, d: 'dark', c: 'cream', g: 'gold' };
+  return {
+    id: q.id,
+    name: q.name,
+    paint: ({ x, y }) => roles[q.rows[Math.min(y, BACK_FIELD.h - 1 - y)][Math.min(x, BACK_FIELD.w - 1 - x)]],
+  };
+}
+
+/** Detailgrad: Anzahl der Farbwechsel zwischen Nachbarpixeln im Feld. Je höher, desto detailreicher und prunkvoller. */
+export function backDetail(d: BackDesign): number {
+  const at = (x: number, y: number) => d.paint({ x, y, dx: Math.abs(x - (BACK_FIELD.w - 1) / 2), dy: Math.abs(y - (BACK_FIELD.h - 1) / 2) }) ?? 'main';
+  let n = 0;
+  for (let y = 0; y < BACK_FIELD.h; y++) {
+    for (let x = 0; x < BACK_FIELD.w; x++) {
+      if (x + 1 < BACK_FIELD.w && at(x, y) !== at(x + 1, y)) n++;
+      if (y + 1 < BACK_FIELD.h && at(x, y) !== at(x, y + 1)) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Reihenfolge in den Einstellungen: von einfach (ein kleines Element, ruhiges Muster) zu detailreich und prunkvoll
+ * (Ornamente, Ränder, dichte Muster). Von Hand nach Anblick sortiert; backDetail dient dabei nur als Anhaltspunkt für
+ * das dichte Ende. Ein neues Design bekommt hier seinen Platz (der Test erzwingt das).
+ */
+export const BACK_ORDER = [
+  'classic', 'ring', 'raute', 'lotus', 'sonne', 'stern', 'rosette', 'raute-ecken', 'achtecke-2', 'faecher-4',
+  'medaillon-schach', 'strahlen-1', 'strahlen-2', 'toranj', 'kartusche-2', 'kartusche-1', 'kartusche-4', 'kartusche-3',
+  'stern-rahmen', 'ranken-1', 'ranken-2', 'zwei-kreise', 'faecher-3', 'faecher-2', 'faecher-1', 'achtecke-1',
+  'guilloche-3', 'guilloche-1', 'guilloche-2', 'loewe-sonne', 'gitter-2', 'gitter-1', 'gitter-4', 'gitter-3', 'herati',
+  'schlacht', 'geometrie-3', 'geometrie-2', 'geometrie-5', 'geometrie-4', 'geometrie-1',
+];
+
+const ALL_DESIGNS: BackDesign[] = [...FORMULA_DESIGNS, ...QUADRANT_DESIGNS.map(fromQuadrant)];
+
+export const BACK_DESIGNS: BackDesign[] = BACK_ORDER.map((id) => ALL_DESIGNS.find((d) => d.id === id)!).filter(Boolean);
+
+/** Designs, die in BACK_ORDER fehlen (für den Test). */
+export const BACK_UNSORTED: string[] = ALL_DESIGNS.filter((d) => !BACK_ORDER.includes(d.id)).map((d) => d.id);
+
+export const DEFAULT_BACK = 'classic';
 
 export function backDesign(id: string | undefined): BackDesign {
-  return BACK_DESIGNS.find((d) => d.id === id) ?? BACK_DESIGNS[0];
+  return BACK_DESIGNS.find((d) => d.id === id) ?? BACK_DESIGNS.find((d) => d.id === DEFAULT_BACK)!;
 }
