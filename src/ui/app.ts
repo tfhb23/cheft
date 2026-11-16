@@ -406,7 +406,12 @@ export class App {
     if (this.drag) return; // während des Ziehens nicht neu aufbauen
     const tableEl = this.root.querySelector('.table');
     const scroll = tableEl ? tableEl.scrollTop : 0;
-    const menuScroll = this.root.querySelector('.menu')?.scrollTop ?? 0;
+    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Design Guide (.view-body)
+    const scrollers = ['.menu', '.view-body'].map((sel) => [sel, this.root.querySelector(sel)?.scrollTop ?? 0] as const);
+    // Auch ein Fenster, das selbst scrollt (Einstellungen mit vielen Rückseiten), behält seine Scrollposition beim Neuaufbau
+    const oldDialog = this.root.querySelector('.overlay > .dialog');
+    const dialogScroll = oldDialog?.scrollTop ?? 0;
+    const dialogKey = oldDialog?.querySelector('h2')?.textContent ?? '';
     const prevScreen = this.root.dataset.screen;
     clear(this.root);
     this.root.dataset.screen = this.screen;
@@ -437,12 +442,19 @@ export class App {
         if (nt) nt.scrollTop = scroll;
         break;
     }
-    // Gleicher Bildschirm (z. B. Einstellung angetippt): Scrollposition der Menüliste behalten.
-    if (prevScreen === this.screen && menuScroll > 0) {
-      const nm = this.root.querySelector('.menu');
-      if (nm) nm.scrollTop = menuScroll;
+    // Gleicher Bildschirm (z. B. Einstellung angetippt, Nummern im Guide umgeschaltet): Scrollposition behalten.
+    // Beim Wechsel zu einem anderen Bildschirm beginnt die Ansicht oben.
+    if (prevScreen === this.screen) {
+      for (const [sel, pos] of scrollers) {
+        const el = pos > 0 ? this.root.querySelector(sel) : null;
+        if (el) el.scrollTop = pos;
+      }
     }
     if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
+    if (dialogScroll > 0) {
+      const nd = this.root.querySelector('.overlay > .dialog');
+      if (nd && nd.querySelector('h2')?.textContent === dialogKey) nd.scrollTop = dialogScroll;
+    }
     void this.syncWakeLock();
     this.labels.refresh(this.prefs.dsLabels);
   }
@@ -1914,70 +1926,75 @@ export class App {
       { v: true, label: t('settings.on') },
       { v: false, label: t('settings.off') },
     ];
-    return windowEl(
-      [
-        h('h2', null, t('btn.settings')),
-        inGame && this.online && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
-        this.choice(
-          t('settings.vibration'),
-          onOff,
-          () => this.prefs.vibration,
-          (v) => {
-            this.prefs.vibration = v as boolean;
-            // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
-            if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
-          },
-        ),
-        this.choice(
-          t('settings.sound'),
-          onOff,
-          () => this.prefs.sound,
-          (v) => {
-            this.prefs.sound = v as boolean;
-            // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
-            setSoundEnabled(this.prefs.sound);
-            if (this.prefs.sound) {
-              unlockAudio();
-              play('lay');
-            }
-          },
-        ),
-        this.choice(
-          t('settings.keepAwake'),
-          onOff,
-          () => this.prefs.keepAwake,
-          (v) => {
-            this.prefs.keepAwake = v as boolean;
-            void this.syncWakeLock();
-          },
-        ),
-        this.choice(
-          t('settings.safeDraw'),
-          [
-            { v: true, label: t('settings.safeDraw.yes') },
-            { v: false, label: t('settings.safeDraw.no') },
-          ],
-          () => this.prefs.safeDraw,
-          (v) => {
-            this.prefs.safeDraw = v as boolean;
-            this.disarm();
-          },
-        ),
-        inGame && this.online && this.state && !this.state.finished
-          ? btn(t('btn.pause'), () => {
-              this.showSettings = false;
-              this.net?.pause(true);
-              this.render();
-            })
-          : null,
-        inGame && !this.online ? btn(t('btn.exportSave'), () => this.exportSave()) : null,
-        inGame && !this.online ? btn(t('btn.saveQuit'), () => this.saveAndQuit()) : null,
-        !inGame ? null : this.online ? btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }) : btn(t('btn.quit'), () => this.quitGame(), { variant: 'danger' }),
-        this.cardBackChoice(),
-        backBtn(() => this.back()),
-      ],
-      () => this.back(),
+    // Im Spiel zuerst, was das laufende Spiel betrifft (Pause, Spielstand, Speichern, Abbrechen), danach die allgemeinen Einstellungen
+    const gameActions = inGame
+      ? h(
+          'div',
+          { class: 'menu-group' },
+          this.online && this.state && !this.state.finished
+            ? btn(t('btn.pause'), () => {
+                this.showSettings = false;
+                this.net?.pause(true);
+                this.render();
+              })
+            : null,
+          !this.online ? btn(t('btn.exportSave'), () => this.exportSave()) : null,
+          !this.online ? btn(t('btn.saveQuit'), () => this.saveAndQuit()) : null,
+          this.online ? btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }) : btn(t('btn.quit'), () => this.quitGame(), { variant: 'danger' }),
+        )
+      : null;
+    const general = h(
+      'div',
+      { class: 'menu-group' },
+      inGame && this.online && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
+      this.choice(
+        t('settings.vibration'),
+        onOff,
+        () => this.prefs.vibration,
+        (v) => {
+          this.prefs.vibration = v as boolean;
+          // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
+          if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
+        },
+      ),
+      this.choice(
+        t('settings.sound'),
+        onOff,
+        () => this.prefs.sound,
+        (v) => {
+          this.prefs.sound = v as boolean;
+          // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
+          setSoundEnabled(this.prefs.sound);
+          if (this.prefs.sound) {
+            unlockAudio();
+            play('lay');
+          }
+        },
+      ),
+      this.choice(
+        t('settings.keepAwake'),
+        onOff,
+        () => this.prefs.keepAwake,
+        (v) => {
+          this.prefs.keepAwake = v as boolean;
+          void this.syncWakeLock();
+        },
+      ),
+      this.choice(
+        t('settings.safeDraw'),
+        [
+          { v: true, label: t('settings.safeDraw.yes') },
+          { v: false, label: t('settings.safeDraw.no') },
+        ],
+        () => this.prefs.safeDraw,
+        (v) => {
+          this.prefs.safeDraw = v as boolean;
+          this.disarm();
+        },
+      ),
+      this.cardBackChoice(),
     );
+    return windowEl([h('h2', null, t('btn.settings')), gameActions, general, backBtn(() => this.back())], () => this.back());
   }
 
   /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */

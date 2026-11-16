@@ -105,7 +105,9 @@ details > * + * { margin-top: var(--gap-tight); }
 
 /* Auswahl der Kartenrückseite: Vorschaubild in der Größe der Karten im Spiel (--card-w × --card-h) im Button */
 .thumb { display: block; width: var(--card-w); height: var(--card-h); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
-.option .choices.back-choices { flex-wrap: wrap; gap: var(--sp-6); padding: var(--sp-4); }
+.option .choices.back-choices { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-4); padding: var(--sp-3); }
+/* Sechs Rückseiten nebeneinander: die Karten füllen ihre Spalte (Seitenverhältnis der Karte) */
+.option .choices.back-choices .card { width: 100%; height: auto; aspect-ratio: var(--card-ratio); }
 
 /* Auswahlzeile: Beschriftung über zwei oder mehr gleich breiten Knöpfen */
 .option { display: flex; flex-direction: column; gap: var(--gap-hair); }
@@ -277,7 +279,7 @@ details > * + * { margin-top: var(--gap-tight); }
 
 /* ===== 7 Fenster und Meldungen ===== */
 .overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: var(--pad-overlay); z-index: var(--z-overlay); }
-.dialog { max-width: var(--w-dialog); width: 100%; max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: var(--gap-stack); }
+.overlay > .dialog { max-width: var(--w-dialog); width: 100%; max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: var(--gap-stack); }
 .dialog .btn { align-self: stretch; text-align: center; }
 table.scores { width: 100%; border-collapse: collapse; font-size: var(--fs-label); }
 table.scores th, table.scores td { text-align: left; padding: var(--sp-1) var(--sp-2); border-bottom: var(--bw) solid var(--line-soft); vertical-align: top; }
