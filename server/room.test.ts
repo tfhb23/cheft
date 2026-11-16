@@ -292,9 +292,9 @@ describe('Räume', () => {
     const room = new Rooms(18).create();
     room.addHuman('A');
     expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
     room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true, speed: undefined });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
     room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.updateSettings({ rounds: 11 }).ok).toBe(false); // nur 3, 5, 7, 9
@@ -402,5 +402,29 @@ describe('Räume', () => {
     expect(room.rename(0, 'Anna').ok).toBe(true);
     expect(room.state!.players[0].name).toBe('Anna');
     expect(room.lobbyView().seats[0].name).toBe('Anna');
+  });
+
+  it('Kartenrückseiten: pro Spieler gespeichert, geprüft, umstellbar; Bots haben keine', () => {
+    const room = new Rooms(5).create();
+    room.addHuman('A', 'mond');
+    room.addHuman('B', '<script>');
+    room.addBot({ level: 'easy', style: 'random' });
+    expect(room.seats.map((s) => s.back)).toEqual(['mond', undefined, undefined]);
+    expect(room.setBack(1, 'teppich').ok).toBe(true);
+    expect(room.setBack(2, 'teppich').ok).toBe(false); // Bots haben keine eigene Rückseite
+    expect(room.lobbyView().seats.map((s) => s.back)).toEqual(['mond', 'teppich', undefined]);
+  });
+
+  it('Ohne gewählten Namen bekommt man bei Kollision einen anderen freien Ersatznamen statt einer Nummer', () => {
+    const room = new Rooms(41).create();
+    room.addHuman('Bourne', undefined, true);
+    for (let i = 0; i < 3; i++) room.addHuman('Bourne', undefined, true);
+    const names = room.seats.map((x) => x.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.some((n) => /\d$/.test(n) && n.startsWith('Bourne'))).toBe(false);
+    const manual = new Rooms(42).create();
+    manual.addHuman('Anna');
+    manual.addHuman('Anna'); // selbst gewählt: bekommt weiter die Nummer
+    expect(manual.seats[1].name).toBe('Anna 2');
   });
 });

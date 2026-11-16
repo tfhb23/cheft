@@ -8,6 +8,7 @@ import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '.
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots } from '../src/bot/names';
+import { FORGOTTEN_NAMES } from '../src/ui/names';
 
 export type Speed = 'normal' | 'fast';
 
@@ -34,6 +35,8 @@ export interface Seat {
   bot?: BotProfile;
   botChoice?: BotChoice;
   token?: string;
+  /** Kennung der Kartenrückseite, die dieser Spieler gewählt hat (nur Anzeige; Bots haben keine). */
+  back?: string;
   connected: boolean;
   /** Zeitpunkt der Trennung (für Autopilot). */
   disconnectedAt?: number;
@@ -50,7 +53,7 @@ export interface LobbyView {
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: LobbySettings;
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 /** Platz, den ein neu hinzukommender Spieler übernehmen kann. */
@@ -100,7 +103,7 @@ export class Room {
   readonly code: string;
   seats: Seat[] = [];
   hostPid = 0;
-  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true };
+  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
   /** Wer die Pause beenden will; es geht erst weiter, wenn alle aktiven Menschen bestätigt haben. */
@@ -123,14 +126,27 @@ export class Room {
   }
 
   // ------------------------------------------------------------ Lobby
-  addHuman(name: string): { pid: number; token: string } | Result {
+  /**
+   * Hat jemand keinen Namen gewählt (auto), ist der vorgeschlagene Name aber schon vergeben, bekommt er einen anderen
+   * freien Ersatznamen statt einer Nummer. Selbst gewählte Namen behalten die Nummer („Anna 2“).
+   */
+  private nameFor(clean: string, auto: boolean, taken: (n: string) => boolean, number: number): string {
+    if (!taken(clean)) return clean;
+    if (auto) {
+      const free = FORGOTTEN_NAMES.filter((n) => !taken(n));
+      if (free.length) return free[Math.floor(this.rng() * free.length)];
+    }
+    return `${clean} ${number}`;
+  }
+
+  addHuman(name: string, back?: string, auto = false): { pid: number; token: string } | Result {
     if (this.started) return fail('net.alreadyStarted');
     if (this.seats.length >= MAX_PLAYERS) return fail('net.full');
     const clean = sanitizeName(name) || `Spieler ${this.seats.length + 1}`;
-    const unique = this.seats.some((s) => s.name === clean) ? `${clean} ${this.seats.length + 1}` : clean;
+    const unique = this.nameFor(clean, auto, (n) => this.seats.some((s) => s.name === n), this.seats.length + 1);
     const pid = this.seats.length;
     const token = makeToken(this.rng);
-    this.seats.push({ pid, name: unique, isBot: false, token, connected: true });
+    this.seats.push({ pid, name: unique, isBot: false, token, back: sanitizeBack(back), connected: true });
     this.touch();
     return { pid, token };
   }
@@ -176,6 +192,15 @@ export class Room {
     if (taken(unique)) return fail('net.nameTaken');
     seat.name = unique;
     if (this.state) this.state.players[pid].name = unique;
+    this.touch();
+    return ok;
+  }
+
+  /** Spieler stellt seine Kartenrückseite um (wirkt nur auf die Anzeige bei den anderen). */
+  setBack(pid: number, back: string): Result {
+    const seat = this.seats[pid];
+    if (!seat || seat.isBot) return fail('net.noSuchSeat');
+    seat.back = sanitizeBack(back);
     this.touch();
     return ok;
   }
@@ -269,7 +294,7 @@ export class Room {
   }
 
   /** Ein neuer Spieler übernimmt einen Bot-Platz oder den Platz eines länger abwesenden Spielers. */
-  claim(pid: number, name: string, now = Date.now()): { pid: number; token: string } | Result {
+  claim(pid: number, name: string, now = Date.now(), back?: string, auto = false): { pid: number; token: string } | Result {
     if (!this.state) return fail('net.notStarted');
     if (this.state.finished) return fail('net.alreadyStarted');
     const seat = this.seats[pid];
@@ -277,12 +302,13 @@ export class Room {
     if (!this.isClaimable(seat, now)) return fail('net.seatTaken');
     const clean = sanitizeName(name) || `Spieler ${pid + 1}`;
     const taken = (n: string) => this.seats.some((o) => o.pid !== pid && o.name === n);
-    const unique = taken(clean) ? `${clean} ${pid + 1}` : clean;
+    const unique = this.nameFor(clean, auto, taken, pid + 1);
     const token = makeToken(this.rng);
     seat.isBot = false;
     delete seat.bot;
     delete seat.botChoice;
     seat.token = token;
+    seat.back = sanitizeBack(back);
     seat.name = unique;
     seat.connected = true;
     seat.disconnectedAt = undefined;
@@ -318,7 +344,7 @@ export class Room {
     });
     this.hostPid = snap.hostPid;
     // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
-    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'manual', peekDiscards: true, sortedDeal: true };
+    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
     this.rev = snap.rev;
@@ -496,6 +522,7 @@ export class Room {
         connected: s.connected,
         isHost: s.pid === host,
         botLabel: s.isBot && s.botChoice ? `${s.botChoice.level}/${s.botChoice.style}` : undefined,
+        back: s.back,
       })),
     };
   }
@@ -508,6 +535,11 @@ export class Room {
     this.lastActivity = Date.now();
     this.rev++;
   }
+}
+
+/** Kennung einer Kartenrückseite: nur kurze, einfache Zeichen; unbekannte Kennungen fallen beim Anzeigen auf den Standard zurück. */
+export function sanitizeBack(back: unknown): string | undefined {
+  return typeof back === 'string' && /^[a-z0-9-]{1,24}$/.test(back) ? back : undefined;
 }
 
 export function sanitizeName(name: string): string {

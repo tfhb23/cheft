@@ -465,7 +465,7 @@ export function findAllPartitions(cards: Card[], opts: PartitionOptions, limit =
   };
 
   const rec = (mask: number, acc: MeldShape[], pairs: number): void => {
-    if (results.length >= limit || steps++ > 20000) return;
+    if (results.length >= limit || steps++ > 400000) return;
     const first = realIdx.find((i) => mask & (1 << i));
     if (first === undefined) {
       const js = jokerIdx.filter((i) => mask & (1 << i));

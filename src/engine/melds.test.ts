@@ -194,3 +194,19 @@ describe('Mehrere Aufteilungen', () => {
     expect(parts.length).toBe(1);
   });
 });
+
+describe('findAllPartitions: alle Möglichkeiten', () => {
+  const mk = (suit: 'H' | 'D' | 'C' | 'S' | 'J', rank: number, id: number) => ({ id, suit, rank });
+  it('bietet den Joker an jeder möglichen Stelle an (auch unten in der Folge)', () => {
+    const cards = [mk('H', 5, 1), mk('D', 5, 2), mk('C', 5, 3), mk('S', 5, 4), mk('H', 6, 5), mk('H', 7, 6), mk('J', 0, 7)];
+    const parts = findAllPartitions(cards, { types: ROMME_TYPES }, 500);
+    const look = parts.map((p) => p.melds.map((m) => m.type + ':' + m.cards.map((c) => (c.suit === 'J' ? 'JK' : c.suit + c.rank)).join(',')).join(' | '));
+    expect(look).toHaveLength(5);
+    expect(look).toContain('run:JK,H5,H6,H7 | set:D5,C5,S5'); // Joker als Herz 4
+    expect(look).toContain('run:H5,H6,H7,JK | set:D5,C5,S5'); // Joker als Herz 8
+    expect(look).toContain('set:H5,D5,C5,S5 | run:JK,H6,H7'); // Joker als Herz 5
+    expect(look).toContain('set:H5,D5,C5,S5 | run:H6,H7,JK'); // Joker als Herz 8
+    expect(look).toContain('run:H5,H6,H7 | set:D5,C5,S5,JK');
+    expect(new Set(parts.map((p) => p.augen)).size).toBeGreaterThan(1);
+  });
+});

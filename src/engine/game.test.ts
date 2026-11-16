@@ -16,6 +16,9 @@ import {
   thresholdFor,
   endRound,
   startNextRound,
+  newGame,
+  dealRound,
+  scoreOrder,
   GameState,
 } from './game';
 import { CardPool, testGame, setHand } from './testutil';
@@ -690,5 +693,16 @@ describe('Wertung', () => {
     startNextRound(g);
     expect(g.round.no).toBe(2);
     expect(g.round.dealer).toBe(1);
+  });
+});
+
+describe('scoreOrder', () => {
+  it('beginnt beim Startspieler der ersten Runde und folgt der Spielreihenfolge', () => {
+    const players = [0, 1, 2, 3].map((id) => ({ id, name: `P${id}`, isBot: false }));
+    const settings = { rounds: 5, firstTurnOpenAllowed: false, direction: 'ccw' as const, peekDiscards: true, sortedDeal: true };
+    const state = newGame(players, settings, 1, 2); // Geber 2, Startspieler 3
+    expect(scoreOrder(state)).toEqual([3, 0, 1, 2]);
+    state.round = dealRound(state, 3, 0); // Runde 3: Startspieler 1, Reihenfolge bleibt
+    expect(scoreOrder(state)).toEqual([3, 0, 1, 2]);
   });
 });

@@ -32,6 +32,7 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
 - Bots haben Rollen aus Gedächtnis (Vergesslich, Normal, Scharfsinnig, Mastermind) und Spielweise (Ausgewogen, Sprinter, Cheft-Fan, Handmacher, Blocker, Zähler, Jokerjäger, Zocker), je Rolle vier Namen (`src/bot/names.ts`). Pro Bot wählbar oder „Zufall“ (gewichtet: Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, der Mastermind nie); Rollen werden am Spielende aufgedeckt. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“.
+- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Bot-Gedächtnis
@@ -110,9 +111,34 @@ src/net/      WebSocket-Client
 src/engine/view.ts  Spieler-Sicht mit maskierten Karten
 server/       Mehrspieler-Server (Räume, Protokoll, Bots)
 src/i18n/     Texte (de.ts; weitere Sprachen als eigene Datei mit gleichen Schlüsseln)
-src/ui/       Oberfläche: Sprite-Atlas (Pixelkarten per Canvas), Spielfeld, Menü, Regeln
-scripts/      Icon-Generator
+src/ui/       Oberfläche
+  tokens.ts     Design-Tokens: Farben, Schriften, Abstände, Maße, Ebenen, Zeiten (einzige Quelle, nummeriert)
+  styles.css    Stile, nur mit Variablen aus tokens.ts (ein Test prüft das)
+  components.ts Gemeinsame Bausteine: Buttons, „Zurück“, Fenster, Toast, Sitz-Beschriftung, Kombination
+  icons.ts      Pixel-Piktogramme
+  sprites.ts    Sprite-Atlas (Pixelkarten per Canvas)
+  sound.ts      Töne und Vibration samt Katalog
+  guide.ts      Design Guide (Menü → „Design Guide“)
+  app.ts        Menü, Spielfeld, Dialoge, Einstellungen
+scripts/      Icon-Generator (liest die Farben aus tokens.ts)
 ```
+
+## Design Guide und Design-Tokens
+
+Im Menü zwischen „Regeln“ und „Einstellungen“ liegt der **Design Guide**. Er zeigt alle Elemente der App mit fester
+Nummer (Kapitel.Zähler, z. B. `4.02` = Button Primär): Farben, Schriften, Abstände, Buttons, alle Karten und Grafiken,
+Spielfeld-Elemente, Fenster, Seiten, Töne und Vibrationen, dazu die Navigationslogik und eine Liste, welcher Abstand wo
+wirkt. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ erscheinen die
+Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die Nummer), damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
+
+- **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
+  auf sie zeigen; eine Rolle (`1.4x`–`1.7x`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
+  der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.37` geben ihnen Bedeutung. `styles.css` enthält
+  keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht.
+- **Neues Element:** Baustein in `components.ts` (oder Klasse in `styles.css`) anlegen und in `guide.ts` unter `chapters()`
+  mit neuer Nummer eintragen; mit `sel` findet es auch die Nummern-Punkte.
+- **Zurück:** Es gibt genau einen Weg, ein Fenster oder eine Seite zu verlassen: `App.back()`. Der Knopf „Zurück“
+  (`backBtn`), ein Tipp neben ein Anzeige-Fenster und die Esc-Taste rufen sie auf. „Abbrechen“ verwirft eine offene Entscheidung.
 
 ## Umgesetzte Regeln (Regelwerk V6 + Vereinbarungen)
 

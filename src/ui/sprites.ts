@@ -3,31 +3,32 @@
  * Logische Kartengröße 32×44 Pixel, auf dem Bildschirm ganzzahlig skaliert.
  */
 import { Card, Suit, isJoker } from '../engine/cards';
+import { CARD_PX, color } from './tokens';
+import { BACK_FIELD, BackDesign, BackRole, backDesign } from './backs';
 
-export const CARD_W = 32;
-export const CARD_H = 44;
-const COLS = 8;
+export const CARD_W = CARD_PX.w;
+export const CARD_H = CARD_PX.h;
+const COLS = CARD_PX.cols;
+/** Zellen im Atlas: 52 Karten, Joker, Rücken A, Platzhalter, Rücken B. */
+export const ATLAS_CELLS = 56;
 
+/** Farben der Kartenkunst; alle Werte stehen in tokens.ts (Kapitel 1). */
 export const PALETTE = {
-  ink: '#23201f',
-  inkLight: '#b9b3ad',
-  cream: '#fbf6ea',
-  creamDark: '#d9cdb3',
-  red: '#d2362a',
-  redLight: '#f2b9ad',
-  orange: '#f06a2d',
-  orangeDark: '#b94718',
-  orangeLight: '#ffb27a',
-  gold: '#f2b53a',
-  sand: '#efe2c6',
-  skin: '#f3cfae',
-  white: '#ffffff',
-  mouth: '#d05a4a',
-  teal: '#4a4440',
-  tealDark: '#23201f',
+  ink: color('ink'),
+  inkLight: color('ink-light'),
+  cream: color('cream'),
+  red: color('red'),
+  redLight: color('red-light'),
+  orange: color('orange'),
+  orangeDark: color('orange-dark'),
+  gold: color('gold'),
+  skin: color('skin'),
+  white: color('white'),
+  mouth: color('mouth'),
+  backB: color('back-b'),
 };
 
-const GLYPHS: Record<string, string[]> = {
+export const GLYPHS: Record<string, string[]> = {
   '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
   '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
   '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
@@ -45,14 +46,14 @@ const GLYPHS: Record<string, string[]> = {
   J: ['..###', '...#.', '...#.', '...#.', '...#.', '#..#.', '.##..'],
 };
 
-const SUIT_SHAPES: Record<Suit, string[]> = {
+export const SUIT_SHAPES: Record<Suit, string[]> = {
   H: ['.##.##.', '#######', '#######', '#######', '.#####.', '..###..', '...#...'],
   D: ['...#...', '..###..', '.#####.', '#######', '.#####.', '..###..', '...#...'],
   C: ['..###..', '..###..', '##.#.##', '#######', '##.#.##', '...#...', '..###..'],
   S: ['...#...', '..###..', '.#####.', '#######', '##.#.##', '...#...', '..###..'],
 };
 
-const STAR = [
+export const STAR = [
   '......#......',
   '.....###.....',
   '.....###.....',
@@ -70,7 +71,7 @@ const STAR = [
 
 
 /** Bildkarten-Figuren 16×19. S Haut, H Haar, G Gold, R Robe, W Weiß, K Kontur, E Auge, M Mund, B Bart, F Feder, L Robe hell */
-const KING = [
+export const KING = [
   '..G.G.G.G.G.G...',
   '..GGGGGGGGGGG...',
   '..GGGKGGGKGGG...',
@@ -91,7 +92,7 @@ const KING = [
   'RRRRRRRRRRRRRRRR',
   'RRRRRRRRRRRRRRRR',
 ];
-const QUEEN = [
+export const QUEEN = [
   '.....G.G.G......',
   '....GGGGGGG.....',
   '...HHHGGGHHH....',
@@ -112,7 +113,7 @@ const QUEEN = [
   'RRRRRRRRRRRRRRRR',
   'RRRRRRRRRRRRRRRR',
 ];
-const JACK = [
+export const JACK = [
   '.......FF.......',
   '......FF........',
   '..RRRRRRRRRRR...',
@@ -133,8 +134,28 @@ const JACK = [
   '.RRRRRRRRRRRRRR.',
   '.RRRRRRRRRRRRRR.',
 ];
-const HAIR: Record<Suit, string> = { H: '#6b3f22', D: '#e8b23a', C: '#2b2b2b', S: '#8a4a2a' };
-const BEARD: Record<Suit, string> = { H: '#4e2c16', D: '#b3832a', C: '#1a1a1a', S: '#6a3620' };
+const HAIR: Record<Suit, string> = { H: color('hair-h'), D: color('hair-d'), C: color('hair-c'), S: color('hair-s') };
+const BEARD: Record<Suit, string> = { H: color('beard-h'), D: color('beard-d'), C: color('beard-c'), S: color('beard-s') };
+
+/** Zeichenschlüssel der Bildkarten-Figuren: S Haut, H Haar, G Gold, R Robe, W Weiß, K Kontur, E Auge, M Mund, B Bart, F Feder, L Robe hell. */
+export function figureMap(suit: Suit, rank: number): Record<string, string> {
+  const ink = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
+  const light = ink === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
+  return {
+    S: PALETTE.skin,
+    H: HAIR[suit],
+    G: PALETTE.gold,
+    R: ink,
+    W: PALETTE.white,
+    K: PALETTE.ink,
+    E: PALETTE.ink,
+    M: PALETTE.mouth,
+    B: rank === 13 ? BEARD[suit] : ink,
+    F: PALETTE.orange,
+    L: light,
+  };
+}
+export const FIGURES: Record<number, string[]> = { 11: JACK, 12: QUEEN, 13: KING };
 
 function shapeMap(ctx: Ctx, rows: string[], x: number, y: number, map: Record<string, string>): void {
   rows.forEach((row, ry) => {
@@ -214,37 +235,23 @@ function cardBase(ctx: Ctx, x: number, y: number, fill: string): void {
 
 function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): void {
   cardBase(ctx, x, y, PALETTE.cream);
-  const color = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
+  const ink = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
   const rt = rankText(rank);
-  text(ctx, rt, x + 3, y + 3, color);
-  shape(ctx, SUIT_SHAPES[suit], x + 3, y + 11, color);
+  text(ctx, rt, x + 3, y + 3, ink);
+  shape(ctx, SUIT_SHAPES[suit], x + 3, y + 11, ink);
   // unten rechts: Zahl und Farbe stehen auf dem Kopf (um 180 Grad gedreht wie bei echten Karten)
-  textRot(ctx, rt, x + CARD_W - 3, y + CARD_H - 10, color);
-  shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, color);
+  textRot(ctx, rt, x + CARD_W - 3, y + CARD_H - 10, ink);
+  shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, ink);
   if (rank >= 11) {
     // Bildkarte: heller Rahmen, Figur in Kartenfarbe
-    const light = color === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
+    const light = ink === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
     ctx.fillStyle = light;
     ctx.fillRect(x + 7, y + 12, 18, 21);
     ctx.fillStyle = PALETTE.cream;
     ctx.fillRect(x + 8, y + 13, 16, 19);
-    const fig = rank === 13 ? KING : rank === 12 ? QUEEN : JACK;
-    const map: Record<string, string> = {
-      S: PALETTE.skin,
-      H: HAIR[suit],
-      G: PALETTE.gold,
-      R: color,
-      W: PALETTE.white,
-      K: PALETTE.ink,
-      E: PALETTE.ink,
-      M: PALETTE.mouth,
-      B: rank === 13 ? BEARD[suit] : color,
-      F: PALETTE.orange,
-      L: light,
-    };
-    shapeMap(ctx, fig, x + 8, y + 13, map);
+    shapeMap(ctx, FIGURES[rank], x + 8, y + 13, figureMap(suit, rank));
   } else {
-    shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, color, 2);
+    shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, ink, 2);
   }
 }
 
@@ -257,22 +264,30 @@ function drawJoker(ctx: Ctx, x: number, y: number): void {
   px(ctx, x + 15, y + 19, PALETTE.cream);
 }
 
-function drawBack(ctx: Ctx, x: number, y: number, main: string, dark: string): void {
+/** Kartenrücken: gemeinsamer Rahmen, darin das gewählte Design. `main`/`dark` sind Hauptfarbe und Gegenfarbe des Decks. */
+function drawBack(ctx: Ctx, x: number, y: number, design: BackDesign, main: string, dark: string): void {
   cardBase(ctx, x, y, main);
   ctx.fillStyle = PALETTE.cream;
   ctx.fillRect(x + 2, y + 2, CARD_W - 4, CARD_H - 4);
   ctx.fillStyle = main;
   ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
-  for (let yy = 3; yy < CARD_H - 3; yy++) {
-    for (let xx = 3; xx < CARD_W - 3; xx++) {
-      if ((xx + yy) % 4 === 0 || (xx - yy + 400) % 4 === 0) px(ctx, x + xx, y + yy, dark);
+  const colors: Record<BackRole, string> = { main, dark, cream: PALETTE.cream, gold: PALETTE.gold };
+  for (let fy = 0; fy < BACK_FIELD.h; fy++) {
+    for (let fx = 0; fx < BACK_FIELD.w; fx++) {
+      const role = design.paint({ x: fx, y: fy, dx: Math.abs(fx - (BACK_FIELD.w - 1) / 2), dy: Math.abs(fy - (BACK_FIELD.h - 1) / 2) });
+      if (role && role !== 'main') px(ctx, x + BACK_FIELD.inset + fx, y + BACK_FIELD.inset + fy, colors[role]);
     }
   }
-  ctx.fillStyle = dark;
-  ctx.fillRect(x + 11, y + 17, 10, 10);
-  ctx.fillStyle = PALETTE.cream;
-  ctx.fillRect(x + 12, y + 18, 8, 8);
-  shape(ctx, ['..#..', '.###.', '#####', '.###.', '..#..'], x + 13, y + 19, main);
+}
+
+/** Einzelne Rückseite als Bild (für die Auswahl in den Einstellungen und den Design Guide). deck 'a' orange, 'b' dunkel. */
+export function backThumb(designId: string, deck: 'a' | 'b'): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d')!;
+  drawBack(ctx, 0, 0, backDesign(designId), deck === 'a' ? PALETTE.orange : PALETTE.backB, deck === 'a' ? PALETTE.orangeDark : PALETTE.ink);
+  return canvas.toDataURL('image/png');
 }
 
 function drawSlot(ctx: Ctx, x: number, y: number): void {
@@ -291,8 +306,9 @@ export interface Atlas {
   index(card: Card | 'back' | 'back2' | 'slot'): number;
 }
 
-export function buildAtlas(): Atlas {
-  const cells = 56;
+export function buildAtlas(backId?: string): Atlas {
+  const design = backDesign(backId);
+  const cells = ATLAS_CELLS;
   const rows = Math.ceil(cells / COLS);
   const canvas = document.createElement('canvas');
   canvas.width = COLS * CARD_W;
@@ -310,11 +326,11 @@ export function buildAtlas(): Atlas {
   let p = at(i++);
   drawJoker(ctx, p.x, p.y);
   p = at(i++);
-  drawBack(ctx, p.x, p.y, PALETTE.orange, PALETTE.orangeDark);
+  drawBack(ctx, p.x, p.y, design, PALETTE.orange, PALETTE.orangeDark);
   p = at(i++);
   drawSlot(ctx, p.x, p.y);
   p = at(i++);
-  drawBack(ctx, p.x, p.y, PALETTE.teal, PALETTE.tealDark);
+  drawBack(ctx, p.x, p.y, design, PALETTE.backB, PALETTE.ink);
   return {
     url: canvas.toDataURL('image/png'),
     width: canvas.width,

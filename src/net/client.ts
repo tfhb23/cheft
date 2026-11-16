@@ -14,7 +14,7 @@ export interface LobbyInfo {
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 export interface ServerUpdate {
@@ -183,11 +183,16 @@ export class NetClient {
     return true;
   }
 
-  create(name: string): void {
-    this.send({ type: 'create', name });
+  /** auto: der Name wurde nicht gewählt, sondern ist ein Vorschlag; ist er vergeben, vergibt der Server einen anderen freien. */
+  create(name: string, back?: string, auto = false): void {
+    this.send({ type: 'create', name, back, auto });
   }
-  join(room: string, name: string): void {
-    this.send({ type: 'join', room: room.toUpperCase(), name });
+  join(room: string, name: string, back?: string, auto = false): void {
+    this.send({ type: 'join', room: room.toUpperCase(), name, back, auto });
+  }
+  /** Eigene Kartenrückseite den anderen mitteilen (nur Anzeige). */
+  setBack(back: string): void {
+    this.send({ type: 'setBack', back });
   }
   addBot(choice: BotChoice): void {
     this.send({ type: 'lobby', op: 'addBot', choice });
@@ -208,8 +213,8 @@ export class NetClient {
   backToLobby(): void {
     this.send({ type: 'lobby', op: 'backToLobby' });
   }
-  claim(room: string, pid: number, name: string): void {
-    this.send({ type: 'claim', room, pid, name });
+  claim(room: string, pid: number, name: string, back?: string, auto = false): void {
+    this.send({ type: 'claim', room, pid, name, back, auto });
   }
   rename(name: string): void {
     this.send({ type: 'rename', name });

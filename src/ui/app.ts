@@ -2,7 +2,7 @@
  * Oberfläche: Menü, Spielfeld mit Sitzordnung, Drag & Drop, Animationen, Einstellungen.
  * Reines DOM ohne Framework.
  */
-import { Card, isJoker, sortBySuit } from '../engine/cards';
+import { Card, SUITS, Suit, isJoker, shuffle, sortBySuit } from '../engine/cards';
 import { Action, applyAction } from '../engine/actions';
 import {
   GameState,
@@ -16,6 +16,7 @@ import {
   current,
   layOffTargets,
   newGame,
+  scoreOrder,
   startNextRound,
   tableThreshold,
   winnerOfGame,
@@ -26,21 +27,29 @@ import { BotChoice, LEVELS, STYLES, resolveBots } from '../bot/names';
 import { makeRng } from '../engine/cards';
 import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
-import { Atlas, buildAtlas, atlasOffset, backOf } from './sprites';
+import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
+import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
+import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_X, pixelIcon } from './icons';
+import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from './tokens';
+import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } from '../net/client';
 import { RoundView } from '../engine/view';
-import { play, setSoundEnabled, unlockAudio, vibrate } from './sound';
+import { play, setSoundEnabled, unlockAudio, vibrate, SoundName, VIB } from './sound';
 import { randomForgottenName } from './names';
 import { packSave, unpackSave } from './savecode';
+import { NavGuard } from './nav';
 
-type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'online' | 'lobby';
+type Screen = 'menu' | 'setup' | 'rules' | 'guide' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
 const SAVE_KEY = 'cheft.save.v2';
 const PREFS_KEY = 'cheft.prefs.v2';
 /** Wählbare Rundenzahlen. */
 const ROUND_CHOICES = [3, 5, 7, 9];
+/** Obergrenze für die Auswahl „Wie auslegen?“. Es werden alle erlaubten Möglichkeiten angeboten, die Grenze schützt nur vor endlosem Rechnen. */
+const ALL_OPTIONS = 500;
 
 interface Prefs {
   name: string;
@@ -58,6 +67,10 @@ interface Prefs {
   peekDiscards: boolean;
   /** Ziehen mit Bestätigung: Gibt es mehrere Möglichkeiten, wählt das erste Tippen nur aus. */
   safeDraw: boolean;
+  /** Design Guide: Nummern der Elemente über dem Spiel einblenden. */
+  dsLabels: boolean;
+  /** Gewählte Kartenrückseite (backs.ts), nur für die eigene Anzeige. */
+  cardDesign: string;
   /** Sitzordnung der Bots: wie eingestellt oder zufällig. */
   seating: 'manual' | 'random';
   /** Karten zu Rundenbeginn nach Farbe sortiert austeilen. */
@@ -69,7 +82,10 @@ interface DialogSpec {
   text?: string;
   /** Eingabefeld (zum Einfügen oder, schreibgeschützt, zum Kopieren). */
   input?: { value: string; readonly?: boolean; placeholder?: string };
-  buttons: { label: string; primary?: boolean; danger?: boolean; onClick?: (input: string) => void }[];
+  /** Entscheidung: Knöpfe wie „Abbrechen“ und die Aktion. */
+  buttons?: { label: string; primary?: boolean; danger?: boolean; onClick?: (input: string) => void }[];
+  /** Nur Anzeige: ein „Zurück“ als letzter Knopf; ein Tipp neben das Fenster schließt ebenfalls. */
+  back?: boolean;
 }
 
 /** Die Einstellungen eines Spiels, wie Solo-Setup und Lobby sie anzeigen. */
@@ -104,25 +120,9 @@ type SeatPos = 'top' | 'left' | 'right';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const ICON_BOOK = ['.########.', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.#..#....#', '.########.', '..........'];
-const ICON_GEAR = ['....##....', '.#.####.#.', '.########.', '..##..##..', '###....###', '###....###', '..##..##..', '.########.', '.#.####.#.', '....##....'];
-
-function pixelIcon(rows: string[]): HTMLElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 10 10');
-  rows.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) {
-      if (row[x] !== '#') continue;
-      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      r.setAttribute('x', String(x));
-      r.setAttribute('y', String(y));
-      r.setAttribute('width', '1');
-      r.setAttribute('height', '1');
-      r.setAttribute('fill', 'currentColor');
-      svg.appendChild(r);
-    }
-  });
-  return svg as unknown as HTMLElement;
+/** Je Quelle ein eigener, aber verwandter Ton beim Ziehen. */
+function drawSound(source: 'stock' | 'discard' | 'carpet'): SoundName {
+  return source === 'stock' ? 'drawStock' : source === 'discard' ? 'drawDiscard' : 'drawCarpet';
 }
 
 function hash(n: number): number {
@@ -152,9 +152,11 @@ export class App {
     serverUrl: '',
     keepAwake: true,
     peekDiscards: true,
-    seating: 'manual',
+    seating: 'random',
     sortedDeal: true,
     safeDraw: true,
+    dsLabels: false,
+    cardDesign: DEFAULT_BACK,
   };
   /** Online: Verbindung, Raum und eigene Platznummer. */
   private net: NetClient | null = null;
@@ -171,6 +173,10 @@ export class App {
   private armedTimer: number | null = null;
   /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
   private forgottenName = randomForgottenName();
+  /** Kein Name eingegeben: der Ersatzname ist nur ein Vorschlag. */
+  private autoName(): boolean {
+    return !this.prefs.name.trim();
+  }
   private playerName(): string {
     return this.prefs.name.trim() || this.forgottenName;
   }
@@ -193,16 +199,23 @@ export class App {
   private botsRunning = false;
   private dealing = false;
   private showSettings = false;
+  private showScores = false;
+  /** Die drei Karten im Menü-Logo (2, 3, 2 mit drei verschiedenen Farben), bei jedem Aufruf des Menüs neu gezogen. */
+  private logoCards: Card[] | null = null;
   private peekTable = false;
   private chooser: { title: string; hint: string; options: { shapes: MeldShape[]; label: string; onPick: () => void }[] } | null = null;
   private toastTimer: number | null = null;
+  /** Nummern-Etiketten des Design Guides über dem Spiel. */
+  private labels = new DsLabels();
   private rulesFrom: Screen = 'menu';
+  /** Zurück-Geste/-Taste des Geräts: eine Ebene zurück, im Spiel und in der Lobby erst warnen, im Hauptmenü die App verlassen. */
+  private nav = new NavGuard(window, () => this.screen === 'menu', () => this.navBack());
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.atlas = buildAtlas();
-    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
     this.loadPrefs();
+    this.atlas = buildAtlas(this.prefs.cardDesign);
+    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
     setSoundEnabled(this.prefs.sound);
     const save = this.loadSave();
     if (save) {
@@ -215,6 +228,9 @@ export class App {
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.navBack()) e.preventDefault();
+    });
     document.addEventListener('visibilitychange', () => void this.syncWakeLock());
     this.prewarm();
     const linked = this.pathRoomCode();
@@ -232,7 +248,7 @@ export class App {
   private openRoomLink(code: string): void {
     const stored = this.storedOnline();
     if (stored && stored.room === code) {
-      history.replaceState(null, '', '/');
+      this.nav.replaceUrl('/');
       this.resumeOnline(); // Seite neu geladen, du warst schon in diesem Raum
       return;
     }
@@ -246,8 +262,8 @@ export class App {
     const wait = () => {
       if (this.linkRoom !== code) return; // abgebrochen oder schon drin
       if (net.connected) {
-        history.replaceState(null, '', '/');
-        net.join(code, this.playerName());
+        this.nav.replaceUrl('/');
+        net.join(code, this.playerName(), undefined, this.autoName());
       } else if (Date.now() - t0 < 90000) setTimeout(wait, 200);
       else {
         this.linkRoom = null;
@@ -303,15 +319,18 @@ export class App {
         this.prefs = { ...this.prefs, ...stored };
         // Neuer Standard: Rauskommen im ersten Zug gesperrt (einmalig auch für gespeicherte Einstellungen).
         if ((stored.v ?? 0) < 3) this.prefs.firstTurn = false;
+        // Neuer Standard: Sitzplätze zufällig (einmalig auch für gespeicherte Einstellungen).
+        if ((stored.v ?? 0) < 4) this.prefs.seating = 'random';
       }
       if (!ROUND_CHOICES.includes(this.prefs.rounds)) this.prefs.rounds = 7;
+      this.prefs.cardDesign = backDesign(this.prefs.cardDesign).id;
     } catch {
       /* ignorieren */
     }
   }
   private savePrefs(): void {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ ...this.prefs, v: 3 }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ ...this.prefs, v: 4 }));
     } catch {
       /* ignorieren */
     }
@@ -343,7 +362,7 @@ export class App {
   private async exportSave(): Promise<void> {
     if (!this.state) return;
     const code = await packSave({ state: this.state, order: this.order });
-    const show = () => this.askDialog({ title: t('btn.exportSave'), text: t('save.show'), input: { value: code, readonly: true }, buttons: [{ label: t('btn.close'), primary: true }] });
+    const show = () => this.askDialog({ title: t('btn.exportSave'), text: t('save.show'), input: { value: code, readonly: true }, back: true });
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code).then(
         () => this.toast(t('save.copied')),
@@ -394,7 +413,15 @@ export class App {
     if (this.drag) return; // während des Ziehens nicht neu aufbauen
     const tableEl = this.root.querySelector('.table');
     const scroll = tableEl ? tableEl.scrollTop : 0;
+    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Design Guide (.view-body)
+    const scrollers = ['.menu', '.view-body'].map((sel) => [sel, this.root.querySelector(sel)?.scrollTop ?? 0] as const);
+    // Auch ein Fenster, das selbst scrollt (Einstellungen mit vielen Rückseiten), behält seine Scrollposition beim Neuaufbau
+    const oldDialog = this.root.querySelector('.overlay > .dialog');
+    const dialogScroll = oldDialog?.scrollTop ?? 0;
+    const dialogKey = oldDialog?.querySelector('h2')?.textContent ?? '';
+    const prevScreen = this.root.dataset.screen;
     clear(this.root);
+    this.root.dataset.screen = this.screen;
     switch (this.screen) {
       case 'menu':
         this.root.appendChild(this.renderMenu());
@@ -404,6 +431,9 @@ export class App {
         break;
       case 'rules':
         this.root.appendChild(this.renderRules());
+        break;
+      case 'guide':
+        this.root.appendChild(this.renderGuideScreen());
         break;
       case 'online':
         this.root.appendChild(this.renderOnline());
@@ -419,8 +449,22 @@ export class App {
         if (nt) nt.scrollTop = scroll;
         break;
     }
+    // Gleicher Bildschirm (z. B. Einstellung angetippt, Nummern im Guide umgeschaltet): Scrollposition behalten.
+    // Beim Wechsel zu einem anderen Bildschirm beginnt die Ansicht oben.
+    if (prevScreen === this.screen) {
+      for (const [sel, pos] of scrollers) {
+        const el = pos > 0 ? this.root.querySelector(sel) : null;
+        if (el) el.scrollTop = pos;
+      }
+    }
     if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
+    if (dialogScroll > 0) {
+      const nd = this.root.querySelector('.overlay > .dialog');
+      if (nd && nd.querySelector('h2')?.textContent === dialogKey) nd.scrollTop = dialogScroll;
+    }
     void this.syncWakeLock();
+    this.labels.refresh(this.prefs.dsLabels);
+    this.nav.sync();
   }
 
   // ------------------------------------------------------------ Eigener Dialog
@@ -450,40 +494,26 @@ export class App {
       ta.value = this.dialogInput;
       field = ta;
     }
-    return h(
-      'div',
-      { class: 'overlay' },
-      h(
-        'div',
-        { class: 'panel dialog' },
-        h('h2', null, d.title),
-        d.text ? h('p', null, d.text) : null,
-        field,
-        h(
-          'div',
-          { class: 'btn-row' },
-          ...d.buttons.map((b) =>
-            h(
-              'button',
-              {
-                class: `btn${b.primary ? ' primary' : ''}${b.danger ? ' danger' : ''}`,
-                onclick: () => {
-                  const value = this.dialogInput;
-                  this.closeDialog();
-                  b.onClick?.(value);
-                },
-              },
-              b.label,
-            ),
-          ),
-        ),
+    const buttons = (d.buttons ?? []).map((b) =>
+      btn(
+        b.label,
+        () => {
+          const value = this.dialogInput;
+          this.closeDialog();
+          b.onClick?.(value);
+        },
+        { variant: b.danger ? 'danger' : b.primary ? 'primary' : 'default' },
       ),
+    );
+    return windowEl(
+      [h('h2', null, d.title), d.text ? h('p', null, d.text) : null, field, buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null, d.back ? backBtn(() => this.closeDialog()) : null],
+      d.back ? () => this.closeDialog() : undefined,
     );
   }
 
   private cardEl(
     card: Card | 'back' | 'back2' | 'slot',
-    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string } = {},
+    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
   ): HTMLElement {
     const off = atlasOffset(this.atlas.index(card));
     const sc = opts.mini ? '1' : opts.small ? 'var(--so)' : 'var(--s)';
@@ -493,18 +523,25 @@ export class App {
       title: opts.title ?? (typeof card === 'string' ? '' : cardName(card)),
       onclick: opts.onClick,
     });
+    // Fremdes Rückseiten-Design (Mehrspieler): als eigenes Bild über den Atlas legen
+    if (opts.backId && (card === 'back' || card === 'back2')) {
+      el.style.backgroundImage = `url(${backThumb(opts.backId, card === 'back' ? 'a' : 'b')})`;
+      el.style.backgroundSize = '100% 100%';
+      el.style.backgroundPosition = '0 0';
+    }
     if (typeof card !== 'string' && !opts.mini) el.dataset.cardId = String(card.id);
     return el;
   }
 
   // ------------------------------------------------------------ Menü
   private renderMenu(): HTMLElement {
-    const demo: Card[] = [
-      { id: -1, suit: 'H', rank: 13 },
-      { id: -2, suit: 'J', rank: 0 },
-      { id: -3, suit: 'S', rank: 12 },
-    ];
+    if (!this.logoCards) {
+      const suits: Suit[] = shuffle(SUITS, Math.random);
+      this.logoCards = [2, 3, 2].map((rank, i) => ({ id: -(i + 1), suit: suits[i], rank }));
+    }
+    const demo = this.logoCards;
     const hasSave = !!this.state && !this.state.finished;
+    const hasRoom = !!this.storedOnline();
     return h(
       'div',
       { class: 'menu' },
@@ -512,13 +549,31 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        hasSave && h('button', { class: 'btn primary', onclick: () => this.continueGame() }, t('btn.continue')),
-        h('button', { class: `btn${hasSave ? '' : ' primary'}`, onclick: () => this.goto('setup') }, t('btn.newGame')),
-        h('button', { class: 'btn', onclick: () => this.goto('online') }, t('btn.online')),
-        this.storedOnline() ? h('button', { class: 'btn', onclick: () => this.resumeOnline() }, t('lobby.backToLobby')) : null,
-        h('button', { class: 'btn', onclick: () => this.showRules('menu') }, t('btn.rules')),
-        h('button', { class: 'btn', onclick: () => this.importSave() }, t('btn.importSave')),
+        h(
+          'div',
+          { class: 'menu-group' },
+          hasSave && btn(t('btn.continue'), () => this.continueGame(), { variant: 'primary' }),
+          btn(t('btn.newGame'), () => this.goto('setup'), { variant: hasSave || hasRoom ? 'default' : 'primary' }),
+          btn(t('btn.importSave'), () => this.importSave()),
+        ),
+        h(
+          'div',
+          { class: 'menu-group' },
+          btn(t('btn.online'), () => this.goto('online')),
+          hasRoom ? btn(t('lobby.backToLobby'), () => this.resumeOnline(), { variant: 'primary' }) : null,
+        ),
+        h(
+          'div',
+          { class: 'menu-group' },
+          btn(t('btn.rules'), () => this.showRules('menu')),
+          btn(t('btn.guide'), () => this.goto('guide')),
+          btn(t('btn.settings'), () => {
+            this.showSettings = true;
+            this.render();
+          }),
+        ),
       ),
+      this.showSettings ? this.renderSettings() : null,
     );
   }
 
@@ -526,22 +581,19 @@ export class App {
     return h(
       'div',
       { class: 'option' },
-      h('div', { class: 'muted' }, label),
+      fieldLabel(label),
       h(
         'div',
         { class: 'choices' },
         ...values.map((o) =>
-          h(
-            'button',
-            {
-              class: `btn${get() === o.v ? ' primary' : ''}`,
-              onclick: () => {
-                set(o.v);
-                this.savePrefs();
-                this.render();
-              },
-            },
+          btn(
             o.label,
+            () => {
+              set(o.v);
+              this.savePrefs();
+              this.render();
+            },
+            { variant: get() === o.v ? 'primary' : 'default' },
           ),
         ),
       ),
@@ -566,7 +618,7 @@ export class App {
 
   /** Dieselben Einstellungen für Mitspieler ohne Rechte: eine Zeile je Einstellung, gleiche Reihenfolge. */
   private settingSummary(v: SettingValues): HTMLElement[] {
-    const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'muted' }, label), h('span', null, value));
+    const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, label), h('span', null, value));
     return [
       row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
       row(t('settings.speed'), t(`settings.speed.${v.speed}`)),
@@ -596,21 +648,14 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), nameInput),
+        h('div', { class: 'option' }, fieldLabel(t('setup.name')), nameInput),
         this.choice(t('setup.bots'), [{ v: 2, label: '2' }, { v: 3, label: '3' }], () => this.prefs.bots, (v) => (this.prefs.bots = v as number)),
         ...this.prefs.botChoices.slice(0, this.prefs.bots).map((c, i) => this.botRow(c, i)),
-        h(
-          'button',
-          {
-            class: 'btn',
-            onclick: () => {
-              this.prefs.botChoices = this.prefs.botChoices.map(() => ({ level: 'random', style: 'random' }));
-              this.savePrefs();
-              this.render();
-            },
-          },
-          t('setup.allRandom'),
-        ),
+        btn(t('setup.allRandom'), () => {
+          this.prefs.botChoices = this.prefs.botChoices.map(() => ({ level: 'random', style: 'random' }));
+          this.savePrefs();
+          this.render();
+        }),
         ...this.settingChoices(
           { seating: this.prefs.seating, speed: this.prefs.speed, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
           (patch) => {
@@ -622,9 +667,9 @@ export class App {
             if (patch.rounds !== undefined) this.prefs.rounds = patch.rounds;
           },
         ),
-        h('div', { class: 'muted small-text' }, t('setup.directionCcw')),
-        h('button', { class: 'btn primary', onclick: () => this.startGame() }, t('btn.start')),
-        h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
+        hint(t('setup.directionCcw')),
+        btn(t('btn.start'), () => this.startGame(), { variant: 'primary' }),
+        backBtn(() => this.back()),
       ),
     );
   }
@@ -671,7 +716,7 @@ export class App {
       return all[(all.indexOf(cur) + 1) % all.length];
     };
     const col = (caption: string, value: string, active: boolean, onclick: () => void) =>
-      h('div', { class: 'bot-col' }, h('div', { class: 'muted small-text' }, caption), h('button', { class: `btn${active ? ' primary' : ''}`, onclick }, value));
+      h('div', { class: 'bot-col' }, hint(caption), btn(value, onclick, { variant: active ? 'primary' : 'default' }));
     return h(
       'div',
       { class: 'bot-pick' },
@@ -684,7 +729,7 @@ export class App {
     return h(
       'div',
       { class: 'option' },
-      h('div', { class: 'muted' }, t(this.prefs.bots === 3 ? ['seat.right', 'seat.top', 'seat.left'][i] : ['seat.right', 'seat.left'][i])),
+      fieldLabel(t(this.prefs.bots === 3 ? ['seat.right', 'seat.top', 'seat.left'][i] : ['seat.right', 'seat.left'][i])),
       this.botPicker(c, (next) => {
         c.level = next.level;
         c.style = next.style;
@@ -696,17 +741,34 @@ export class App {
 
 
   private renderRules(): HTMLElement {
-    return h(
-      'div',
-      { class: 'game' },
-      h('div', { class: 'topbar' }, h('button', { class: 'btn', onclick: () => this.goto(this.rulesFrom) }, t('btn.back')), h('h2', null, t('btn.rules'))),
-      h('div', { class: 'rules' }, ...RULES_DE.map((sec) => h('div', null, h('h3', null, sec.title), h('ul', null, ...sec.items.map((i) => h('li', null, i)))))),
+    return viewEl(
+      t('btn.rules'),
+      RULES_DE.map((sec) => h('div', null, h('h3', null, sec.title), h('ul', null, ...sec.items.map((i) => h('li', null, i))))),
+      () => this.back(),
+      'reading rules',
     );
+  }
+
+  private renderGuideScreen(): HTMLElement {
+    return renderGuide({
+      cardEl: (card, opts) => this.cardEl(card, opts),
+      atlasUrl: this.atlas.url,
+      atlasIndex: (card) => this.atlas.index(card),
+      labelsOn: this.prefs.dsLabels,
+      setLabels: (on) => {
+        this.prefs.dsLabels = on;
+        this.savePrefs();
+        this.render();
+      },
+      onBack: () => this.back(),
+    });
   }
 
   private goto(screen: Screen): void {
     this.screen = screen;
     this.showSettings = false;
+    this.showScores = false;
+    if (screen === 'menu') this.logoCards = null;
     this.render();
   }
 
@@ -714,6 +776,75 @@ export class App {
     this.rulesFrom = from;
     this.showSettings = false;
     this.goto('rules');
+  }
+
+  /**
+   * Zurück: die eine Regel für alles, was sich „schließen“ lässt. Beendet die oberste offene Ebene und geht zur
+   * vorherigen zurück (Fenster -> Seite darunter, Regeln/Guide/Setup/Online -> Menü oder Spiel). Der „Zurück“-Knopf,
+   * ein Tipp neben ein Fenster und die Esc-Taste rufen alle diese Methode auf. Gibt zurück, ob etwas geschlossen wurde.
+   * Entscheidungen (Cheft ansagen, Spiel abbrechen) haben statt „Zurück“ ein „Abbrechen“ und gehören nicht dazu.
+   */
+  private back(): boolean {
+    if (this.dialog) {
+      this.closeDialog();
+      return true;
+    }
+    if (this.screen === 'game') {
+      if (this.online?.lobby?.paused || this.state?.round.ended) return false;
+      if (this.chooser) this.chooser = null;
+      else if (this.showScores) this.showScores = false;
+      else if (this.showSettings) this.showSettings = false;
+      else if (this.targetMode) this.targetMode = false;
+      else return false;
+      this.render();
+      return true;
+    }
+    if (this.showSettings) {
+      this.showSettings = false;
+      this.render();
+      return true;
+    }
+    switch (this.screen) {
+      case 'rules':
+        this.goto(this.rulesFrom);
+        return true;
+      case 'guide':
+      case 'setup':
+        this.goto('menu');
+        return true;
+      case 'online':
+        if (this.claimChoice) {
+          this.claimChoice = null;
+          this.render();
+        } else this.goto('menu');
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Zurück-Geste, Zurück-Taste des Geräts und Esc: erst schließen, was offen ist (back), sonst im Spiel und in der
+   * Lobby vor dem Verlassen warnen. Im Hauptmenü gibt es nichts zu tun (false): Dort verlässt „Zurück“ die App.
+   */
+  private navBack(): boolean {
+    if (this.back()) return true;
+    if (this.screen === 'lobby' || (this.screen === 'game' && this.online)) {
+      this.leaveOnline(true);
+      return true;
+    }
+    if (this.screen === 'game') {
+      // Beendetes Solospiel: nichts mehr zu verlieren. Laufendes Spiel: warnen, der Stand bleibt gespeichert.
+      if (this.state?.finished) this.saveAndQuit();
+      else
+        this.askDialog({
+          title: t('confirm.toMenu.title'),
+          text: t('confirm.toMenu'),
+          buttons: [{ label: t('btn.continue'), primary: true }, { label: t('btn.toMenu'), onClick: () => this.saveAndQuit() }],
+        });
+      return true;
+    }
+    return false;
   }
 
   // ------------------------------------------------------------ Spielsteuerung
@@ -763,7 +894,7 @@ export class App {
     const hand = this.root.querySelector('.hand');
     if (hand) targets.push(hand.getBoundingClientRect());
     const s = this.scale();
-    await dealAnimation(stock ? stock.getBoundingClientRect() : null, targets, 7, 32 * s, 44 * s);
+    await dealAnimation(stock ? stock.getBoundingClientRect() : null, targets, 7, CARD_PX.w * s, CARD_PX.h * s);
     this.dealing = false;
     play('card');
     this.render();
@@ -819,7 +950,7 @@ export class App {
       this.peekTimer = window.setTimeout(() => {
         this.peekTimer = null;
         this.showPeek();
-      }, 380);
+      }, MOTION.peekHold);
     });
     const cancel = () => {
       if (this.peekTimer) clearTimeout(this.peekTimer);
@@ -834,8 +965,8 @@ export class App {
     if (!this.peekLayer) return;
     const layer = this.peekLayer;
     this.peekLayer = null;
-    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }).onfinish = () => layer.remove();
-    window.setTimeout(() => (this.peekSuppress = false), 350);
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.peekOut, fill: 'forwards' }).onfinish = () => layer.remove();
+    window.setTimeout(() => (this.peekSuppress = false), MOTION.peekGuard);
   }
 
   /**
@@ -851,8 +982,8 @@ export class App {
     const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
     if (!entries.length || !pile) return;
     this.peekSuppress = true;
-    vibrate(10, this.prefs.vibration);
-    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')), h('div', { class: 'peek-hint' }, t('peek.hint')));
+    vibrate(VIB.short, this.prefs.vibration);
+    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')));
     const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
     const margin = pile.width * 0.7;
     entries.forEach((e, i) => {
@@ -868,8 +999,8 @@ export class App {
       line.style.cssText = `left:${pc.x}px;top:${pc.y}px;width:${len}px;transform:rotate(${Math.atan2(ty - pc.y, tx - pc.x)}rad)`;
       const takenBy = r.taken.find((x) => x.card.id === e.card.id);
       const stillThere = r.discard.some((c) => c.id === e.card.id);
-      const who = e.player === this.me ? t('you') : s.players[e.player].name;
-      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: takenBy.player === this.me ? t('you') : s.players[takenBy.player].name })) : null);
+      const who = s.players[e.player].name;
+      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: s.players[takenBy.player].name })) : null);
       const card = this.cardEl(e.card, {});
       delete card.dataset.cardId;
       const item = h('div', { class: `peek-item${takenBy && !stillThere ? ' taken' : ''}` }, card, tag);
@@ -878,7 +1009,7 @@ export class App {
       item.style.width = `${pile.width}px`;
       layer.appendChild(line);
       layer.appendChild(item);
-      item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(0.92)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: i * 70, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'backwards' });
+      item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.peekIn, delay: i * MOTION.peekStagger, easing: EASE_FLY, fill: 'backwards' });
     });
     document.body.appendChild(layer);
     this.peekLayer = layer;
@@ -942,7 +1073,7 @@ export class App {
       const probe = applyAction(structuredClone(s), this.me, action);
       if (!probe.ok) {
         this.toast(t(probe.error, probe.params), true);
-        play('error');
+        this.errorFx();
         return false;
       }
       if (!this.net || !this.net.connected) {
@@ -959,7 +1090,7 @@ export class App {
     if (res.ok) this.noteModes();
     if (!res.ok) {
       this.toast(t(res.error, res.params), true);
-      play('error');
+      this.errorFx();
       return false;
     }
     this.afterOwnAction(action, s);
@@ -984,18 +1115,29 @@ export class App {
     }
     if (action.kind === 'discard') this.fresh.clear();
     if (action.kind === 'draw') {
-      play('card');
-      vibrate(10, this.prefs.vibration);
+      play(drawSound(action.source));
+      vibrate(VIB.short, this.prefs.vibration);
     } else if (action.kind === 'discard') {
       play('discard');
-      vibrate(15, this.prefs.vibration);
-    } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') play('lay');
+      vibrate(VIB.short, this.prefs.vibration);
+    } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') {
+      play('lay');
+      vibrate(VIB.short, this.prefs.vibration);
+    } else if (action.kind === 'ready' || action.kind === 'undoDraw') play('tick');
+  }
+
+  /** Fehler: tiefer Ton und zweimal kurz. */
+  private errorFx(): void {
+    play('error');
+    vibrate(VIB.error, this.prefs.vibration);
   }
 
   private onRoundEnded(): void {
     const r = this.state!.round.result!;
-    if (r.winner === this.me) play('win');
-    vibrate(30, this.prefs.vibration);
+    if (r.winner === this.me) {
+      play('win');
+      vibrate(VIB.win, this.prefs.vibration);
+    } else play('lose');
   }
 
   private botDelay(): number {
@@ -1054,7 +1196,7 @@ export class App {
         this.save();
         this.render();
         if (action.kind === 'draw') {
-          play('card');
+          play(drawSound(action.source));
           if (drawInfo) this.flyDraw(drawInfo);
           void flip(this.root, before, {});
         } else {
@@ -1095,12 +1237,7 @@ export class App {
   }
 
   private toast(msg: string, error = false): void {
-    const old = document.querySelector('.toast');
-    if (old) old.remove();
-    const el = h('div', { class: `toast${error ? ' error' : ''}` }, msg);
-    document.body.appendChild(el);
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => el.remove(), 3200);
+    this.toastTimer = showToast(msg, error, this.toastTimer);
   }
 
   private scale(): number {
@@ -1129,12 +1266,14 @@ export class App {
     const playPhase = myTurn && r.turn.phase === 'play';
 
     // Handreihenfolge abgleichen
-    const handIds = me.hand.map((c) => c.id);
+    // Die offene Startkarte liegt in der Sortierphase noch auf dem Tisch und wandert erst mit „Bereit“ in die Hand.
+    const hiddenOpenId = r.waiting && this.me === r.starter ? r.turn.drawnCardId : null;
+    const handIds = me.hand.filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
     const have = new Set(handIds);
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).map((c) => c.id);
+    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
     else this.order.push(...added);
     if (myTurn) {
       for (const id of added) {
@@ -1146,43 +1285,20 @@ export class App {
     const header = h(
       'div',
       { class: 'topbar' },
-      h('span', { class: 'accent' }, t('round', { n: r.no, total: s.settings.rounds })),
-      h('span', { class: 'muted' }, ` · ${s.players[this.me].name}: ${s.totals[this.me]} P.`),
-      h('span', null, ' ', h('span', { class: `badge${me.mode === 'cheft' ? ' cheft' : ''}` }, t(`mode.${me.mode}`)), ' ', h('span', { class: `badge${me.opened ? ' open' : ''}` }, t(me.opened ? 'status.opened' : 'status.notOpened'))),
+      iconBtn(pixelIcon(ICON_TABLE), t('btn.scores'), () => {
+        this.showScores = true;
+        this.render();
+      }),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
       h(
         'div',
         { class: 'icons' },
-        h('button', { class: 'btn icon', title: t('btn.rules'), onclick: () => this.showRules('game') }, pixelIcon(ICON_BOOK)),
-        h(
-          'button',
-          {
-            class: 'btn icon',
-            title: t('btn.settings'),
-            onclick: () => {
-              this.showSettings = true;
-              this.render();
-            },
-          },
-          pixelIcon(ICON_GEAR),
-        ),
-      ),
-    );
-
-    const opponents = h(
-      'div',
-      { class: 'opponents' },
-      ...[...this.seats()]
-        .sort((a, b) => ['left', 'top', 'right'].indexOf(a.pos) - ['left', 'top', 'right'].indexOf(b.pos))
-        .map((seat) => s.players[seat.pid])
-        .map((p) => {
-          const pr = r.players[p.id];
-          return h(
-            'div',
-            { class: `opp${current(s) === p.id && !r.ended ? ' current' : ''}` },
-            h('div', { class: 'name' }, h('span', null, p.name), h('span', { class: 'muted pts' }, `${s.totals[p.id]} P.`)),
-            h('div', { class: 'row-compact' }, h('span', { class: `badge${pr.mode === 'cheft' ? ' cheft' : ''}` }, t(`mode.${pr.mode}`)), ' ', h('span', { class: `badge${pr.opened ? ' open' : ''}` }, t(pr.opened ? 'status.opened' : 'status.notOpened')), h('span', { class: 'cnt' }, h('span', { class: 'minicard' }), `${pr.hand.length}`)),
-          );
+        iconBtn(pixelIcon(ICON_BOOK), t('btn.rules'), () => this.showRules('game')),
+        iconBtn(pixelIcon(ICON_GEAR), t('btn.settings'), () => {
+          this.showSettings = true;
+          this.render();
         }),
+      ),
     );
 
     // Ziele für Anlegen / Klauen
@@ -1201,18 +1317,21 @@ export class App {
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCardEl = (): HTMLElement | null =>
       starterCard
-        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard', { name: r.starter === this.me ? t('you') : s.players[r.starter].name })))
+        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
         : null;
-    const showFan = window.innerWidth >= 900;
+    const showFan = window.innerWidth >= BREAKPOINTS.fan;
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
-      const label = h('div', { class: 'seat-label' }, `${s.players[seat.pid].name} · ${t('cards.count', { n: pr.hand.length })}`);
-      const fan = showFan && pr.hand.length ? h('div', { class: 'fan' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { small: true }))) : null;
+      const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length });
+      // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
+      const backId = this.seatBack(seat.pid);
+      const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
+      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
       const inner =
         seat.pos === 'top'
-          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, h('div', { class: 'flip180' }, meldsEl), label)
+          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl))
           : h('div', { class: 'seat-inner' }, meldsEl, label, fan);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
@@ -1226,7 +1345,7 @@ export class App {
       'div',
       { class: 'stock-wrap' },
       r.carpet
-        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: (drawPhase && !canCarpet) || (this.armed !== null && this.armed !== 'carpet' && canCarpet), onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
+        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: this.armed !== null && this.armed !== 'carpet' && canCarpet, onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
         : null,
       this.stockEl(canStock, drawPhase),
       r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
@@ -1274,8 +1393,8 @@ export class App {
     const myMelds = r.melds.filter((m) => m.owner === this.me);
     const own = h(
       'div',
-      { class: 'own', dataset: { seat: String(this.me) } },
-      h('div', { class: 'own-label' }, myMelds.length ? `${t('you')} (${t(`mode.${me.mode}`)})` : playPhase && selectedCards.length >= 2 ? t('drop.lay') : ''),
+      { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
+      seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, hint: playPhase && selectedCards.length >= 2 ? t('drop.lay') : undefined, cls: 'own-label' }),
       h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false)), this.me === r.starter ? openCardEl() : null),
     );
     table.appendChild(own);
@@ -1322,25 +1441,25 @@ export class App {
       }),
     );
 
-    const btn = (label: string, onclick: () => void, opts: { disabled?: boolean; cls?: string } = {}) => h('button', { class: `btn ${opts.cls ?? ''}`, disabled: opts.disabled, onclick }, label);
     const canCheft = myTurn && !me.opened && me.mode === 'romme' && r.turn.mustOpenWithId === null;
     const actions = r.waiting
-      ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[this.me], cls: 'primary' }))
+      ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[this.me], variant: 'primary' }))
       : h(
       'div',
       { class: 'actions' },
-      btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, cls: 'primary' }),
+      btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, variant: 'primary' }),
       btn(t('btn.layOff'), () => this.layOffSelected(), { disabled: !playPhase || !singleSel || !me.opened }),
       btn(t('btn.discard'), () => singleSel && this.act({ kind: 'discard', cardId: singleSel.id }), { disabled: !playPhase || !singleSel }),
       playPhase && checkUndoDraw(s, this.me).ok
-        ? btn(t('btn.undoDraw'), () => this.act({ kind: 'undoDraw' }), { cls: 'dark' })
-        : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, cls: 'dark' }),
+        ? btn(t('btn.undoDraw'), () => this.act({ kind: 'undoDraw' }), { variant: 'dark' })
+        : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, variant: 'dark' }),
     );
 
-    const game = h('div', { class: 'game' }, header, opponents, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
+    const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
     else if (this.chooser) game.appendChild(this.renderChooser());
     else if (this.showSettings) game.appendChild(this.renderSettings());
+    if (this.showScores) game.appendChild(this.renderScores());
     if (this.online?.lobby?.paused) game.appendChild(this.renderPause(this.online.lobby));
     return game;
   }
@@ -1366,15 +1485,8 @@ export class App {
     const s = this.state!;
     const playPhase = current(s) === this.me && s.round.turn.phase === 'play' && !s.round.ended;
     const onClick = playPhase ? () => this.tapMeld(m) : undefined;
-    const el = h(
-      'div',
-      {
-        class: `meld${m.type === 'pair' ? ' pair' : ''}${isTarget ? ' target' : ''}${isStealable ? ' stealable' : ''}${onClick ? ' clickable' : ''}`,
-        onclick: onClick,
-        title: `${t(`mode.${m.type === 'pair' ? 'cheft' : 'romme'}`)} · ${meldAugen(m)}`,
-        dataset: { meldId: String(m.id) },
-      },
-      ...m.cards.map((c, i) => {
+    return meldBox(
+      m.cards.map((c, i) => {
         let title = cardName(c);
         if (isJoker(c)) {
           const rep = jokerRepresents(m, i);
@@ -1382,14 +1494,14 @@ export class App {
         }
         return this.cardEl(c, { title, small });
       }),
+      { pair: m.type === 'pair', target: isTarget, stealable: isStealable, onClick, title: `${t(`mode.${m.type === 'pair' ? 'cheft' : 'romme'}`)} · ${meldAugen(m)}`, id: m.id },
     );
-    return el;
   }
 
   private logText(e: { key: string; player?: number; params?: Record<string, string | number> }): string {
     const s = this.state!;
     const params: Record<string, string | number> = { ...(e.params ?? {}) };
-    if (e.player !== undefined) params.name = e.player === this.me ? t('you') : s.players[e.player].name;
+    if (e.player !== undefined) params.name = s.players[e.player].name;
     if (e.key === 'log.discard') {
       const top = s.round.discard[s.round.discard.length - 1];
       params.card = top ? cardName(top) : '';
@@ -1443,11 +1555,11 @@ export class App {
     if (!handEl) return null;
     const n = this.order.length;
     const s = this.scale();
-    const cw = 32 * s;
-    const ch = 44 * s;
+    const cw = CARD_PX.w * s;
+    const ch = CARD_PX.h * s;
     const W = handEl.clientWidth;
-    const minStep = 15 * s;
-    const maxStep = cw + 2 * s;
+    const minStep = HAND.minStep * s;
+    const maxStep = cw + HAND.maxOver * s;
     let rows = 1;
     let step = n > 1 ? Math.min(maxStep, (W - cw) / (n - 1)) : maxStep;
     if (step < minStep && n > 1) {
@@ -1465,7 +1577,7 @@ export class App {
     const countInRow = row === 0 ? g.perRow : g.n - g.perRow;
     const rowWidth = (countInRow - 1) * g.step + g.cw;
     const x = (g.W - rowWidth) / 2 + col * g.step;
-    const y = g.rows === 2 ? row * (g.ch + 4 * g.s) : 6 * g.s;
+    const y = g.rows === 2 ? row * (g.ch + HAND.rowGap * g.s) : HAND.top * g.s;
     return { x: Math.round(x), y: Math.round(y) };
   }
 
@@ -1601,6 +1713,7 @@ export class App {
 
   // ------------------------------------------------------------ Eingaben
   private toggleSelect(id: number): void {
+    play('tick');
     if (this.selected.has(id)) this.selected.delete(id);
     else this.selected.add(id);
     this.targetMode = false;
@@ -1628,7 +1741,7 @@ export class App {
     attempts.push({ types: ALL_TYPES });
     let firstError: { error: string; params?: Record<string, string | number> } | null = null;
     for (const opts of attempts) {
-      const parts = findAllPartitions(cards, opts, 8);
+      const parts = findAllPartitions(cards, opts, ALL_OPTIONS);
       if (parts.length === 0) continue;
       const valid: { groups: number[][]; shapes: MeldShape[]; augen: number }[] = [];
       for (const part of parts) {
@@ -1669,7 +1782,7 @@ export class App {
       if (!chk.ok) firstError = { error: chk.error, params: chk.params };
     }
     this.toast(t(firstError?.error ?? 'err.invalidMeld', firstError?.params), true);
-    play('error');
+    this.errorFx();
     return false;
   }
 
@@ -1731,7 +1844,7 @@ export class App {
     const targets = layOffTargets(s, this.me, card.id).filter((x) => x.meld.id === m.id);
     if (targets.length === 0) {
       this.toast(t(s.round.players[this.me].opened ? 'err.cannotAdd' : 'err.notOpened'), true);
-      play('error');
+      this.errorFx();
       return false;
     }
     return this.layOffWithChoice(m, card);
@@ -1781,15 +1894,16 @@ export class App {
   private pileTap(source: 'stock' | 'discard' | 'carpet'): void {
     const s = this.state!;
     const options = (['stock', 'discard', 'carpet'] as const).filter((x) => checkDraw(s, this.me, x).ok);
-    const ambiguous = this.prefs.safeDraw && options.length > 1 && options.includes(source);
+    const ambiguous = this.prefs.safeDraw && options.includes(source);
     if (ambiguous && this.armed !== source) {
       this.armed = source;
       if (this.armedTimer) clearTimeout(this.armedTimer);
       this.armedTimer = window.setTimeout(() => {
         this.armed = null;
         this.render();
-      }, 5000);
-      vibrate(10, this.prefs.vibration);
+      }, MOTION.armed);
+      play('tick');
+      vibrate(VIB.short, this.prefs.vibration);
       this.render();
       return;
     }
@@ -1808,7 +1922,7 @@ export class App {
   private onDiscardDrawTap(): void {
     const s = this.state!;
     const now = Date.now();
-    const double = now - this.lastDiscardTap < 500;
+    const double = now - this.lastDiscardTap < MOTION.doubleTap;
     this.lastDiscardTap = now;
     const draw = checkDraw(s, this.me, 'discard');
     if (draw.ok) {
@@ -1822,7 +1936,7 @@ export class App {
         this.declareCheft(true);
       } else {
         this.toast(`${t(draw.error, draw.params)} ${t('hint.cheftDouble')}`, true);
-        play('error');
+        this.errorFx();
       }
       return;
     }
@@ -1837,121 +1951,115 @@ export class App {
     const voted = new Set(lobby.resumed ?? []);
     const mine = voted.has(this.me);
     const missing = lobby.seats.filter((s) => !s.isBot && s.connected && !voted.has(s.pid) && s.pid !== this.me).map((s) => s.name);
-    return h(
-      'div',
-      { class: 'overlay' },
-      h(
-        'div',
-        { class: 'panel dialog' },
-        h('h2', null, t('pause.title')),
-        h('p', null, waiting ? t('pause.waiting', { names: away.join(', ') }) : t('pause.text')),
-        h('button', { class: 'btn primary', disabled: mine, onclick: () => this.net?.pause(false) }, waiting ? t('pause.resumeAnyway') : t('pause.resume')),
-        mine && missing.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: missing.join(', ') })) : null,
-      ),
-    );
+    return windowEl([
+      h('h2', null, t('pause.title')),
+      h('p', null, waiting ? t('pause.waiting', { names: away.join(', ') }) : t('pause.text')),
+      btn(waiting ? t('pause.resumeAnyway') : t('pause.resume'), () => this.net?.pause(false), { variant: 'primary', disabled: mine }),
+      mine && missing.length ? hint(t('wait.others', { names: missing.join(', ') }), true) : null,
+    ]);
   }
 
   private renderSettings(): HTMLElement {
-    return h(
+    const inGame = this.screen === 'game';
+    const onOff = [
+      { v: true, label: t('settings.on') },
+      { v: false, label: t('settings.off') },
+    ];
+    // Im Spiel zuerst, was das laufende Spiel betrifft (Pause, Spielstand, Speichern, Abbrechen), danach die allgemeinen Einstellungen
+    const gameActions = inGame
+      ? h(
+          'div',
+          { class: 'menu-group' },
+          this.online && this.state && !this.state.finished
+            ? btn(t('btn.pause'), () => {
+                this.showSettings = false;
+                this.net?.pause(true);
+                this.render();
+              })
+            : null,
+          !this.online ? btn(t('btn.exportSave'), () => this.exportSave()) : null,
+          !this.online ? btn(t('btn.saveQuit'), () => this.saveAndQuit()) : null,
+          this.online ? btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }) : btn(t('btn.quit'), () => this.quitGame(), { variant: 'danger' }),
+        )
+      : null;
+    const general = h(
       'div',
-      {
-        class: 'overlay',
-        onclick: (e: Event) => {
-          if (e.target === e.currentTarget) {
-            this.showSettings = false;
-            this.render();
+      { class: 'menu-group' },
+      inGame && this.online && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
+      this.choice(
+        t('settings.vibration'),
+        onOff,
+        () => this.prefs.vibration,
+        (v) => {
+          this.prefs.vibration = v as boolean;
+          // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
+          if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
+        },
+      ),
+      this.choice(
+        t('settings.sound'),
+        onOff,
+        () => this.prefs.sound,
+        (v) => {
+          this.prefs.sound = v as boolean;
+          // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
+          setSoundEnabled(this.prefs.sound);
+          if (this.prefs.sound) {
+            unlockAudio();
+            play('lay');
           }
         },
-      },
-      h(
-        'div',
-        { class: 'panel dialog' },
-        h('h2', null, t('btn.settings')),
-        this.online && this.state ? h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
-        this.choice(
-          t('settings.speed'),
-          [
-            { v: 'normal', label: t('settings.speed.normal') },
-            { v: 'fast', label: t('settings.speed.fast') },
-          ],
-          () => this.prefs.speed,
-          (v) => (this.prefs.speed = v as Prefs['speed']),
-        ),
-        this.choice(
-          t('settings.vibration'),
-          [
-            { v: true, label: t('settings.on') },
-            { v: false, label: t('settings.off') },
-          ],
-          () => this.prefs.vibration,
-          (v) => (this.prefs.vibration = v as boolean),
-        ),
-        this.choice(
-          t('settings.sound'),
-          [
-            { v: true, label: t('settings.on') },
-            { v: false, label: t('settings.off') },
-          ],
-          () => this.prefs.sound,
-          (v) => (this.prefs.sound = v as boolean),
-        ),
-        this.choice(
-          t('settings.keepAwake'),
-          [
-            { v: true, label: t('settings.on') },
-            { v: false, label: t('settings.off') },
-          ],
-          () => this.prefs.keepAwake,
-          (v) => {
-            this.prefs.keepAwake = v as boolean;
-            void this.syncWakeLock();
-          },
-        ),
-        this.choice(
-          t('settings.safeDraw'),
-          [
-            { v: true, label: t('settings.safeDraw.yes') },
-            { v: false, label: t('settings.safeDraw.no') },
-          ],
-          () => this.prefs.safeDraw,
-          (v) => {
-            this.prefs.safeDraw = v as boolean;
-            this.disarm();
-          },
-        ),
-        h('button', { class: 'btn', onclick: () => this.showRules('game') }, t('btn.rules')),
-        this.online && this.state && !this.state.finished
-          ? h(
-              'button',
-              {
-                class: 'btn',
-                onclick: () => {
-                  this.showSettings = false;
-                  this.net?.pause(true);
-                  this.render();
-                },
-              },
-              t('btn.pause'),
-            )
-          : null,
-        this.online ? null : h('button', { class: 'btn', onclick: () => this.exportSave() }, t('btn.exportSave')),
-        this.online ? null : h('button', { class: 'btn', onclick: () => this.saveAndQuit() }, t('btn.saveQuit')),
-        this.online
-          ? h('button', { class: 'btn danger', onclick: () => this.leaveOnline(true) }, t('lobby.leave'))
-          : h('button', { class: 'btn danger', onclick: () => this.quitGame() }, t('btn.quit')),
-        h(
-          'button',
-          {
-            class: 'btn primary',
-            onclick: () => {
-              this.showSettings = false;
-              this.render();
-            },
-          },
-          t('btn.close'),
-        ),
       ),
+      this.choice(
+        t('settings.keepAwake'),
+        onOff,
+        () => this.prefs.keepAwake,
+        (v) => {
+          this.prefs.keepAwake = v as boolean;
+          void this.syncWakeLock();
+        },
+      ),
+      this.choice(
+        t('settings.safeDraw'),
+        [
+          { v: true, label: t('settings.safeDraw.yes') },
+          { v: false, label: t('settings.safeDraw.no') },
+        ],
+        () => this.prefs.safeDraw,
+        (v) => {
+          this.prefs.safeDraw = v as boolean;
+          this.disarm();
+        },
+      ),
+      this.cardBackChoice(),
     );
+    return windowEl([h('h2', null, t('btn.settings')), gameActions, general, backBtn(() => this.back())], () => this.back());
+  }
+
+  /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */
+  private cardBackChoice(): HTMLElement {
+    const items = BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') }));
+    return h('div', { class: 'option' }, fieldLabel(t('settings.cardBack')), backChoiceRow(items, this.prefs.cardDesign, (id) => this.setCardDesign(id)));
+  }
+
+  /** Rückseite, mit der die verdeckten Handkarten eines Platzes gezeichnet werden: online das Design des Spielers (Bots: stabil aus Raumcode und Platz abgeleitet, bei allen gleich), sonst nichts (= das eigene). */
+  private seatBack(pid: number): string | undefined {
+    const o = this.online;
+    const seat = o?.lobby?.seats.find((x) => x.pid === pid);
+    if (!o || !seat || pid === this.me) return undefined;
+    if (!seat.isBot) return seat.back ? backDesign(seat.back).id : undefined;
+    let hsh = 7;
+    for (const ch of `${o.room}/${pid}`) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+    return BACK_DESIGNS[hsh % BACK_DESIGNS.length].id;
+  }
+
+  private setCardDesign(id: string): void {
+    this.prefs.cardDesign = backDesign(id).id;
+    this.savePrefs();
+    this.net?.setBack(this.prefs.cardDesign);
+    this.atlas = buildAtlas(this.prefs.cardDesign);
+    document.documentElement.style.setProperty('--atlas', `url(${this.atlas.url})`);
+    this.render();
   }
 
   // ------------------------------------------------------------ Online
@@ -2040,7 +2148,7 @@ export class App {
 
   private createRoom(): void {
     const name = this.playerName();
-    this.connectOnline(() => this.net!.create(name));
+    this.connectOnline(() => this.net!.create(name, this.prefs.cardDesign, this.autoName()));
   }
 
   private joinRoom(): void {
@@ -2051,7 +2159,7 @@ export class App {
     }
     const name = this.playerName();
     this.claimChoice = null;
-    this.connectOnline(() => this.net!.join(code, name));
+    this.connectOnline(() => this.net!.join(code, name, this.prefs.cardDesign, this.autoName()));
   }
 
   private resumeOnline(): void {
@@ -2099,7 +2207,7 @@ export class App {
     const modes = s.round.players.map((p) => p.mode);
     if (s.round.no === this.lastModesRound && modes.some((m, i) => m === 'cheft' && this.lastModes[i] === 'romme')) {
       play('cheft');
-      vibrate(80, this.prefs.vibration);
+      if (modes[this.me] === 'cheft' && this.lastModes[this.me] === 'romme') vibrate(VIB.cheft, this.prefs.vibration);
     }
     this.lastModes = modes;
     this.lastModesRound = s.round.no;
@@ -2162,7 +2270,7 @@ export class App {
     if (u.last && u.last.pid !== this.me) {
       const seat = this.seatRect(u.last.pid);
       const k = u.last.action.kind;
-      if (k === 'draw') play('card');
+      if (u.last.action.kind === 'draw') play(drawSound(u.last.action.source));
       else if (k === 'discard') play('discard');
       else if (k === 'lay' || k === 'layOff') play('lay');
       if (drawInfo) this.flyDraw(drawInfo);
@@ -2219,20 +2327,13 @@ export class App {
           'div',
           { class: 'panel' },
           h('p', null, t('online.connecting')),
-          h('div', { class: 'muted small-text' }, t('online.wake')),
-          h(
-            'button',
-            {
-              class: 'btn',
-              onclick: () => {
-                this.linkRoom = null;
-                this.net?.close();
-                this.net = null;
-                this.goto('menu');
-              },
-            },
-            t('btn.cancel'),
-          ),
+          hint(t('online.wake')),
+          btn(t('btn.cancel'), () => {
+            this.linkRoom = null;
+            this.net?.close();
+            this.net = null;
+            this.goto('menu');
+          }),
         ),
       );
     }
@@ -2243,11 +2344,11 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'option' }, h('div', { class: 'muted' }, t('setup.name')), nameInput),
-        h('button', { class: 'btn primary', onclick: () => this.createRoom() }, t('online.create')),
-        h('div', { class: 'option' }, h('div', { class: 'muted' }, t('online.code')), h('div', { class: 'row' }, codeInput, h('button', { class: 'btn', onclick: () => this.joinRoom() }, t('online.join')))),
-        h('details', null, h('summary', { class: 'muted small-text' }, t('online.server')), h('div', { class: 'muted small-text' }, t('online.serverHint')), serverInput),
-        h('button', { class: 'btn', onclick: () => this.goto('menu') }, t('btn.back')),
+        h('div', { class: 'option' }, fieldLabel(t('setup.name')), nameInput),
+        btn(t('online.create'), () => this.createRoom(), { variant: 'primary' }),
+        h('div', { class: 'option' }, fieldLabel(t('online.code')), h('div', { class: 'row' }, codeInput, btn(t('online.join'), () => this.joinRoom()))),
+        h('details', null, h('summary', { class: 'hint' }, t('online.server')), hint(t('online.serverHint')), serverInput),
+        backBtn(() => this.back()),
       ),
     );
   }
@@ -2262,25 +2363,9 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('p', { class: 'muted small-text' }, t('claim.hint')),
-        ...c.seats.map((seat) =>
-          h(
-            'button',
-            { class: 'btn', onclick: () => this.net?.claim(c.room, seat.pid, name) },
-            `${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`,
-          ),
-        ),
-        h(
-          'button',
-          {
-            class: 'btn',
-            onclick: () => {
-              this.claimChoice = null;
-              this.render();
-            },
-          },
-          t('btn.back'),
-        ),
+        hint(t('claim.hint')),
+        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign, this.autoName()))),
+        backBtn(() => this.back()),
       ),
     );
   }
@@ -2289,7 +2374,7 @@ export class App {
     const o = this.online;
     const lobby = o?.lobby;
     if (!o || !lobby) {
-      return h('div', { class: 'menu' }, h('div', { class: 'panel' }, h('p', null, t('online.connecting')), h('button', { class: 'btn', onclick: () => this.leaveOnline(false) }, t('btn.back'))));
+      return h('div', { class: 'menu' }, h('div', { class: 'panel' }, h('p', null, t('online.connecting')), btn(t('btn.cancel'), () => this.leaveOnline(false))));
     }
     const isHost = lobby.hostPid === this.me;
     const list = h('div', { class: 'seat-list' });
@@ -2305,11 +2390,11 @@ export class App {
             { class: 'row' },
             isHost && lobby.seats.length > 1 ? h('span', { class: 'handle', title: t('lobby.drag') }) : null,
             seat.pid === this.me ? this.nameField(seat.name) : h('span', null, seat.name),
-            seat.isHost ? h('span', { class: 'badge open' }, t('lobby.host')) : null,
+            seat.isHost ? h('span', { class: 'badge' }, t('lobby.host')) : null,
             !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null,
             seat.isBot && !isHost ? h('span', { class: 'badge' }, 'Bot') : null,
           ),
-          isHost && seat.pid !== this.me ? h('button', { class: 'btn icon', title: t('lobby.remove'), onclick: () => this.net?.removeSeat(seat.pid) }, 'x') : null,
+          isHost && seat.pid !== this.me ? iconBtn(pixelIcon(ICON_X), t('lobby.remove'), () => this.net?.removeSeat(seat.pid)) : null,
         ),
         seat.isBot && isHost ? this.lobbyBotButtons(seat) : null,
       );
@@ -2333,16 +2418,16 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'row spread' }, h('span', { class: 'code-big' }, lobby.code), h('button', { class: 'btn', onclick: () => this.copyCode(lobby.code) }, t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'))),
+        btn(t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'), () => this.copyCode(lobby.code)),
         list,
-        isHost && lobby.seats.length < 4 ? h('button', { class: 'btn', onclick: () => this.net?.addBot({ level: 'random', style: 'random' }) }, t('lobby.addBot')) : null,
+        isHost && lobby.seats.length < 4 ? btn(t('lobby.addBot'), () => this.net?.addBot({ level: 'random', style: 'random' })) : null,
         ...settings,
-        h('div', { class: 'muted small-text' }, t('setup.directionCcw')),
+        hint(t('setup.directionCcw')),
         isHost
-          ? h('button', { class: 'btn primary', disabled: lobby.seats.length < 3, onclick: () => this.net?.start() }, lobby.seats.length < 3 ? t('lobby.need', { min: 3 }) : t('lobby.start'))
-          : h('div', { class: 'muted' }, t('lobby.waitHost')),
-        o.status !== 'open' ? h('div', { class: 'muted small-text' }, t(o.status === 'connecting' ? 'online.connecting' : 'online.offline')) : null,
-        h('button', { class: 'btn', onclick: () => this.leaveOnline(true) }, t('lobby.leave')),
+          ? btn(lobby.seats.length < 3 ? t('lobby.need', { min: 3 }) : t('lobby.start'), () => this.net?.start(), { variant: 'primary', disabled: lobby.seats.length < 3 })
+          : h('div', { class: 'field-label' }, t('lobby.waitHost')),
+        o.status !== 'open' ? hint(t(o.status === 'connecting' ? 'online.connecting' : 'online.offline')) : null,
+        btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }),
       ),
     );
   }
@@ -2403,48 +2488,32 @@ export class App {
   private copyCode(code: string): void {
     const text = this.canShareLink() ? `${location.origin}/${code}` : code;
     const label = t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode');
-    const show = () => this.askDialog({ title: label, input: { value: text, readonly: true }, buttons: [{ label: t('btn.close'), primary: true }] });
+    const show = () => this.askDialog({ title: label, input: { value: text, readonly: true }, back: true });
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => this.toast(t(this.canShareLink() ? 'lobby.copied' : 'lobby.copiedCode')), show);
     else show();
   }
 
   private renderChooser(): HTMLElement {
     const ch = this.chooser!;
-    return h(
-      'div',
-      { class: 'overlay' },
-      h(
-        'div',
-        { class: 'panel dialog' },
-        h('h2', null, ch.title),
-        ch.hint ? h('p', { class: 'muted small-text' }, ch.hint) : null,
-        ...ch.options.map((o) =>
-          h(
-            'div',
-            {
-              class: 'choose-option',
-              onclick: () => {
-                this.chooser = null;
-                o.onPick();
-              },
-            },
-            h('div', { class: 'choose-melds' }, ...o.shapes.map((m) => h('div', { class: 'choose-meld' }, ...m.cards.map((c) => this.cardEl(c, { mini: true }))))),
-            h('div', { class: 'muted small-text' }, o.label),
-          ),
-        ),
+    return windowEl([
+      h('h2', null, ch.title),
+      ch.hint ? hint(ch.hint) : null,
+      ...ch.options.map((o) =>
         h(
-          'button',
+          'div',
           {
-            class: 'btn',
+            class: 'choose-option',
             onclick: () => {
               this.chooser = null;
-              this.render();
+              o.onPick();
             },
           },
-          t('btn.cancel'),
+          h('div', { class: 'choose-melds' }, ...o.shapes.map((m) => h('div', { class: 'choose-meld' }, ...m.cards.map((c) => this.cardEl(c, { mini: true }))))),
+          hint(o.label),
         ),
       ),
-    );
+      btn(t('btn.cancel'), () => this.back()),
+    ]);
   }
 
   private nextRoundButton(): HTMLElement {
@@ -2452,9 +2521,9 @@ export class App {
     if (this.online) {
       // Jeder Mensch bestätigt die Auswertung (auch das Spielende); erst wenn alle bestätigt haben, geht es weiter.
       const mine = !!(s.round.nextReady ?? [])[this.me];
-      return h('button', { class: 'btn primary', disabled: mine, onclick: () => this.nextRound() }, t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound'));
+      return btn(t(s.finished ? 'lobby.backToLobby' : 'btn.nextRound'), () => this.nextRound(), { variant: 'primary', disabled: mine });
     }
-    return h('button', { class: 'btn primary', onclick: () => this.nextRound() }, t(s.finished ? 'btn.endGame' : 'btn.nextRound'));
+    return btn(t(s.finished ? 'btn.endGame' : 'btn.nextRound'), () => this.nextRound(), { variant: 'primary' });
   }
 
   /** Online: Hinweis, auf wen noch gewartet wird, nachdem man selbst bestätigt hat. */
@@ -2464,24 +2533,17 @@ export class App {
     const flags = s.round.nextReady ?? [];
     if (!flags[this.me]) return null;
     const waiting = s.players.filter((p) => !flags[p.id] && p.id !== this.me && !p.isBot).map((p) => p.name);
-    return waiting.length ? h('div', { class: 'muted small-text', style: { textAlign: 'center' } }, t('wait.others', { names: waiting.join(', ') })) : null;
+    return waiting.length ? hint(t('wait.others', { names: waiting.join(', ') }), true) : null;
   }
 
   private renderEndBar(): HTMLElement {
     return h(
       'div',
-      { class: 'endbar' },
-      h(
-        'button',
-        {
-          class: 'btn',
-          onclick: () => {
-            this.peekTable = false;
-            this.render();
-          },
-        },
-        t('btn.showResult'),
-      ),
+      { class: 'footbar endbar' },
+      btn(t('btn.showResult'), () => {
+        this.peekTable = false;
+        this.render();
+      }),
       this.nextRoundButton(),
     );
   }
@@ -2489,27 +2551,16 @@ export class App {
   /** Punkteverlauf: Spieler als Spalten, Runden als Zeilen mit aufsummierten Strafpunkten. */
   private renderRoundsTable(order: number[]): HTMLElement {
     const s = this.state!;
-    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
-    const sums = order.map(() => 0);
-    const max = Math.max(1, ...s.totals);
-    const body = s.history.map((res) =>
-      h(
-        'tr',
-        null,
-        h('td', { class: 'muted' }, t('round.short', { n: res.roundNo })),
-        ...order.map((pid, i) => {
-          const pts = res.scores[pid].total;
-          sums[i] += pts;
-          const bar = h('div', { class: 'bar', style: { width: `${Math.round((sums[i] / max) * 100)}%` } });
-          return h('td', { class: `num cell${res.winner === pid ? ' win' : ''}` }, bar, h('span', { class: 'sum' }, String(sums[i])), h('span', { class: 'delta' }, pts ? `+${pts}` : '·'));
-        }),
-      ),
-    );
-    return h(
-      'div',
-      null,
-      h('h3', null, t('gameEnd.rounds')),
-      h('table', { class: 'scores rounds' }, h('thead', null, h('tr', null, h('th', null, ''), ...order.map((pid) => h('th', { class: 'num' }, name(pid))))), h('tbody', null, ...body)),
+    const rows = s.history.map((res) => ({ points: order.map((pid) => res.scores[pid].total), winner: res.winner === null ? null : order.indexOf(res.winner) }));
+    return h('div', null, h('h3', null, t('gameEnd.rounds')), roundsTable(order.map((pid) => s.players[pid].name), rows, s.settings.rounds));
+  }
+
+  /** Punkteübersicht aus der Kopfzeile: dieselbe Tabelle wie am Spielende. */
+  private renderScores(): HTMLElement {
+    const s = this.state!;
+    return windowEl(
+      [s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')), backBtn(() => this.back())],
+      () => this.back(),
     );
   }
 
@@ -2517,7 +2568,7 @@ export class App {
     const s = this.state!;
     const r = s.round;
     const res = r.result!;
-    const name = (pid: number) => (pid === this.me ? t('you') : s.players[pid].name);
+    const name = (pid: number) => s.players[pid].name;
     const extras: string[] = [];
     if (res.winnerMode === 'cheft') extras.push(t('roundEnd.cheft'));
     if (res.hand) extras.push(t('roundEnd.hand'));
@@ -2533,9 +2584,9 @@ export class App {
           'td',
           null,
           name(p.id),
-          h('div', { class: 'factors' }, `${t(`mode.${pr.mode}`)} · ${pr.opened ? t('status.opened') : t('status.notOpened')}`),
+          h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
-          !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true }))) : null,
+          !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,
           s.finished && p.bot ? h('div', { class: 'factors accent' }, `${t(`level.${p.bot.level}`)} · ${t(`style.${p.bot.style}`)}`) : null,
         ),
         h('td', { class: 'num' }, String(sc.base), sc.factors.length ? h('div', { class: 'factors' }, sc.factors.map((f) => t(`factor.${f}`)).join(', ')) : null),
@@ -2550,41 +2601,28 @@ export class App {
       const w = winnerOfGame(s);
       text = w.length === 1 ? t('gameEnd.winner', { name: name(w[0]), n: s.totals[w[0]] }) : t('gameEnd.tie', { names: w.map(name).join(', ') });
     }
-    return h(
-      'div',
-      { class: 'overlay' },
+    return windowEl([
+      h('h2', null, title),
+      h('p', null, text),
+      extras.length ? h('p', { class: 'accent' }, extras.join(' ')) : null,
+      h(
+        'table',
+        { class: 'scores' },
+        h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
+        h('tbody', null, ...rows),
+      ),
+      s.finished ? this.renderRoundsTable(scoreOrder(s)) : null,
       h(
         'div',
-        { class: 'panel dialog' },
-        h('h2', null, title),
-        h('p', null, text),
-        extras.length ? h('p', { class: 'gold' }, extras.join(' ')) : null,
-        h(
-          'table',
-          { class: 'scores' },
-          h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
-          h('tbody', null, ...rows),
-        ),
-        s.finished ? this.renderRoundsTable(ordered.map((p) => p.id)) : null,
-        h(
-          'div',
-          { class: 'btn-row' },
-          h(
-            'button',
-            {
-              class: 'btn',
-              onclick: () => {
-                this.peekTable = true;
-                this.render();
-              },
-            },
-            t('btn.peekTable'),
-          ),
-          this.nextRoundButton(),
-        ),
-        this.waitHint(),
+        { class: 'btn-row' },
+        btn(t('btn.peekTable'), () => {
+          this.peekTable = true;
+          this.render();
+        }),
+        this.nextRoundButton(),
       ),
-    );
+      this.waitHint(),
+    ]);
   }
 }
 
