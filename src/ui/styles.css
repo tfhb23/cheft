@@ -138,7 +138,9 @@ textarea.text { max-width: none; resize: none; display: block; margin-bottom: ca
 .fly { position: fixed; z-index: 50; pointer-events: none; margin: 0; left: 0; top: 0; }
 
 /* ---------- Menü */
-.menu { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6px * var(--s)); padding: calc(8px * var(--s)); overflow: auto; }
+/* Mittig, aber bei zu wenig Höhe nicht oben abgeschnitten: automatische Ränder statt justify-content: center */
+.menu::before, .menu::after { content: ''; margin: auto; }
+.menu { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: calc(6px * var(--s)); padding: calc(8px * var(--s)); overflow: auto; }
 .menu .panel { width: 100%; max-width: calc(170px * var(--s)); display: flex; flex-direction: column; gap: calc(4px * var(--s)); }
 .menu-group + .menu-group { margin-top: calc(6px * var(--s)); }
 .menu-group { display: flex; flex-direction: column; gap: calc(4px * var(--s)); }
