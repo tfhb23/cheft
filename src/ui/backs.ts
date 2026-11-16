@@ -43,6 +43,19 @@ export const BACK_DESIGNS: BackDesign[] = [
       return m(u + v) === 0 || m(u - v) === 0 ? 'dark' : null;
     },
   },
+  {
+    id: 'raute',
+    name: 'Raute',
+    // Kleine Raute (Gold, Creme, Dunkel, Creme) mit Luft darum, im Hintergrund ein Rautengitter alle 6 Pixel.
+    // Nur dx, dy: dadurch an beiden Achsen perfekt gespiegelt.
+    paint: ({ dx, dy }) => {
+      const m6 = (n: number) => ((n % 6) + 6) % 6;
+      const d = dx + dy;
+      if (d <= 4) return (['gold', 'cream', 'dark', 'cream'] as const)[Math.max(0, Math.min(3, Math.ceil(d) - 1))];
+      if (d <= 6) return null;
+      return m6(d) < 1 || m6(dx - dy) < 1 ? 'dark' : null;
+    },
+  },
 ];
 
 export const DEFAULT_BACK = BACK_DESIGNS[0].id;
