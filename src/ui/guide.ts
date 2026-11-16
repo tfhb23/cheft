@@ -617,10 +617,10 @@ export function chapters(env: GuideEnv): Chapter[] {
       id: '5.31',
       name: 'App-Icon',
       where: 'Homescreen (PWA), Apple Touch Icon, Manifest',
-      code: 'public/icon-192.png, icon-512.png · scripts/make-icons.mjs (liest die Farben 1.17, 1.34–1.36, 1.13 aus tokens.ts)',
+      code: 'public/icon-192.png, icon-512.png · scripts/make-icons.mjs, make-favicon.mjs (Sonne der Rückseite „sonne“ auf Orange, Farben aus tokens.ts)',
       stage: () => [h('img', { src: `${import.meta.env.BASE_URL}icon-192.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } }), h('img', { src: `${import.meta.env.BASE_URL}icon-512.png`, width: '96', height: '96', style: { imageRendering: 'pixelated' } })],
       stageCls: 'flat',
-      facts: [['Größen', '192 × 192 und 512 × 512 (maskable)']],
+      facts: [['Größen', '192 × 192 und 512 × 512 (maskable, Vollfläche ohne eigene Rundung); Favicon 64 × 64 mit abgerundeten Ecken (public/favicon.png)']],
     },
     {
       id: '5.32',
