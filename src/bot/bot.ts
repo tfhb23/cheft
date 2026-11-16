@@ -267,7 +267,7 @@ function holdsOpeningWith(state: GameState, pid: number, k: Knobs, per: Percepti
 }
 
 /**
- * Handüberblick: Welche der möglichen Kombinationen sieht der Bot in diesem Zug? Jede wird einzeln geprüft, einfache
+ * Handüberblick: Welche der möglichen Kombinationen sieht der Bot in diesem Zug? Jede wird einzeln geprüft (Paar-Erstmeldungen als Ganzes), einfache
  * (ein Satz, ein Paar) werden selten, schwierige (lange Folge, Joker, Ass) öfter übersehen. Reicht der Rest nicht mehr
  * für die Regeln (z. B. unter 51 Augen oder keine 5 Paare), legt er in diesem Zug nichts aus und versucht es im nächsten wieder.
  * Pflichtzüge und der Mastermind übersehen nie etwas.
@@ -275,6 +275,16 @@ function holdsOpeningWith(state: GameState, pid: number, k: Knobs, per: Percepti
 export function perceivedGroups(state: GameState, pid: number, groups: number[][], per: Perception, decision: number): number[][] | null {
   if (per.forced || !(per.params.handMiss > 0)) return groups;
   const hand = state.round.players[pid].hand;
+  // Eine Erstmeldung aus lauter Paaren (Cheft) gilt nur ganz oder gar nicht: Ein einziger Wurf mit der mittleren Schwierigkeit,
+  // statt fünfmal einzeln zu würfeln (das würde die Fehlerquote auf fast das Doppelte treiben)
+  if (groups.length > 0 && groups.every((g) => g.length === 2)) {
+    const mean =
+      groups.reduce((sum, g) => {
+        const shape = interpretMeld(g.map((id) => hand.find((c) => c.id === id)!));
+        return sum + (shape ? comboDifficulty(shape) : 1);
+      }, 0) / groups.length;
+    return overlooksAt(state, pid, per, mean, decision, Math.min(...groups.flat())) ? null : groups;
+  }
   const kept = groups.filter((g) => {
     const cards = g.map((id) => hand.find((c) => c.id === id)!);
     const shape = interpretMeld(cards);

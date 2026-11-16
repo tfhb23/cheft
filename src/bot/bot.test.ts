@@ -616,3 +616,157 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
     expect(checkedPairs).toBeGreaterThan(0);
   }, 180000);
 });
+
+describe('Kein Mogeln: Die Bots kennen nur, was ein Spieler am Tisch sehen kann', () => {
+  /** Vertauscht die verdeckten Karten (fremde Hände und Nachziehstapel) untereinander, die Anzahlen bleiben gleich. */
+  function reshuffleHidden(g: ReturnType<typeof testGame>, pid: number, rng: () => number): ReturnType<typeof testGame> {
+    const alt = structuredClone(g);
+    const r = alt.round;
+    const holders = r.players.map((p, i) => ({ i, p })).filter((x) => x.i !== pid);
+    const pool = [...holders.flatMap((x) => x.p.hand), ...r.stock];
+    for (let k = pool.length - 1; k > 0; k--) {
+      const j = Math.floor(rng() * (k + 1));
+      [pool[k], pool[j]] = [pool[j], pool[k]];
+    }
+    let at = 0;
+    for (const { p } of holders) {
+      const n = p.hand.length;
+      p.hand = pool.slice(at, at + n);
+      at += n;
+    }
+    r.stock = pool.slice(at);
+    return alt;
+  }
+
+  it('fremde Handkarten und die Reihenfolge des Stapels zu vertauschen ändert keine Entscheidung, auf keiner Stufe', () => {
+    let checked = 0;
+    for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
+      const rng = makeRng(level.length * 101);
+      simulate({
+        seed: 9300 + level.length,
+        rounds: 2,
+        seats: Array.from({ length: 4 }, () => ({ level, style: 'balanced' as BotStyle })),
+        visit: (g, pid) => {
+          if ((g.round.plies ?? 0) % 3 !== 0) return;
+          const alt = reshuffleHidden(g, pid, rng);
+          expect(decideAction(alt, pid)).toEqual(decideAction(g, pid));
+          checked++;
+        },
+      });
+    }
+    expect(checked).toBeGreaterThan(100);
+  }, 180000);
+
+  it('auch alle Spielweisen und der mutige Modus (großer Rückstand) schauen nicht in verdeckte Karten', () => {
+    const styles: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
+    let checked = 0;
+    for (const style of styles) {
+      const rng = makeRng(style.length * 37);
+      simulate({
+        seed: 9400 + style.length,
+        rounds: 2,
+        seats: Array.from({ length: 4 }, (_, k) => ({ level: (['easy', 'normal', 'hard', 'master'] as const)[k], style })),
+        visit: (g, pid) => {
+          if (g.round.no === 1 && (g.round.plies ?? 0) === 0) g.totals = g.totals.map((_, j) => (j === 0 ? 150 : 0));
+          if ((g.round.plies ?? 0) % 4 !== 1) return;
+          const alt = reshuffleHidden(g, pid, rng);
+          expect(decideAction(alt, pid)).toEqual(decideAction(g, pid));
+          checked++;
+        },
+      });
+    }
+    expect(checked).toBeGreaterThan(80);
+  }, 180000);
+
+  it('die eigene Hand dagegen zählt: Wird sie verändert, kann die Entscheidung anders ausfallen (Gegenprobe, der Test ist nicht blind)', () => {
+    let differs = 0;
+    const rng = makeRng(5);
+    simulate({
+      seed: 9500,
+      rounds: 2,
+      seats: Array.from({ length: 4 }, () => ({ level: 'master' as const, style: 'balanced' as BotStyle })),
+      visit: (g, pid) => {
+        if ((g.round.plies ?? 0) % 2 !== 0) return;
+        // eigene Hand mit der eines Mitspielers tauschen
+        const alt = structuredClone(g);
+        const other = (pid + 1) % 4;
+        [alt.round.players[pid].hand, alt.round.players[other].hand] = [alt.round.players[other].hand, alt.round.players[pid].hand];
+        void rng;
+        const a = decideAction(g, pid);
+        let b;
+        try {
+          b = decideAction(alt, pid);
+        } catch {
+          b = null;
+        }
+        if (JSON.stringify(a) !== JSON.stringify(b)) differs++;
+      },
+    });
+    expect(differs).toBeGreaterThan(5);
+  }, 120000);
+
+  it('ein aus dem Speicher zurückgeholter Spielstand (JSON-Kopie) ergibt dieselbe Entscheidung', () => {
+    let checked = 0;
+    simulate({
+      seed: 9600,
+      rounds: 2,
+      seats: Array.from({ length: 4 }, (_, k) => ({ level: (['easy', 'normal', 'hard', 'master'] as const)[k], style: 'balanced' as BotStyle })),
+      visit: (g, pid) => {
+        if ((g.round.plies ?? 0) % 3 !== 0) return;
+        const restored = JSON.parse(JSON.stringify(g));
+        expect(decideAction(restored, pid)).toEqual(decideAction(g, pid));
+        checked++;
+      },
+    });
+    expect(checked).toBeGreaterThan(30);
+  }, 120000);
+});
+
+describe('Handüberblick bei Paar-Erstmeldungen (Cheft): ganz oder gar nicht, mit einem Wurf', () => {
+  // Fünf Paare, eines davon mit Joker: nur alle fünf zusammen sind eine gültige Erstmeldung
+  const HAND = ['HK', 'HK', 'S9', 'S9', 'D5', 'D5', 'C3', 'C3', 'J', 'H2', 'D8', 'S4', 'C10', 'H6', 'D12'];
+  function setup(seed: number, level: 'easy' | 'normal' | 'hard' | 'master', t: number) {
+    const g = testGame(4, seed);
+    const p = new CardPool();
+    const me = g.round.starter;
+    g.round.players[me].turns = t;
+    g.round.players[me].mode = 'cheft';
+    const hand = p.takeAll(...HAND);
+    setHand(g, me, hand);
+    g.round.turn = { ...g.round.turn, player: me, phase: 'play', drawSource: 'stock', drawnCardId: hand[14].id };
+    const groups = [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]].map((ix) => ix.map((i) => hand[i].id));
+    return { g, me, groups, per: perceive(g, me, memoryFor(level)) };
+  }
+  const run = (level: 'easy' | 'normal' | 'hard' | 'master') => {
+    let missed = 0;
+    let partial = 0;
+    let n = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (let t = 0; t < 30; t++) {
+        const { g, me, groups, per } = setup(seed * 5, level, t);
+        const kept = perceivedGroups(g, me, groups, per, 1);
+        n++;
+        if (kept === null) missed++;
+        else if (kept.length !== groups.length) partial++;
+      }
+    }
+    return { missed: missed / n, partial };
+  };
+
+  it('nie teilweise: Entweder sieht der Bot alle fünf Paare oder er legt in diesem Zug nichts', () => {
+    for (const level of ['easy', 'normal', 'hard'] as const) expect(run(level).partial).toBe(0);
+  });
+  it('die Fehlerquote liegt bei der Grundchance mal der mittleren Schwierigkeit (Normal ≈ 10 %, nicht ≈ 40 % wie bei fünf Einzelwürfen)', () => {
+    const normal = run('normal').missed;
+    expect(normal).toBeGreaterThan(0.06);
+    expect(normal).toBeLessThan(0.14);
+    expect(run('easy').missed).toBeGreaterThan(0.14);
+    expect(run('easy').missed).toBeLessThan(0.3);
+    expect(run('hard').missed).toBeLessThan(0.06);
+  });
+  it('der Mastermind und Pflichtzüge übersehen auch hier nichts', () => {
+    expect(run('master').missed).toBe(0);
+    const { g, me, groups } = setup(7, 'easy', 0);
+    expect(perceivedGroups(g, me, groups, perceive(g, me, memoryFor('easy'), true), 1)).toEqual(groups);
+  });
+});
