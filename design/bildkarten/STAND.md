@@ -95,3 +95,10 @@ Fallen:
 ## 7. Test- und Build-Stand
 
 Zum Zeitpunkt der Übergabe: `npx tsc --noEmit` ohne Fehler, `npx vitest run` 306 Tests grün. Im Code ist bisher nur die freigegebene schmale Ziffer 0 (4 × 7) und die enger gesetzte 10 geändert (`sprites.ts`, `guide.ts`).
+
+## 8. Tiefe und Licht (Stand dieser Sitzung)
+
+- Licht links/oben, Schatten rechts/unten, **per HSL-Formel** (`code/tiefe.py`: Licht L +0,12 / S ×0,92, Schatten L −0,13 / S ×1,10, bei hellen Flächen halb so stark `SOFT`). Variante B gilt für Haar, Hut, Haut, Kleidung; Fez/Zylinder behalten ihren Handschatten. Kleidung: kein Schatten an den Schnittkanten links/rechts.
+- Kein Hintergrundschatten (`SHADOW='S0'`). Weiße Flächen: Innenkante rechts/unten warmgrau (`WHITE='W2'`). Alle weißen Elemente reines Weiß `ffffff` (auch Pik-Haare, `WHITEHAIR`).
+- Könige: 3 Goldlinien am Saum (1 px Abstand); Damen: 2 Goldlinien. Lippen 2 px: Karo Dame, Herz König, Karo König, Pik König Zwilling.
+- Offen: Nasen (Buben, Karo König, Pik König Zwilling; Varianten N1 bis N3 in `images/schatten_nasen/`), Entscheidung zu den Damen. Vergleichsskripte: `tiefe_vergleich.py`, `vergleich_schatten_nasen.py`, `vergleich_weiss.py`.

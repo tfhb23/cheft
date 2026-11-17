@@ -2,7 +2,7 @@
 Büste Form 1 (Halbkreis, symmetrisch zur Kartenmitte, linke Schulter ab Spalte 5, rechts abgeschnitten), Augen immer auf y=16.
 König: Kante G5 (zwei Goldlinien mit Lücke). Bube: G1 (eine Goldlinie). Dame: untere Goldlinie, obere Linie dunkles Gold-Braun (G5u)."""
 from comp import *
-WHITEHAIR=hx('f3f0ea'); BROWN_GOLD=hx('8a5a1a'); RED2=hx('a02a20')
+WHITEHAIR=hx('ffffff'); BROWN_GOLD=hx('8a5a1a'); RED2=hx('a02a20')
 def mk(hat,beard,hair,extra,dyn,**pal): return dict(body='leer',hair=hair,beard=beard,hat=hat,extra=list(extra),pal=pal,dyn=dyn)
 KING_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g5k')
 BUBE_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g1')

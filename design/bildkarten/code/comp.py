@@ -76,7 +76,7 @@ import colorsys
 def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
-WHITE='W1'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
+WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
     if WHITE=='W1': return
     occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0

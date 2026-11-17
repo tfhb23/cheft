@@ -10,7 +10,7 @@ def hsl_shift(rgb,dl,fs):
     l=min(1,max(0,l+dl)); s=min(1,max(0,s*fs))
     r,g,b=colorsys.hls_to_rgb(h,l,s); return (round(r*255),round(g*255),round(b*255))
 def hi(c): return hsl_shift(c,*FORM['hi'])
-SOFT=False   # helle Flächen (L>0,8): Schatten nur halb so stark -> Weiß bleibt weiß
+SOFT=True    # helle Flächen (L>0,8): Schatten nur halb so stark -> Weiß bleibt weiß
 def lo(c):
     if SOFT and colorsys.rgb_to_hls(*[v/255 for v in c[:3]])[1]>0.8: return hsl_shift(c,FORM['lo'][0]*0.45,1.0)
     return hsl_shift(c,*FORM['lo'])
