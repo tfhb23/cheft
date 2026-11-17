@@ -15,7 +15,7 @@ SKIN=dict(H=hx('e3b58c'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f8e8dc'))   # Satz 
 HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 HAIR['H']=hx('7a4526')   # Herz-Braun (P3), weicht von Guide 1.26 (#6b3f22) ab
-HAIR['C']=hx('5c4b3f')   # Kreuz-Braun (P5), weicht von Guide 1.28 (#2b2b2b) ab
+HAIR['C']=hx('645144')   # Kreuz-Braun (P5, minimal heller), weicht von Guide 1.28 (#2b2b2b) ab
 HAIR['D']=BEARD['D']=hx('d7ad54')   # Karo: eine Farbe für Haar, Bart und Brauen (Sandblond, K-d minimal dunkler); weicht von Guide 1.27/1.31 ab
 
 import os

@@ -77,6 +77,7 @@ def BS(dx,shape):
     if shape=='sy_glocke': return round(28+9*math.exp(-(dx/5)**2))
     raise ValueError(shape)
 SYM_SHAPES=['sy_halb','sy_bogen','sy_trapez','sy_treppe_fein','sy_treppe_grob','sy_pyramide','sy_treppe_breit','sy_spitze','sy_glocke']
+EXTRA_ROW=0   # Test: eine zusätzliche Zeile Kleidung unter der untersten Goldlinie (1 = an)
 SHADE_PX=set()
 def full_shape(p):
     SHADE_PX.clear()
@@ -85,6 +86,7 @@ def full_shape(p):
     bot={x:BS(abs(x+0.5-16),shape) for x in xs if BS(abs(x+0.5-16),shape)>=T2(x)}
     lift=p.get('lift',0)
     body={(x,y) for x in bot for y in range(T2(x)-lift,bot[x]+1)}
+    extra={(x,bot[x]+1) for x in bot} if EXTRA_ROW else set()
     gold=set(); dark=set(); g=p.get('gold','g1')
     for x in bot:
         gold.add((x,bot[x]))
@@ -107,7 +109,7 @@ def full_shape(p):
         if g=='g5k':
             for dy in (2,4):
                 if (x,b-dy) in body: gold.add((x,b-dy))
-    return body,gold,dark-gold
+    return body|extra,gold,dark-gold
 def clipped(pix,xmin=4,notch_left=False):
     """Rechts abschneiden: ab Spalte 24 (Symbol/Fenster) und ein Pixel Rand um den Buchstaben unten rechts (Spalte >=23, Zeile 33 bis 41)."""
     return {(x,y) for (x,y) in pix if xmin<=x<=23 and not (x>=23 and 33<=y<=41) and not (notch_left and x<=8 and 33<=y<=41)}

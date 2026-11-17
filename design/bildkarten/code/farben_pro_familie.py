@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 from lib import hx, FONT, FONTB, C, SKIN as SKIN_LIB
 import tiefe
 h6=lambda c:'%02x%02x%02x'%tuple(c[:3])
-SKIN=hx('f3cfae'); SKINP=hx('f6dfca'); BR=hx('5c4b3f')
+SKIN=hx('f3cfae'); SKINP=hx('f6dfca'); BR=hx('645144')
 BG=(0xf2,0xe6,0xd0); INK=C['ink']
 D={ # Familie: [(hex, Element, Personen, formel?)]
 'Herz':[('d2362a','Rot: Kleidung','alle',0),('23201f','Schwarz: Augen','alle',0),('f2b53a','Gold: Saumlinien, Turbanborte, Haarkamm, Ohrringe','alle',0),
@@ -18,7 +18,7 @@ D={ # Familie: [(hex, Element, Personen, formel?)]
  ('a12219','Rot −0,13: Fezfalte, Saumschattenlinien','Bube, Dame',1),('e59b04','Gold −0,13: Turbanfalten','König',1)],
 'Kreuz':[('23201f','Schwarz: Kleidung, Augen, Federkappe','alle',0),('f2b53a','Gold: Saumlinien, Krone, Diadem, Falkenzeichnung','alle',0),
  ('f06a2d','Cheft-Orange 1.10: Federn, Edelsteine','Bube A, Dame A, König',0),('ffffff','Weiß: Hermelin, Perlen','Bube B, Dame A',0),
- ('5c4b3f','Braunes Haar, Brauen und Schnurrbart (ein Braun)','alle',0),('%s'%h6(tiefe.lo(BR)),'Braun −0,13: Strähnen der Zopfkrone','Dame B',1),('%s'%h6(tiefe.hi(BR)),'Braun +0,12: Falke Körper','Bube A',1),('efe2c6','Falke: Brust (Guide 1.06 Sand)','Bube A',0),('f3cfae','Haut','alle',0),('d05a4a','Lippen','Bube A, Bube B, König',0),('%s'%h6(tiefe.lo(SKIN)),'Haut −0,13: Nase (aus dem Hautton)','König, Bube A',1),
+ ('645144','Braunes Haar, Brauen und Schnurrbart (ein Braun)','alle',0),('%s'%h6(tiefe.lo(BR)),'Braun −0,13: Strähnen der Zopfkrone','Dame B',1),('%s'%h6(tiefe.hi(BR)),'Braun +0,12: Falke Körper','Bube A',1),('efe2c6','Falke: Brust (Guide 1.06 Sand)','Bube A',0),('f3cfae','Haut','alle',0),('d05a4a','Lippen','Bube A, Bube B, König',0),('%s'%h6(tiefe.lo(SKIN)),'Haut −0,13: Nase (aus dem Hautton)','König, Bube A',1),
  ('514a48','Schwarz +0,17: Saum + Zylinderglanz','Bube A, Bube B, Dame A, Dame B',1)],
 'Pik':[('23201f','Schwarz: Kleidung, Zylinder, Melone, Brillen, Augen, Schnurrbart','alle',0),('ffffff','Weiß: Haare','Bube, Dame, König',0),
  ('f2b53a','Gold: Saumlinien, Monokelrand, Zylinderschnalle','alle',0),('f06a2d','Cheft-Orange 1.10: Hutbänder','Dame, König, König Zwilling',0),
