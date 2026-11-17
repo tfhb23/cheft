@@ -8,6 +8,7 @@ Aufruf: python3 design/bildkarten/code/export_ts.py
 import os,sys,re
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from final_auswahl import *
+from final_layout import render_final   # aktueller Layout-Stand (mittig, schmaler Kopf, Kinn kürzer, Schultern schmaler)
 import lib
 OUT=os.path.join(lib._ROOT if os.path.exists(os.path.join(lib._ROOT,'src')) else '/home/user/cheft','src','ui','face-art.ts')
 CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-/:;<=>?@[]^_{|}~"
@@ -19,7 +20,7 @@ def sprites():
     for s,r,keys in KARTEN:
         if r<11: continue
         a=keys[0]; b=keys[1] or keys[0]
-        out['%s%d'%(s,r)]=[slot(a),slot(b)]
+        out['%s%d'%(s,r)]=[render_final(a),render_final(b)]
     return out
 def main():
     sp=sprites(); order=[]
