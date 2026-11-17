@@ -14,12 +14,15 @@
 import type { BotLevel, GameState } from '../engine/game';
 import type { Knobs } from './bot';
 import { MemoryParams, roll } from './memory';
+import { standing } from './strategy';
 
 export interface PersonaDef {
   id: string;
   label: string;
   knobs: Partial<Knobs>;
   memory?: Partial<MemoryParams>;
+  /** Zustandsabhängige Zusatzregler (z. B. nur mutig, wenn man hinten liegt). Rein aus dem Spielstand. */
+  adapt?: (state: GameState, pid: number) => Partial<Knobs>;
 }
 
 export interface Persona {
@@ -47,7 +50,7 @@ export function resolvePersona(p: Persona, state: GameState, pid: number): Resol
   if (p.pool && p.pool.length > 0 && p.loyalty < 1 && roll(state, pid, SALT + 1) >= p.loyalty) {
     def = p.pool[Math.floor(roll(state, pid, SALT + 2) * p.pool.length) % p.pool.length];
   }
-  const knobs: Partial<Knobs> = { ...def.knobs };
+  const knobs: Partial<Knobs> = { ...def.knobs, ...def.adapt?.(state, pid) };
   const base = knobs.ambition ?? 0.4;
   let ambition = base;
   if (p.jitter > 0) {
@@ -107,6 +110,31 @@ export const CAND: Record<string, PersonaDef> = {
   zocker2: { id: 'zocker2', label: 'Zocker', knobs: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6 } },
   zocker3: { id: 'zocker3', label: 'Zocker (wild)', knobs: { cheftEagerPairs: 3, pairTakeAt: 2, gamble: 0.25, pairLove: 2, ambition: 0.7 } },
   hasardeur: { id: 'hasardeur', label: 'Hasardeur', knobs: { cheftEagerPairs: 3, pairTakeAt: 2, pairLove: 2, ambition: 0.9, tuning: { holdAt0: 0, w0: 2, w1: 4 } } },
+  // ---- Varianten des Glücksritters für die „teures Vergnügen“-Frage (früh Cheft nur in bestimmten Lagen)
+  netzA: {
+    id: 'netzA',
+    label: 'Glücksritter: früh Cheft nur in der ersten Rundenhälfte',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st) => (st.round.stock.length >= 30 ? { cheftEagerPairs: 3 } : {}),
+  },
+  netzB: {
+    id: 'netzB',
+    label: 'Glücksritter: früh Cheft nur, wenn er hinten liegt',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (standing(st, pid).behind >= 30 ? { cheftEagerPairs: 3 } : {}),
+  },
+  netzC: {
+    id: 'netzC',
+    label: 'Glücksritter: früh Cheft in der ersten Rundenhälfte oder wenn hinten',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (st.round.stock.length >= 30 || standing(st, pid).behind >= 30 ? { cheftEagerPairs: 3 } : {}),
+  },
+  netzD: {
+    id: 'netzD',
+    label: 'Glücksritter: ganz früh Cheft (Stapel ≥ 38) oder hinten',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (st.round.stock.length >= 38 || standing(st, pid).behind >= 30 ? { cheftEagerPairs: 3 } : {}),
+  },
   jaeger: { id: 'jaeger', label: 'Königsjäger', knobs: { huntLeader: 1, blockWeight: 12 } },
 };
 

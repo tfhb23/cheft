@@ -36,6 +36,18 @@ export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   gambler: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
 };
 
+/**
+ * Wohin eine Spielweise in einer „Laune“-Runde ausweicht: nur zu ähnlichen, damit die Rolle erkennbar bleibt. Der Frühvogel wird
+ * nie plötzlich zum Glücksritter, der Glücksritter nie zum Frühvogel; nur die Ausgewogene darf überallhin.
+ */
+export const NEIGHBORS: Record<StyleId, StyleId[]> = {
+  balanced: ['early', 'cunning', 'pairs', 'gambler'],
+  early: ['balanced'],
+  cunning: ['balanced', 'pairs'],
+  pairs: ['balanced', 'cunning', 'gambler'],
+  gambler: ['pairs'],
+};
+
 export interface RoleOptions {
   /** Vorlieben (Standard: an). */
   tastes?: boolean;
@@ -43,6 +55,8 @@ export interface RoleOptions {
   oppUse?: number;
   /** Rollentreue, Launen, Stimmung (Standard: aus). */
   loyalty?: number;
+  /** Wohin eine Laune-Runde ausweicht: 'neighbors' (Standard, nur ähnliche Spielweisen) oder 'all'. */
+  deviate?: 'neighbors' | 'all';
   jitter?: number;
   tilt?: number;
   /** Überschreibt Regler (für Tests). */
@@ -60,5 +74,6 @@ export function rolePersona(id: RoleId, o: RoleOptions = {}): Persona {
   const pool = STYLE_IDS.map((s) => def(s, o));
   const base = id === 'wildcard' ? pool[0] : def(id, o);
   if (id === 'wildcard') return persona(base, { loyalty: 0, pool, jitter: o.jitter ?? 0, tilt: o.tilt ?? 0 });
-  return persona(base, { loyalty: o.loyalty ?? 1, pool: pool.filter((d) => d.id !== id), jitter: o.jitter ?? 0, tilt: o.tilt ?? 0 });
+  const allowed = o.deviate === 'all' ? pool.filter((d) => d.id !== id) : pool.filter((d) => NEIGHBORS[id as StyleId].includes(d.id as StyleId));
+  return persona(base, { loyalty: o.loyalty ?? 1, pool: allowed, jitter: o.jitter ?? 0, tilt: o.tilt ?? 0 });
 }

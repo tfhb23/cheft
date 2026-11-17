@@ -38,6 +38,11 @@ export interface Spec {
 }
 
 interface Acc {
+  bigWin100: number;
+  bigWin200: number;
+  bigLoss200: number;
+  marginSum: number;
+  cheftWins: number;
   tasteN: number;
   tasteSum: number;
   tasteDeck: number;
@@ -78,7 +83,7 @@ interface Acc {
   discFace: number;
   discRanks: number;
 }
-const zero = (): Acc => ({ tasteN: 0, tasteSum: 0, tasteDeck: 0, games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0, disc: 0, discH: 0, discLow: 0, discFace: 0, discRanks: 0 });
+const zero = (): Acc => ({ bigWin100: 0, bigWin200: 0, bigLoss200: 0, marginSum: 0, cheftWins: 0, tasteN: 0, tasteSum: 0, tasteDeck: 0, games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0, disc: 0, discH: 0, discLow: 0, discFace: 0, discRanks: 0 });
 
 interface Job {
   indices: number[];
@@ -199,6 +204,7 @@ function run(job: Job): Acc[] {
         }
         if (pl === h.winner) {
           a.roundWins++;
+          if (sawCheft[pl]) a.cheftWins++;
           if (h.hand) a.handWins++;
           if (h.jokerBurned) a.burnWins++;
         } else if (h.winner === null) a.noWinnerRounds++;
@@ -209,6 +215,17 @@ function run(job: Job): Acc[] {
       const a = accs[specOf(s)];
       a.games++;
       const won = res.winners.includes(s);
+      {
+        const others = res.totals.filter((_, k) => k !== s);
+        const best = Math.min(...others);
+        if (won && res.winners.length === 1) {
+          const margin = best - res.totals[s];
+          a.marginSum += margin;
+          if (margin >= 100) a.bigWin100++;
+          if (margin >= 200) a.bigWin200++;
+        }
+        if (res.totals[s] - Math.min(...res.totals) >= 200) a.bigLoss200++;
+      }
       if (won) a.wins += 1 / res.winners.length;
       const R = hist.length;
       if (perSeat[s].cheft === 0) a.cheftNone++;
@@ -271,6 +288,14 @@ export function summarize(a: Acc, rounds: number) {
     winsWithBig: pct(a.winsWithBig, a.wins),
     /** Wie viel Punkte weniger Vorlieben-Zuschlag haben die abgeworfenen Karten gegenüber einer Zufallskarte? Positiv = die Vorlieben prägen den Abwurf. */
     tasteBias: a.tasteN > 0 ? (a.tasteDeck - a.tasteSum) / a.tasteN : NaN,
+    /** Anteil der Spiele, die mit mindestens 100 (200) Punkten Vorsprung gewonnen wurden, und der Spiele, die mit mindestens 200 Punkten Rückstand auf den Besten endeten. */
+    bigWin100: pct(a.bigWin100, a.games),
+    bigWin200: pct(a.bigWin200, a.games),
+    bigLoss200: pct(a.bigLoss200, a.games),
+    /** Mittlerer Vorsprung der Spielsiege (Punkte). */
+    winMargin: a.wins > 0 ? a.marginSum / a.wins : NaN,
+    /** Wie oft endet eine Runde mit Cheft für den Spieler selbst als Sieg? */
+    cheftWinRate: pct(a.cheftWins, a.cheftRounds),
     dH: pct(a.discH, a.disc),
     dLow: pct(a.discLow, a.disc),
     dFace: pct(a.discFace, a.disc),
