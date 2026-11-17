@@ -14,6 +14,8 @@ C={k:T(v) for k,v in GUIDE_IDS.items()}
 SKIN=dict(H=hx('e3b58c'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f8e8dc'))   # Satz B, Karo/Kreuz = Mitte H1/H2 (freigegeben)
 HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
+HAIR['H']=hx('7a4526')   # Herz-Braun (P3), weicht von Guide 1.26 (#6b3f22) ab
+HAIR['C']=hx('5c4b3f')   # Kreuz-Braun (P5), weicht von Guide 1.28 (#2b2b2b) ab
 KARO_MIX=True   # Karo: Haar, Bart und Brauen = Mitte aus Guide 1.27 (Haar Karo) und 1.31 (Bart Karo); False = rückgängig
 if KARO_MIX: HAIR['D']=BEARD['D']=tuple((a+b)//2 for a,b in zip(HAIR['D'],BEARD['D']))
 

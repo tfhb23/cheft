@@ -30,7 +30,7 @@ for _n,_v in _extra.items():
 MASTERS_V2={n:spec_v2(n) for n in _M}
 
 # ---- Ergänzung: Kreuz König (CK-c neu): fünfzackige Goldkrone, schmaler Schnurrbart wie CK-i, Brauen und Nase
-_BROWN=hx('5a3a24'); _DBROWN=_BROWN
+_BROWN=HAIR['C']; _DBROWN=_BROWN
 _M['kreuz_koenig']=('C',13,'schlagschatten',mk('krone_k','schnurr','kurz',('brauen','nase'),KING_DYN,H=_BROWN,B=_DBROWN,J=C['red']))
 MASTERS_V2={n:spec_v2(n) for n in _M}
 

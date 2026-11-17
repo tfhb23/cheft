@@ -1,6 +1,6 @@
 from lib import *
 import parts as P
-SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('cfc8bd'); BLACK=C['ink']; BROWN=hx('5a3a24'); DBROWN=BROWN
+SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('ddd8cf'); BLACK=C['ink']; BROWN=HAIR['C']; DBROWN=BROWN
 GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf'); STEEL=C['inkL']; DSTEEL=hx('8a847e'); RUBY=C['red']
 def letters(suit,pal):
     ink=inkOf(suit); light=lightOf(suit)
@@ -90,7 +90,7 @@ WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | 
 def white_edge(c,fig):
     if WHITE=='W1': return
     occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
-    def _weiss(p): return (max(p[:3])-min(p[:3]))<=14 and sum(p[:3])/3>=190     # nur Weiß/Hellgrau, nie Haut
+    def _weiss(p): return (max(p[:3])-min(p[:3]))<=6 and sum(p[:3])/3>=190     # nur Weiß/Hellgrau, nie Haut
     light=lambda x,y: occ(x,y) and _weiss(fig.p[x,y])
     cream=lambda x,y: 0<=x<W and 0<=y<H and c.p[x,y][:3]==C['cream'] and c.p[x,y][3]>0
     if WHITE in ('W2','W4'):

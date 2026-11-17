@@ -14,7 +14,7 @@ import parts as P
 
 BG=(0xf2,0xe6,0xd0)
 WHITE=C['white']; RED=C['red']; GOLD=C['gold']; INK=C['ink']
-BROWN=hx('5a3a24'); DBROWN=BROWN; BLACK=C['ink']; SKIN_PIK=hx('f6dfca')
+BROWN=HAIR['C']; DBROWN=BROWN; BLACK=C['ink']; SKIN_PIK=hx('f6dfca')
 HH=dict(M=RED); KB=dict(H=BROWN,B=DBROWN); KD=dict(H=BROWN,M=RED)
 OLD_FALKE=['..www.','.wwKwG','wwOOw.','wwOOw.','.G.G..']      # Falken-Zeichnung (freigegeben, NICHT ändern)
 

@@ -6,10 +6,10 @@ import lib
 from tiefe_vergleich import spec_of
 # (Hex, Element, Personen, Guide-Bezug, Hinweis)
 HAAR={
-'Herz':[('6b3f22','Haar und Brauen','Bube A, Bube B (nur Brauen), Dame A, Dame B','1.26 Haar Herz',''),
-        ('cfc8bd','Haar, Bart und Brauen (grau)','König','–','Ausnahme: Alter, bewusst grau')],
+'Herz':[('7a4526','Haar und Brauen','Bube A, Bube B (nur Brauen), Dame A, Dame B','Guide 1.26 = #6b3f22 (abweichend)',''),
+        ('ddd8cf','Haar, Bart und Brauen (grau, heller)','König','–','Ausnahme: Alter, bewusst grau')],
 'Karo':[('cd9a32','Haar, Bart und Brauen (Mix aus Blond und Bart)','Bube, Dame, König','Mix aus 1.27 und 1.31','Ein Wert für die ganze Familie; rückgängig: KARO_MIX in lib.py')],
-'Kreuz':[('5a3a24','Haar, Brauen und Schnurrbart','alle (5 Personen)','–  (Guide 1.28 = #2b2b2b)','Strähnen der Zopfkrone per Formel (−0,13)')],
+'Kreuz':[('5c4b3f','Haar, Brauen und Schnurrbart','alle (5 Personen)','–  (Guide 1.28 = #2b2b2b)','Strähnen der Zopfkrone per Formel (−0,13)')],
 'Pik':[('ffffff','Haar (weiß)','Bube, Dame, König','–  (Guide 1.29 = #8a4a2a)',''),
        ('23201f','Schnurrbart und Brauen (Tinte 1.01)','König Zwilling (Glatze)','1.01 Tinte','Ausnahme: Glatze, Schnurrbart braucht Kontrast')],
 }

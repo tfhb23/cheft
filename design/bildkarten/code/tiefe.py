@@ -55,7 +55,7 @@ def apply(grid,cm,variant):
         for y,row in grid.items():
             for x in range(16):
                 if row[x]!='S': continue
-                if ch(x-1,y)=='.': out[(x,y)]=hi(cm['S'])
+                if ch(x-1,y)=='.': out[(x,y)]=skin_hi(cm['S'])
                 elif ch(x+1,y)=='.': out[(x,y)]=lo(cm['S'])
     if v.get('cast'):   # Wurfschatten auf die Haut: Licht links oben -> Schatten rechts unten neben/unter Haar und Hut
         for y,row in grid.items():
@@ -87,3 +87,9 @@ def glanz(c):
 def nase(skin):
     """Nase: dunklere Stufe des Hauttons (immer aus dem Hautton darunter)."""
     return hsl_shift(skin,-0.18,1.00)
+
+def skin_hi(skin):
+    """Licht auf der Haut: höchstens bis L 0,88, damit der Hautrand nie so hell wird wie die Karte (sonst wirkt er wie ein loser Pixel)."""
+    l=colorsys.rgb_to_hls(*[v/255 for v in skin[:3]])[1]
+    d=min(FORM['hi'][0],max(0.0,0.88-l))
+    return hsl_shift(skin,d,FORM['hi'][1])
