@@ -230,7 +230,9 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   const k0 = knobs(state, pid, opts);
   // Wahrnehmung: Was übersieht der Bot in diesem Zug? Der Spielzustand selbst bleibt unverändert.
   const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
-  const per = perceive(state, pid, memoryFor(eff?.level ?? profileOf(state, pid).level, { ...eff?.memory, ...opts.memory }), isForced(state));
+  let mem = memoryFor(eff?.level ?? profileOf(state, pid).level, { ...eff?.memory, ...opts.memory });
+  if (eff?.carelessness) mem = { ...mem, noise: mem.noise * (eff.carelessness.noise ?? 1), handMiss: Math.min(1, mem.handMiss * (eff.carelessness.handMiss ?? 1)) };
+  const per = perceive(state, pid, mem, isForced(state));
   const view = perceivedState(state, per);
   // Gegner-Gedächtnis: Wie spielen die Mitspieler in diesem Spiel? Das verschiebt den Ehrgeiz (Warten lohnt gegen schnelle Gegner kaum).
   const opps = k0.oppUse ? state.players.map((_, i) => (i === pid ? null : opponentModel(state, pid, i, per.params))) : null;

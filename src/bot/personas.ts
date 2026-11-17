@@ -21,6 +21,8 @@ export interface PersonaDef {
   label: string;
   knobs: Partial<Knobs>;
   memory?: Partial<MemoryParams>;
+  /** Rollenabhängige Sorgfalt: Faktoren auf Entscheidungsrauschen (`noise`) und Handüberblick (`handMiss`) der Stufe (1 = unverändert). Wer perfekt ist (Mastermind), bleibt es. */
+  carelessness?: { noise?: number; handMiss?: number };
   /** Zustandsabhängige Zusatzregler (z. B. nur mutig, wenn man hinten liegt). Rein aus dem Spielstand. */
   adapt?: (state: GameState, pid: number) => Partial<Knobs>;
 }
@@ -37,6 +39,7 @@ export interface Persona {
 export interface ResolvedPersona {
   knobs: Partial<Knobs>;
   memory?: Partial<MemoryParams>;
+  carelessness?: { noise?: number; handMiss?: number };
   level?: BotLevel;
   /** Welche Rolle in dieser Runde gespielt wird (für Auswertungen). */
   active: string;
@@ -72,7 +75,7 @@ export function resolvePersona(p: Persona, state: GameState, pid: number): Resol
   if (ambition !== base) knobs.ambition = clamp(ambition, 0, 1);
   let level: BotLevel | undefined;
   if (p.levels && p.levels.length > 0) level = p.levels[Math.floor(roll(state, pid, SALT + 9) * p.levels.length) % p.levels.length];
-  return { knobs, memory: def.memory, level, active: def.id };
+  return { knobs, memory: def.memory, carelessness: def.carelessness, level, active: def.id };
 }
 
 // ---------------------------------------------------------------- Kandidaten-Rollen (Entwurf, noch nicht in der App)
