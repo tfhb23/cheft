@@ -556,7 +556,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     },
     {
       id: '5.21',
-      name: 'Ziffern- und Buchstaben-Glyphen (5 × 7 Pixel)',
+      name: 'Ziffern- und Buchstaben-Glyphen (5 × 7 Pixel, die 0 nur 4 × 7)',
       where: 'Eckmarken aller Karten: 2–10, A, B (Bube), D (Dame), K, J (Joker)',
       code: 'sprites.ts › GLYPHS',
       stage: () => Object.entries(GLYPHS).map(([k, rows]) => h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1)', color: 'var(--text-strong)' } }, art(rows, undefined, 1.5), hint(k))),

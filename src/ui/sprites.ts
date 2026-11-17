@@ -29,7 +29,7 @@ export const PALETTE = {
 };
 
 export const GLYPHS: Record<string, string[]> = {
-  '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
+  '0': ['.##.', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.'],
   '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
   '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
   '3': ['#####', '...#.', '..#..', '...#.', '....#', '#...#', '.###.'],
@@ -185,6 +185,9 @@ function shape(ctx: Ctx, rows: string[], x: number, y: number, color: string, sc
   });
 }
 
+/** Linker Textanfang der Eckmarke. */
+const INDEX_X = 3;
+
 function rankText(rank: number): string {
   if (rank === 1) return 'A';
   if (rank === 11) return 'B';
@@ -193,13 +196,14 @@ function rankText(rank: number): string {
   return String(rank);
 }
 
-function text(ctx: Ctx, s: string, x: number, y: number, color: string): number {
-  let cx = x;
-  for (const ch of s) {
-    shape(ctx, GLYPHS[ch], cx, y, color);
-    cx += 6;
-  }
-  return cx - 1;
+/** Waagerechter Versatz je Zeichen (Pixel ab Textanfang). Standard: Zellenbreite 6. Die 10 steht enger: 1 einen Pixel zum Rand, 0 direkt daneben. */
+function offsets(s: string): number[] {
+  return s === '10' ? [-1, 4] : [...s].map((_, i) => i * 6);
+}
+
+function text(ctx: Ctx, s: string, x: number, y: number, color: string): void {
+  const offs = offsets(s);
+  [...s].forEach((ch, i) => shape(ctx, GLYPHS[ch], x + offs[i], y, color));
 }
 
 /** Um 180 Grad gedrehte Pixelzeilen (für die untere Eckmarke, die auf dem Kopf steht). */
@@ -207,14 +211,13 @@ function rot180(rows: string[]): string[] {
   return rows.map((r) => [...r].reverse().join('')).reverse();
 }
 
-/** Text um 180 Grad gedreht, rechtsbündig bei xRight (Zeichenreihenfolge ebenfalls umgekehrt). */
-function textRot(ctx: Ctx, s: string, xRight: number, y: number, color: string): void {
-  const w = s.length * 6 - 1;
-  let cx = xRight - w;
-  for (const ch of [...s].reverse()) {
-    shape(ctx, rot180(GLYPHS[ch]), cx, y, color);
-    cx += 6;
-  }
+/** Text um 180 Grad gedreht: Punktspiegelung der oberen Eckmarke (Textanfang oben bei x + INDEX_X) um den Kartenmittelpunkt. x = linke Kante der Karte. */
+function textRot(ctx: Ctx, s: string, x: number, y: number, color: string): void {
+  const offs = offsets(s);
+  [...s].forEach((ch, i) => {
+    const g = GLYPHS[ch];
+    shape(ctx, rot180(g), x + CARD_W - INDEX_X - offs[i] - g[0].length, y, color);
+  });
 }
 
 function cardBase(ctx: Ctx, x: number, y: number, fill: string): void {
@@ -237,10 +240,10 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
   cardBase(ctx, x, y, PALETTE.cream);
   const ink = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
   const rt = rankText(rank);
-  text(ctx, rt, x + 3, y + 3, ink);
+  text(ctx, rt, x + INDEX_X, y + 3, ink);
   shape(ctx, SUIT_SHAPES[suit], x + 3, y + 11, ink);
   // unten rechts: Zahl und Farbe stehen auf dem Kopf (um 180 Grad gedreht wie bei echten Karten)
-  textRot(ctx, rt, x + CARD_W - 3, y + CARD_H - 10, ink);
+  textRot(ctx, rt, x, y + CARD_H - 10, ink);
   shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, ink);
   if (rank >= 11) {
     // Bildkarte: heller Rahmen, Figur in Kartenfarbe
@@ -258,7 +261,7 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
 function drawJoker(ctx: Ctx, x: number, y: number): void {
   cardBase(ctx, x, y, PALETTE.cream);
   text(ctx, 'J', x + 3, y + 3, PALETTE.orange);
-  textRot(ctx, 'J', x + CARD_W - 3, y + CARD_H - 10, PALETTE.orange);
+  textRot(ctx, 'J', x, y + CARD_H - 10, PALETTE.orange);
   shape(ctx, STAR, x + 9, y + 15, PALETTE.orangeDark);
   shape(ctx, STAR, x + 9, y + 14, PALETTE.gold);
   px(ctx, x + 15, y + 19, PALETTE.cream);
