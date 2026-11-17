@@ -27,12 +27,12 @@ def render(suit,rank,sp,emph='schlagschatten'): return card(suit,rank,sp,emph,'s
 
 # ---------------- freigegebene neue Personen (zweite Person je Karte) ----------------
 def _falke(x,y):
-    sp=m2(11,'federkappe','keiner','kurz',px=px(OLD_FALKE,x,y),A=INK,F=GOLD,**KB); sp['px_after']=True   # Vogel ohne Schatten
+    sp=m2(11,'federkappe','keiner','kurz',('nase_n3',),px=px(OLD_FALKE,x,y),A=INK,F=GOLD,**KB); sp['px_after']=True   # Vogel ohne Schatten
     return sp
 PERSONEN={
  # Herz Bube
  'herz_bube_a':('H',11,m2(11,['turbm_a','mond_klein'],'keiner','kurz_b',('brauen',),A=WHITE,a=SHADE)),
- 'herz_bube_b':('H',11,m2(11,['turban_klein','feder_s4'],'keiner','glatze',('brauen',),A=WHITE,a=SHADE,J=RED)),
+ 'herz_bube_b':('H',11,m2(11,['turban_klein','feder_s4'],'keiner','glatze',('brauen','nase_n3'),A=WHITE,a=SHADE,J=RED)),
  # Herz Dame
  'herz_dame_a':('H',12,m2(12,['fall_rc','mond_rc','sterne_schleier'],'keiner','rund_scheitel',('mund_schmal',),J=RED,**HH)),
  'herz_dame_b':('H',12,m2(12,['kamm5_8_rot_u','ohrringe'],'keiner','hochsteck',('mund_schmal',),**HH)),
