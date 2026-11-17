@@ -11,7 +11,7 @@ def T(i): return hx(_PAL[i])
 GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.06',gold='1.13',red='1.14',inkL='1.20',redL='1.21',skin='1.22',mouth='1.23',white='1.24')
 C={k:T(v) for k,v in GUIDE_IDS.items()}
 # Hautton pro Familie (eine Definition je Familie; Nase und Lippen leiten sich daraus ab)
-SKIN=dict(H=hx('e3b58c'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f8e8dc'))   # Satz B, Karo/Kreuz = Mitte H1/H2 (freigegeben)
+SKIN=dict(H=hx('e6be9a'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f6e1d1'))   # Satz B, Karo/Kreuz = Mitte H1/H2 (freigegeben)
 HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 HAIR['H']=hx('7a4526')   # Herz-Braun (P3), weicht von Guide 1.26 (#6b3f22) ab
