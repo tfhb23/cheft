@@ -10,7 +10,10 @@ def hsl_shift(rgb,dl,fs):
     l=min(1,max(0,l+dl)); s=min(1,max(0,s*fs))
     r,g,b=colorsys.hls_to_rgb(h,l,s); return (round(r*255),round(g*255),round(b*255))
 def hi(c): return hsl_shift(c,*FORM['hi'])
-def lo(c): return hsl_shift(c,*FORM['lo'])
+SOFT=False   # helle Flächen (L>0,8): Schatten nur halb so stark -> Weiß bleibt weiß
+def lo(c):
+    if SOFT and colorsys.rgb_to_hls(*[v/255 for v in c[:3]])[1]>0.8: return hsl_shift(c,FORM['lo'][0]*0.45,1.0)
+    return hsl_shift(c,*FORM['lo'])
 def lo2(c): return hsl_shift(c,*FORM['lo2'])
 VERT='HAKGWN'     # Haar/Hut: dürfen oben hell / unten dunkel werden (Bart nicht: zu unruhig)
 CAST='HAKGWN'     # wirft Schatten auf die Haut
@@ -20,7 +23,13 @@ def apply(grid,cm,variant):
     """grid: {y:row}; cm: Buchstabe->RGB. Rückgabe: {(spaltenindex,y):RGB}"""
     v=VARS[variant]
     ch=lambda x,y: grid[y][x] if y in grid and 0<=x<16 else '.'
-    skip={c for c,s in HANDSHADE.items() if any(s in r for r in grid.values())}
+    skip=set()
+    for c,s in HANDSHADE.items():
+        if c=='K' and any(s in r for r in grid.values()): skip.add(c)
+        if c=='A':   # Fez: 'a' bildet den rechten Rand der Fläche; Turban-Falten ('a' mittendrin) bleiben formelfähig
+            for r in grid.values():
+                for i,chh in enumerate(r):
+                    if chh==s and (i==15 or r[i+1] not in 'Aa'): skip.add(c)
     out={}
     for y,row in grid.items():
         x=0
@@ -64,7 +73,5 @@ def body(L,fig_alpha,xmin=8):
         c=L.p[x,y][:3]; f=None
         if (x,y-1) not in S:
             f=lo2 if fig_alpha(x,y-1) else (hi if x<16 else lo)
-        elif x==xmin: f=hi
-        elif x>=22: f=lo2 if x==22 else lo
         if f: new[(x,y)]=f(c)
     for (x,y),c in new.items(): L.p[x,y]=tuple(c)+(255,)

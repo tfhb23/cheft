@@ -76,7 +76,27 @@ import colorsys
 def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
-SHADOW='S1'   # S0 ohne | S1 verlaufend (3 Stufen, alle Teile) | S2 verlaufend nur bei hellen Flächen | S3 schmal (2 Stufen, alle)
+WHITE='W1'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
+def white_edge(c,fig):
+    if WHITE=='W1': return
+    occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
+    light=lambda x,y: occ(x,y) and is_light(fig.p[x,y][:3])
+    cream=lambda x,y: 0<=x<W and 0<=y<H and c.p[x,y][:3]==C['cream'] and c.p[x,y][3]>0
+    if WHITE in ('W2','W4'):
+        col=_cream_at(0.16)
+        for y in range(H):
+            for x in range(W):
+                if light(x,y) and (not occ(x+1,y) or not occ(x,y+1)): fig.p[x,y]=col+(255,)
+    if WHITE in ('W3','W4'):
+        col=_cream_at(0.10); sh=Layer()
+        for y in range(H):
+            for x in range(W):
+                if not light(x,y): continue
+                for dx,dy in ((1,0),(-1,0),(0,1),(0,-1)):
+                    u,v=x+dx,y+dy
+                    if not occ(u,v) and cream(u,v) and 8<=u<=23 and all(occ(a,b) or cream(a,b) for a in (u-1,u,u+1) for b in (v-1,v,v+1)): sh.put(u,v,col)
+        c.over(sh)
+SHADOW='S0'   # S0 ohne | S1 verlaufend (3 Stufen, alle Teile) | S2 verlaufend nur bei hellen Flächen | S3 schmal (2 Stufen, alle)
 STEPS={'S1':[0.075,0.05,0.025],'S2':[0.075,0.05,0.025],'S3':[0.06,0.03]}
 def _cream_at(dl):
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
@@ -114,7 +134,7 @@ def card(suit,rank,spec,emph='ohne',sym='ref'):
     if sym=='symm': win.rect(7,24,8,32,C['cream'])                          # links unten ebenfalls 1 Pixel Lücke (wie rechts), oben links bleibt unverändert
     c.over(win)
     fig=compose(suit,spec,'ohne' if emph!='alt' else 'schlagschatten')
-    if emph!='alt': outer_shadow(c,fig)
+    if emph!='alt': outer_shadow(c,fig); white_edge(c,fig)
     if sym=='schulter':
         for yy in range(H): fig.p[23,yy]=(0,0,0,0)
     c.over(fig); return c.im
