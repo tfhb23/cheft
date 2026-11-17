@@ -345,9 +345,9 @@ describe('Zufall nach Gedächtnis gewichtet', () => {
     }
   });
   it('die Stufenwerte sind die vereinbarte Spezifikation', () => {
-    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5 });
-    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9 });
-    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6 });
+    expect(MEMORY.easy).toEqual({ span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5, oppObserve: 0, oppDetail: 0, oppSpan: 0, oppAccuracy: 0.6 });
+    expect(MEMORY.normal).toEqual({ span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9, oppObserve: 0.6, oppDetail: 0.2, oppSpan: 3, oppAccuracy: 0.75 });
+    expect(MEMORY.hard).toEqual({ span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6, oppObserve: 0.85, oppDetail: 0.6, oppSpan: 5, oppAccuracy: 0.9 });
   });
 });
 

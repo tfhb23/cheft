@@ -11,27 +11,47 @@ das bisherige Verhalten der Bots ist bitgleich erhalten (Prüfsumme über 120 Sp
   „Zufällig“ bleibt davon getrennt (verdeckte Wahl für das ganze Spiel, die Wildcard darf dabei herauskommen).
 - **Vorlieben** pro Bot und Spiel (zufällig, mit Abneigungen und Aberglaube), nur beim Abwerfen, mit Schutz guter Karten.
 - **Gegner-Gedächtnis** über das laufende Spiel, für Menschen und Bots gleich, nach Stufe abgeschwächt und mit Merkfehlern.
+- **Rollentreue-Würze** für die fünf Spielweisen (Abschnitt 3): Treue 0,85, Ausweichen nur zu ähnlichen Rollen, Launen 0,2, Stimmung 0,5. Die Rolle bleibt erkennbar (94 % der Erkennbarkeit bleiben).
 
 ## 2. Die Spielweisen (Regler, Messung)
 
-Messung: 800 Spiele zu 5 Runden, ein Platz mit der Rolle (Normal, mit Vorlieben und Gegner-Gedächtnis) gegen drei schlichte Ausgewogene (Normal, ohne beides). Fair wären 25 %; die Zutaten kosten etwa 1,4 Prozentpunkte
-(siehe 4); ohne sie liegen die Rollen entsprechend höher. Der Stil ist auf allen Stufen praktisch gleich, die Stufe hebt nur die Stärke (Matrix siehe 6).
+Messung (endgültige Fassung mit Würze, Vorlieben und Gegner-Gedächtnis): 600 Spiele zu 7 Runden, ein Platz mit der Rolle (Normal) gegen drei schlichte Ausgewogene (Normal, ohne Zutaten). Fair wären 25 %; die Zutaten kosten etwa
+1,4 Prozentpunkte (siehe 4). Messtoleranz bei 600 Spielen etwa ±3,3 Prozentpunkte. Der Stil ist auf allen Stufen praktisch gleich, die Stufe hebt nur die Stärke (Matrix siehe 8).
 
-| Rolle | Stil | Regler (Abweichung vom Standard) | Sieg | Streuung | Cheft-Runden | Züge bis Erstmeldung |
-|---|---|---|---|---|---|---|
-| **Ausgewogen** | Referenz | – | 21,7 | 60 | 9 % | 3,8–4,0 |
-| **Frühvogel** | Kommt so früh wie möglich raus, nie Cheft, ruhige Runden | `weighOpening` aus, `bold` aus, `ambition` 0, `cheftEagerPairs` 99, `pairTakeAt` 5 | 21,3 | 52 | 4 % | 3,7 |
-| **Gerissener** | Wartet auf die große Erstmeldung und hebt damit die Hürde für alle | `ambition` 0,8, `tuning.holdAt0` 0,2 | 21,3 | 65 | 14 % | 4,3 |
-| **Pärchenkönig** | Sammelt Paare, sagt Cheft mit 4 Paaren an | `cheftEagerPairs` 4, `pairTakeAt` 3, `pairLove` 1,8, `ambition` 0,5 | 23,2 | 66 | 16 % | 4,0 |
-| **Glücksritter** | Cheft schon mit 3 Paaren, hohes Risiko, schmerzhafte Pleiten und Siege | `cheftEagerPairs` 3, `pairTakeAt` 3, `pairLove` 2, `ambition` 0,6 | 18,7 | 83 | 33 % | 4,4 |
-| **Wildcard** | Jede Runde eine andere Spielweise | Pool: die fünf Spielweisen, Rollentreue 0 | 20,2 | 66 | 16 % | 4,0 |
+| Rolle | Stil | Regler (Abweichung vom Standard) | Sieg | Streuung | Cheft-Runden | in x % der Spiele nie Cheft | Züge bis Erstm. |
+|---|---|---|---|---|---|---|---|
+| **Ausgewogen** | Referenz | – | 21,0 | 62 | 12 % | 39 | 4,0 |
+| **Frühvogel** | Kommt so früh wie möglich raus, nie Cheft, ruhige Runden | `weighOpening` aus, `bold` aus, `ambition` 0, `cheftEagerPairs` 99, `pairTakeAt` 5 | 21,5 | 54 | 5 % | 68 | 3,8 |
+| **Gerissener** | Wartet auf die große Erstmeldung und hebt damit die Hürde für alle | `ambition` 0,8, `tuning.holdAt0` 0,2 | 17,5 (siehe Hinweis) | 66 | 16 % | 29 | 4,3 |
+| **Pärchenkönig** | Sammelt Paare, sagt Cheft mit 4 Paaren an | `cheftEagerPairs` 4, `pairTakeAt` 3, `pairLove` 1,8, `ambition` 0,5 | 20,2 | 67 | 17 % | 25 | 4,1 |
+| **Glücksritter** | Vernünftig, solange er führt; sobald er nicht mehr führt, setzt er alles auf Cheft (schon mit 3 Paaren) | wie Pärchenkönig, `pairLove` 2, `ambition` 0,6, `cheftEagerPairs` 3, sobald er nicht führt | 18,8 | 75 | 24 % | 14 | 4,2 |
+| **Wildcard** | Jede Runde eine andere Spielweise | Pool: die fünf Spielweisen, Rollentreue 0 | 20,0 | 67 | 15 % | 31 | 4,1 |
 
-- **Unterschied Pärchenkönig und Glücksritter:** Beide gehen auf Cheft, der Glücksritter eine Paarstufe früher (3 statt 4 Paare). Mit 14 Karten kommen 3 Paare viel öfter vor als 4, deshalb 33 statt 16 % Cheft-Runden. Der Zufallsanteil (`gamble`) des alten Zockers
-  macht ihn zu schwach (17,8 % bei 0,15, 20,3 % ohne) und ist deshalb 0.
-- **Der Glücksritter ist strukturell schwächer** (18 bis 21 %, auf Mastermind-Stufe nur 19,7 gegen 29 % der anderen): Wer früh Cheft spielt, zahlt öfter doppelt. Das ist gewollt als „schmerzhafter, spannender Sieg“, die Siegquote bleibt aber unter fair.
-- **Rollentreue 0,8, Launen 0,3, Stimmung 0,5** (optional für alle Spielweisen): Der Stil wird weicher (Frühvogel Cheft 4 → 8 %, Glücksritter 34 → 28 %), Stärke unverändert (±1).
+- **Unterschied Pärchenkönig und Glücksritter:** Beide gehen auf Cheft, der Glücksritter eine Paarstufe früher (3 statt 4 Paare), aber nur, wenn er nicht führt (siehe 6). Mit 14 Karten kommen 3 Paare viel öfter vor als 4. Der Zufallsanteil (`gamble`) des alten Zockers
+  macht ihn zu schwach und ist deshalb 0.
+- **Hinweis Gerissener:** In dieser Messung 17,5 % statt etwa 21 % in früheren Läufen mit 5 Runden; eine Gegenprobe mit 800 Spielen und zwei Startindizes läuft (Ergebnis im Anhang dieses Abschnitts, falls vorhanden).
 
-## 3. Vorlieben
+## 3. Rollentreue-Würze (Erkennbarkeit)
+
+Aus drei Zutaten: **Rollentreue** (Chance je Runde, in der Rolle zu spielen; sonst spielt der Bot diese Runde ganz eine andere Spielweise), **Launen** (leichte Schwankung von Ehrgeiz, Abwurfdruck, Blockierwille je Runde), **Stimmung** (nach einer Pleite mutiger, nach einem Sieg vorsichtiger).
+**Ausweichen nur zu ähnlichen Rollen**, damit die Rolle erkennbar bleibt: Frühvogel nur zu Ausgewogen, Gerissener zu Ausgewogen und Pärchenkönig, Pärchenkönig zu Ausgewogen, Gerissener und Glücksritter, Glücksritter zu Pärchenkönig, Ausgewogen zu allen.
+
+**Erkennbarkeit gemessen:** Ein einfacher Klassifikator (Merkmale je Spiel: Cheft-Anteil, früh raus, nie raus, Züge bis Erstmeldung, Erstmeldung in Augen) rät aus einem 7-Runden-Spiel, welche Rolle ein Bot hatte. Auch bei reinen Rollen trifft er nur 34,7 % (Zufall 20 %): Frühvogel 62 %, Glücksritter 46 %, Gerissener 44 % sind erkennbar, Ausgewogen und Pärchenkönig kaum. Die Würze kostet davon wenig:
+
+| Variante | Erkennbarkeit bleibt | Runden in der Rolle | Spiele mit mindestens einer Abweichung |
+|---|---|---|---|
+| nur Launen 0,3 und Stimmung 0,5 (Treue 1) | 103 % | 100 % | 0 % |
+| Treue 0,9, Nachbarn | 97 % | 89 % | 56 % |
+| **Treue 0,85, Nachbarn, Launen 0,2, Stimmung 0,5 (Empfehlung)** | **94 %** | **84 %** | **72 %** |
+| Treue 0,8, Nachbarn | 92 % | 79 % | 84 % |
+| Treue 0,7, Nachbarn | 87 % | 70 % | 94 % |
+| Treue 0,6, Nachbarn | 83 % | 61 % | 98 % |
+| Treue 0,8, alle anderen Rollen (früherer Vorschlag) | 89 % | 79 % | 84 % |
+| Treue 0,5, alle anderen Rollen | 70 % | 50 % | 100 % |
+
+Empfehlung `SPICE` in `src/bot/roles.ts`: Treue 0,85 mit Nachbarn, Launen 0,2, Stimmung 0,5. In einem 7-Runden-Spiel weicht der Bot im Schnitt in einer Runde ab. Optional lässt sich in der Endauswertung „5 von 7 Runden in Rolle“ anzeigen (rein aus Seed und Runde berechenbar).
+
+## 4. Vorlieben
 
 Jeder Bot bekommt aus Spiel und Platz (Seed) fest zufällige Vorlieben, die über alle Runden gelten und nach einem Neustart gleich bleiben. Bausteine:
 
@@ -74,7 +94,7 @@ etwa −1,4 Prozentpunkte Siegquote (wie ein Mensch mit Eigenheiten: weniger per
 
 **Aufdecken:** Rolle und Vorlieben je Bot in der Endauswertung (`describeTasteSet`: „mag Herzkarten“, „mag keine Siebener und Könige“, „Glückszahl Sieben“, „sammelt lieber Folgen“).
 
-## 4. Gegner-Gedächtnis (pro Spiel)
+## 5. Gegner-Gedächtnis (pro Spiel)
 
 Der Spielstand speichert am Rundenende je Spieler ein kleines öffentliches Profil (`engine/profile.ts`: Cheft oder Rommé, Züge bis zur Erstmeldung, Augen der Erstmeldung, als Erster draußen, abgeworfene und offen genommene Karten, Joker-Klau).
 Es lebt nur im Spielstand, ein neues Spiel beginnt ohne Erinnerung. Ältere Spielstände ohne Profile bleiben lesbar. Ob Mensch oder Bot, ist dem Gedächtnis egal. Das Bild (`bot/opponents.ts`) enthält Cheft-Neigung, früh/spät/nie raus,
@@ -97,18 +117,43 @@ mittlere Erstmeldung und die Zuneigung zu Farben und Wertklassen (aus dem, was d
 **Stärke:** Kein messbarer Vorteil und kein Nachteil (1000 Spiele zu 7 Runden: 23,4 / 23,3 / 23,5 % gegen 23,0 % für den identischen Bot ohne Gegner-Gedächtnis, Strafpunkte gleich). Der Grund: Das Spiel bietet wenig,
 was man mit solchem Wissen gewinnen kann (Blockieren und Abwurf-Lesen hatten schon vorher keine Wirkung). Das Gegner-Gedächtnis ist damit eine **Charakterfunktion** („der merkt sich, was ich sammle“), kein Stärke-Hebel.
 
-## 5. Tests und Extremfälle
+## 6. Der Glücksritter: „teures Vergnügen“ und haushohe Siege
+
+Wunsch: eine Rolle mit extremen Ergebnissen, die nicht ständig verliert, sondern auch mal haushoch gewinnt. Messung (600 Spiele zu 7 Runden, ein Platz gegen drei Ausgewogene, „haushoch“ = Spiel mit mindestens 100 bzw. 200 Punkten Vorsprung auf den Zweiten; Rückstand = mindestens 200 Punkte hinter dem Besten):
+
+| Rolle | Sieg | Spiele ≥ 100 / ≥ 200 Vorsprung | Spiele ≥ 200 Rückstand | Cheft-Runden (davon selbst gewonnen) |
+|---|---|---|---|---|
+| Ausgewogen | 23,3 % | 8,2 % / 3,0 % | 35,0 % | 10 % (15 %) |
+| Frühvogel | 24,0 % | 8,2 % / 3,3 % | 31,7 % | 4 % (24 %) |
+| Pärchenkönig | 21,5 % | 9,7 % / 4,0 % | 38,8 % | 17 % (13 %) |
+| Glücksritter (Cheft immer ab 3 Paaren) | 18,5 % | 7,5 % / 3,0 % | **49,0 %** | 28 % (**10 %**) |
+| Glücksritter: Cheft ab 3 Paaren nur in der ersten Rundenhälfte | 18,8 % | 7,8 % / 3,7 % | 44,3 % | 25 % (11 %) |
+| Glücksritter: nur ab 30 Punkten Rückstand | 20,8 % | 9,0 % / 2,8 % | 45,8 % | 23 % (11 %) |
+| **Glücksritter: sobald er nicht führt (gewählt)** | **20,6 %** | **9,8 % / 3,0 %** | **47,2 %** | **24 % (11 %)** |
+| Glücksritter: ab 15 Punkten Rückstand | 20,6 % | 9,7 % / 3,0 % | 46,5 % | 24 % (11 %) |
+| Glücksritter: ab 15 Punkten 3 Paare, ab 60 schon 2 Paare | 18,4 % | 9,2 % / 2,8 % | 54,7 % | 33 % (9 %) |
+| Hasardeur (warten + Cheft ab 3 Paaren) | 15,2 % | 5,7 % / 1,8 % | 58,8 % | 31 % (11 %) |
+
+**Befund:**
+
+- Wer schon mit 3 Paaren auf Cheft geht, gewinnt nur etwa jede zehnte dieser Runden (der Frühvogel mit seinem seltenen, späten Cheft dagegen jede vierte). Das Risiko zahlt sich nicht aus: Er verliert haushoch deutlich öfter (47 bis 49 % der Spiele mit mindestens 200 Punkten Rückstand gegen 32 bis 39 % der anderen Rollen), gewinnt aber **nicht** häufiger haushoch (7 bis 10 % der Spiele, wie alle anderen).
+- Die Regler (Paar-Liebe, Ehrgeiz, Tempo, Zufallsanteil) ändern daran nichts; entscheidend ist allein, ab wie vielen Paaren er sich auf Cheft festlegt.
+- **Gewählte Fassung:** Cheft ab 3 Paaren nur, wenn er nicht führt (er „jagt dem Verlust hinterher“), sonst wie der Pärchenkönig (ab 4 Paaren). Das bringt ihn von 18,5 auf 20,6 %, mit der höchsten Quote haushoher Siege (9,8 %; Unterschiede dieser Größe liegen aber noch im Messrauschen von etwa ±1,1 Punkten), und passt zur Figur.
+- **Ehrlich zur Erwartung:** Eine Rolle, die haushoch gewinnt, lässt sich mit Bot-Reglern in diesem Spiel kaum erzwingen. Haushohe Siege kommen bei allen Rollen in 7 bis 10 % der Spiele vor, meist durch Glück (Gegner ohne Erstmeldung zahlen je 100 Punkte, Cheft-Siege verdoppeln). Mehr Extreme gibt es nur über mehr Verlust.
+  Eine weitere „extreme“ Rolle würde deshalb nur noch öfter verlieren (Hasardeur 15,2 %), ohne öfter haushoch zu gewinnen. Empfehlung: keine weitere Rolle. Wer haushohe Siege häufiger will, müsste sie über die Regeln fördern (z. B. Bonus für Cheft, früheres Rauskommen).
+
+## 7. Tests und Extremfälle
 
 - **Neue Tests** (`src/bot/roles.test.ts`, 22): Vorlieben (fest je Spiel und Platz, Vielfalt, Beschreibungen, Passen, Deckel auch bei Gewicht 1e9, Schutz fertiger Kombinationen, Ernstfall), Profile (aus dem Protokoll,
   vollständig), Gegner-Gedächtnis (exakt beim Mastermind, schwächer bei den anderen, Lücken, Merkfehler, stabil, kaputte Profile), Wildcard (gleichverteilt, deterministisch, Wiederholungen), vollständige Spiele aller Rollen auf allen Stufen,
   „Kein Mogeln“ (verdeckte Karten und JSON-Neustart ändern keine Entscheidung). Zwei echte Lücken fanden die Tests: die Bandregel (siehe 3) und eine Absturzstelle bei negativer Bandbreite (behoben).
-- **Dauertest, Extrem-Modus** (jetzt mit allen neuen Reglern, Rollen, absurden Vorlieben, Gegner-Gedächtnis, 2 bis 4 Spielern und absichtlich beschädigten Rundenprofilen): 1000 Spiele, 4830 Runden, rund 550 000 Entscheidungen, **keine Verstöße**.
+- **Dauertest, Extrem-Modus** (jetzt mit allen neuen Reglern, Rollen, absurden Vorlieben, Gegner-Gedächtnis, 2 bis 4 Spielern und absichtlich beschädigten Rundenprofilen): 1000 Spiele, 4830 Runden, rund 550 000 Entscheidungen, **keine Verstöße**; nach den letzten Änderungen (Kostenfaktoren der Vorlieben, Glücksritter, Nachbar-Ausweichrollen) nochmals 500 Spiele, rund 300 000 Entscheidungen, und der Normal-Modus mit 200 Spielen: **keine Verstöße**.
 - **Sweeps mit absurden Werten** (Skala −5 und 100, Band 0 bis 1e9, Schutz 0 bis 1e9, Gewicht 1000, Intensität 5, Gegner-Gedächtnis ×5 und ×−1): alle laufen, die Stärke sinkt höchstens auf etwa 20 %.
   Auffällig: Band 0 und 2 zeigen scheinbar höhere Siegquoten (28 und 26 %), weil dann nur eine Karte zur Wahl steht und das Entscheidungsrauschen der Stufe entfällt (Messartefakt, kein Nutzen).
 - **Extremtische:** Vier Wildcards am Tisch (Cheft 17 bis 19 %, Siegquote 22,5 bis 26,9 %), vier Glücksritter am Tisch (Cheft 38 %, 83 Strafpunkte pro Runde, aber Siegquoten 21 bis 30 %: wild, aber fair), gemischte Stufen (Frühvogel Mastermind 35,2 %, Gerissener Vergesslich 18,8 %),
   2 Spieler (Pärchenkönig Mastermind 64,8 % gegen Frühvogel Vergesslich 35,2 %), 3 Spieler.
 
-## 6. Matrix: Rolle × Gedächtnis (300 Spiele je Zelle, Siegquote %, gegen drei schlichte Ausgewogene Normal)
+## 8. Matrix: Rolle × Gedächtnis (300 Spiele je Zelle, Siegquote %, gegen drei schlichte Ausgewogene Normal)
 
 | | Vergesslich | Normal | Scharfsinnig | Mastermind |
 |---|---|---|---|---|
@@ -121,7 +166,7 @@ was man mit solchem Wissen gewinnen kann (Blockieren und Abwurf-Lesen hatten sch
 
 Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen gleich (z. B. Pärchenkönig 16 / 16 / 17 / 16 %): Rolle und Gedächtnis sind unabhängige Achsen.
 
-## 7. Vorschlag zur Übernahme
+## 9. Vorschlag zur Übernahme
 
 **Übernehmen:**
 
@@ -129,14 +174,14 @@ Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen
 2. Vorlieben als Standard für alle Bots (Skala 2, Band 8, Schutz 14), mit dem Aufdecken in der Endauswertung.
 3. Gegner-Gedächtnis als Charakterfunktion für Normal, Scharfsinnig und Mastermind (kostenlos, nicht stärker).
 4. Wildcard-Anzeige am Spielende; Wildcard (Normal) als Ersatzbot.
-5. Optional: Rollentreue 0,8, Launen 0,3, Stimmung 0,5 für die fünf Spielweisen (weicherer Stil, gleiche Stärke).
+5. **Rollentreue-Würze `SPICE`** für die fünf Spielweisen: Treue 0,85 mit Ausweichen nur zu ähnlichen Rollen, Launen 0,2, Stimmung 0,5 (94 % der Erkennbarkeit bleiben, Abschnitt 3).
 
 **Nicht übernehmen:** Handmacher, Jokerjäger, Blocker, Zähler, Sprinter, Königsjäger, Heißsporn (ohne Wirkung), den Zufallsanteil des Zockers, die Mastermind-Extras (`master`, `patient`, `burn`).
 
 **Zur Entscheidung (nicht eingebaut):**
 
 - **Grundstrategie:** Zwei Gewohnheiten aller Bots schaden ihnen (Hochkarten vor der Erstmeldung abwerfen, Gefahrenmodus, siehe ROLLEN.md Abschnitt 7). Beheben würde die Stufen neu kalibrieren.
-- **Glücksritter** bleibt unter fair (18 bis 21 %). Wer ihn ebenbürtig will, müsste Cheft belohnen (Regel) oder ihn mit leichtem Ehrgeiz-Bonus ausstatten; ich würde ihn als „teures Vergnügen“ so lassen.
+- **Glücksritter** bleibt unter fair (etwa 19 bis 21 %) und gewinnt nicht öfter haushoch als die anderen (Abschnitt 6). Ich empfehle keine weitere „extreme“ Rolle.
 
 **Was beim Einbau zu tun ist:**
 
@@ -146,14 +191,16 @@ Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen
 4. Spielstand: `history[].profiles` ist neu (optional). Spielstand-Code und Server-Kopie werden etwas größer (siehe 8).
 5. Danach `npm run calibrate` kontrollieren (Ziel für die Stufen etwa 17 / 23 / 28 / 32 %).
 
-## 8. Technische Anmerkungen
+## 10. Technische Anmerkungen
 
+- **Rechenzeit** (Ruhezustand, 9 Runden, 4 Bots): Median 0,6 ms je Entscheidung, 99 % unter 11 ms, 99,9 % unter 31 ms, Maximum 130 bis 334 ms. Das Gegner-Gedächtnis macht keinen Unterschied (0,58 gegen 0,60 ms). Die 874 ms im Dauertest waren Last durch parallele Läufe.
+- **Spielstandgröße:** Die Rundenprofile machen den Spielstand (JSON) bei 9 Runden um etwa 5,8 KB größer (17,7 statt 11,9 KB), bei 7 Runden etwa 4,5 KB. Der Spielstand-Code im Menü und die verschlüsselte Server-Kopie werden entsprechend größer.
 - Alle Funktionen sind reine Funktionen des Spielstands (Seed, Runde, Spieler): deterministisch, ohne eigenen Speicher, nach einem Serverneustart gleich.
 - Das Gegner-Gedächtnis liest nur öffentliche Daten (verdeckte Karten und Stapelreihenfolge ändern keine Entscheidung, getestet auch nach JSON-Neustart).
 - Neue Regler in `Knobs` (Standard = bisheriges Verhalten): `shedPre`, `shedOpen`, `blockWeight`, `handReach`, `dangerHand`, `pairLove`, `huntLeader`, `setLove`, `runLove`, `taste`, `tasteScale`, `tasteBand`, `tasteProt`, `oppUse`, `oppTempo`.
   Neue Gedächtniswerte: `oppObserve`, `oppDetail`, `oppSpan`, `oppAccuracy`.
 
-## 9. Werkzeuge
+## 11. Werkzeuge
 
 | Befehl | Zweck |
 |---|---|
