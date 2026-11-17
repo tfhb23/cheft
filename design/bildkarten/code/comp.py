@@ -257,11 +257,13 @@ def outer_shadow(c,fig):
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
+    if sym=='v6a': spec=dict(spec,narrow='A',head_down=1,dyn=dict(spec['dyn'],cut=2,notch_left=False)); sym='v6'   # v6 = wie v4/v5a, aber Person wieder mittig (kein Versatz)
     if sym in ('v5a','v5b'): spec=dict(spec,narrow=sym[-1].upper()); sym='v4'
     if sym=='v4': sym='v3'; spec=dict(spec,head_down=1,dyn=dict(spec['dyn'],cut=2))   # v4 = v3 + Kopf 1 px tiefer + Körper unten 2 px kürzer
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
-    if sym in ('cut1','symmA','symm','symm0','v3'): x1=24 if sym!='symm0' else 23
+    if sym in ('cut1','symmA','symm','symm0','v3','v6'): x1=24 if sym!='symm0' else 23
+    if sym=='v6': x0=10                                                    # Fenster beginnt hinter dem Symbol links oben (Spalte 3 bis 9)
     if sym=='v3':                                                           # Layout v3: Index links oben ganz sichtbar (Symbol 7 breit, Spalte 3 bis 9) -> Fenster beginnt erst ab Spalte 10
         x0=10; spec=dict(spec,dx=2,dyn=dict(spec['dyn'],notch_left=False))   # Person 2 Pixel verschoben, kein Symbol unten links
     if sym in ('symm','symm0'):
