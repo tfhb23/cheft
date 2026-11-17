@@ -160,8 +160,8 @@ function hash(...vals: number[]): number {
 }
 
 const SUITS: SuitCode[] = ['H', 'D', 'C', 'S'];
-/** Wie teuer ist es, eine Klasse zu bevorzugen? Gemessen: niedrige Karten behalten kostet viel, Bildkarten nichts. */
-const COST_FACTOR: Record<string, number> = { low: 0.5, parity: 0.85, ace: 0.8 };
+/** Zusätzlicher Faktor für Vorlieben, die den Abwurf unübersichtlich machen (gerade/ungerade). */
+const COST_FACTOR: Record<string, number> = { parity: 0.85 };
 
 type Rng = () => number;
 const pick = <T>(rng: Rng, xs: T[]): T => xs[Math.floor(rng() * xs.length) % xs.length];
@@ -216,10 +216,19 @@ function simpleSpec(rng: Rng): TasteSpec {
   }
 }
 
-function costFactor(spec: TasteSpec): number {
-  if (spec.kind === 'range') return COST_FACTOR[spec.range] ?? 1;
+/**
+ * Wie teuer ist die Richtung dieser Vorliebe? Gemessen kostet es viel, niedrige Karten zu behalten (6 bis 8 Strafpunkte pro Runde),
+ * ebenso, Bildkarten und Asse früh loszuwerden; Bildkarten oder Asse zu behalten ist dagegen frei. Teure Richtungen bekommen ein
+ * deutlich kleineres Gewicht (die Vorliebe bleibt, wirkt aber nur noch als sanfter Hang).
+ */
+function costFactor(spec: TasteSpec, weight: number): number {
+  if (spec.kind === 'range') {
+    if (spec.range === 'low') return weight > 0 ? 0.15 : 1;
+    if (spec.range === 'face' || spec.range === 'ace') return weight < 0 ? 0.3 : 1;
+  }
+  if (spec.kind === 'combo' && spec.range) return costFactor({ kind: 'range', range: spec.range }, weight);
   if (spec.kind === 'parity') return COST_FACTOR.parity;
-  if (spec.kind === 'combo' && spec.range) return COST_FACTOR[spec.range] ?? 1;
+  if (spec.kind === 'union') return Math.min(...spec.parts.map((p) => costFactor(p, weight)));
   return 1;
 }
 
@@ -233,12 +242,12 @@ export function tastesFor(seed: number, pid: number): TasteSet {
     const spec: TasteSpec =
       rng() < 0.22 ? { kind: 'union', parts: Array.from({ length: 2 + Math.floor(rng() * 2) }, () => simpleSpec(rng)) } : simpleSpec(rng);
     const base = i === 0 ? 4 + rng() * 2 : 2 + rng() * 1.5;
-    tastes.push({ spec, weight: base * costFactor(spec) });
+    tastes.push({ spec, weight: base * costFactor(spec, 1) });
   }
   if (rng() < 0.4) {
     // Abneigung: lieber nicht behalten
     const spec = simpleSpec(rng);
-    tastes.push({ spec, weight: -(1.5 + rng() * 2.5) * costFactor(spec) });
+    tastes.push({ spec, weight: -(1.5 + rng() * 2.5) * costFactor(spec, -1) });
   }
   if (rng() < 0.25) tastes.push({ spec: { kind: 'ranks', ranks: [1 + Math.floor(rng() * 13)] }, weight: 3.5, superstition: true });
   if (rng() < 0.25) tastes.push({ spec: { kind: 'ranks', ranks: [rng() < 0.5 ? 13 : 1 + Math.floor(rng() * 13)] }, weight: -3, superstition: true });

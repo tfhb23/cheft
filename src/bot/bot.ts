@@ -98,9 +98,9 @@ export interface Knobs {
   taste?: 'auto' | TasteSet;
   /** Schutz guter Karten: Ab diesem Behaltewert zählt die Vorliebe gar nicht mehr (Standard 14, darunter anteilig). */
   tasteProt: number;
-  /** Skala für alle Vorlieben-Gewichte (Standard 1). */
+  /** Skala für alle Vorlieben-Gewichte (Standard 2, gemessen: Herz-Anteil an den Abwürfen 24 → 17 %, Kosten unter 1,5 Strafpunkte). */
   tasteScale: number;
-  /** Bandbreite (Punkte der Abwurfbewertung): Die Vorliebe entscheidet nur zwischen Karten, die ohne sie höchstens so viel schlechter abzuwerfen sind als die beste (Standard 4). */
+  /** Bandbreite (Punkte der Abwurfbewertung): Die Vorliebe entscheidet nur zwischen Karten, die ohne sie höchstens so viel schlechter abzuwerfen sind als die beste (Standard 8). */
   tasteBand: number;
   /** Gegner-Gedächtnis nutzen (0 = nicht, 1 = voll; was der Bot weiß, bestimmt seine Stufe). Standard 0. */
   oppUse: number;
@@ -151,8 +151,8 @@ export function knobsFor(profile: BotProfile): Knobs {
     setLove: 1,
     runLove: 1,
     tasteProt: 14,
-    tasteScale: 1,
-    tasteBand: 4,
+    tasteScale: 2,
+    tasteBand: 8,
     oppUse: 0,
     oppTempo: 1,
   };

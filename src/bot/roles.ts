@@ -33,7 +33,7 @@ export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   early: { weighOpening: false, bold: false, ambition: 0, cheftEagerPairs: 99, pairTakeAt: 5 },
   cunning: { ambition: 0.8, tuning: { holdAt0: 0.2 } },
   pairs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 1.8, ambition: 0.5 },
-  gambler: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6, gamble: 0.15 },
+  gambler: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
 };
 
 export interface RoleOptions {
