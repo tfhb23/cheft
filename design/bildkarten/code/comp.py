@@ -31,6 +31,9 @@ def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
     import tiefe as _t; cm['t']=_t.lo(cm['S'])      # Nase per Formel aus der Hautfarbe
+    cm['k']=_t.glanz(cm['K'])                       # Zylinder-Glanz per Formel (früher Handfarbe 5a4d44)
+    cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
+    if 'a' in pal: cm['a']=_t.fold(cm['A'])         # Fez-/Turbanfalten per Formel (früher a02a20, c8902a, d8cfbf)
     layers=[P.BODY[spec['body']]]
     if spec.get('back'): layers.append(P.BACK[spec['back']])
     layers.append(P.FACE)

@@ -77,7 +77,9 @@ def BS(dx,shape):
     if shape=='sy_glocke': return round(28+9*math.exp(-(dx/5)**2))
     raise ValueError(shape)
 SYM_SHAPES=['sy_halb','sy_bogen','sy_trapez','sy_treppe_fein','sy_treppe_grob','sy_pyramide','sy_treppe_breit','sy_spitze','sy_glocke']
+SHADE_PX=set()
 def full_shape(p):
+    SHADE_PX.clear()
     xl=p.get('xl',4); shape=p['shape']
     xs=range(xl,32-xl)
     bot={x:BS(abs(x+0.5-16),shape) for x in xs if BS(abs(x+0.5-16),shape)>=T2(x)}
@@ -96,6 +98,12 @@ def full_shape(p):
         if g=='g4' and x%2==0 and (x,b-1) in body: gold.add((x,b-1))
         if g=='g5' and (x,b-2) in body: gold.add((x,b-2))
         if g=='g5u' and (x,b-2) in body: dark.add((x,b-2))
+        if g=='g1s':
+            for dy in (2,4):
+                if (x,b-dy) in body: SHADE_PX.add((x,b-dy))
+        if g=='g5s':
+            if (x,b-2) in body: gold.add((x,b-2))
+            if (x,b-4) in body: SHADE_PX.add((x,b-4))
         if g=='g5k':
             for dy in (2,4):
                 if (x,b-dy) in body: gold.add((x,b-dy))
@@ -110,6 +118,12 @@ def dyn_body(suit,p):
         for (x,y) in clipped(body,xm,nl): L.put(x,y,robe)
         dcol={'g3':GOLD2,'g6':hx('b9b3ad'),'g7':hx('d2362a'),'g5u':p.get('upper',hx('b9b3ad'))}.get(p.get('gold','g1'),GOLD2)
         for (x,y) in clipped(dark,xm,nl): L.put(x,y,dcol)
+        if SHADE_PX:   # Schattenlinien: bei dunkler Kleidung aufgehellt, bei heller abgedunkelt (Formel)
+            from tiefe import hsl_shift
+            import colorsys
+            lum=colorsys.rgb_to_hls(*[v/255 for v in robe[:3]])[1]
+            sc=hsl_shift(robe,+0.14,0.9) if lum<0.3 else hsl_shift(robe,-0.13,1.10)
+            for (x,y) in clipped(set(SHADE_PX),xm,nl): L.put(x,y,sc)
         for (x,y) in clipped(gold,xm,nl): L.put(x,y,C['gold'])
         return L
     return _old_dyn(suit,p)

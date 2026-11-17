@@ -5,8 +5,8 @@ from comp import *
 WHITEHAIR=hx('ffffff'); BROWN_GOLD=hx('8a5a1a'); RED2=hx('a02a20')
 def mk(hat,beard,hair,extra,dyn,**pal): return dict(body='leer',hair=hair,beard=beard,hat=hat,extra=list(extra),pal=pal,dyn=dyn)
 KING_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g5k')
-BUBE_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g1')
-DAME_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g5u',upper=C['gold'])
+BUBE_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g1s')
+DAME_DYN=dict(xl=4,xmin=5,shape='sy_halb',gold='g5s')
 MASTERS={
  'pik_koenig': ('S',13,'schlagschatten',mk('z_a11','keiner','lang_z',('monokel_m',),KING_DYN,H=WHITEHAIR,B=WHITEHAIR,S=SKIN_PALE)),
  'pik_bube':   ('S',11,'schlagschatten',mk([],'keiner','topf_b',('brille_m',),BUBE_DYN,H=WHITEHAIR,S=SKIN_PALE)),

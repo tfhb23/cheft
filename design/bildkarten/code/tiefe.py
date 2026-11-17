@@ -75,3 +75,11 @@ def body(L,fig_alpha,xmin=8):
             f=lo2 if fig_alpha(x,y-1) else (hi if x<16 else lo)
         if f: new[(x,y)]=f(c)
     for (x,y),c in new.items(): L.p[x,y]=tuple(c)+(255,)
+
+def fold(c):
+    """Ersatz für die früheren Handschatten-Farben (Fez-/Turbanfalten): dunklere Stufe derselben Farbe per Formel."""
+    l=colorsys.rgb_to_hls(*[v/255 for v in c[:3]])[1]
+    return hsl_shift(c,-0.20 if l>0.8 else -0.13,1.10)
+def glanz(c):
+    """Ersatz für den Zylinder-Glanzstreifen: hellere Stufe von Schwarz per Formel."""
+    return hsl_shift(c,+0.17,0.90)

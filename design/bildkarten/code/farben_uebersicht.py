@@ -26,10 +26,11 @@ INFO={ # hex: (Gruppe, Element)
 'e4f2ff':('Akzent','Diamant-Weiß: Juwelen Karo Dame, Karo König'),
 '6b4a2b':('Akzent','Falke: Körper (Kreuz Bube A)'),
 'e8dcc0':('Akzent','Falke: Brust/Auge (Kreuz Bube A)'),
-'5a4d44':('Handschatten','Zylinder-Glanzstreifen (ersetzbar durch Formel)'),
-'d8cfbf':('Handschatten','Grauer Faltenton Turbane/Schleier (ersetzbar)'),
-'a02a20':('Handschatten','Dunkelrot Fez-Schatten Karo Bube (ersetzbar)'),
-'c8902a':('Handschatten','Dunkelgold Turban-Falten Karo König (ersetzbar)'),
+'514a48':('Formel','Zylinder-Glanz (Schwarz heller)'),
+'484341':('Formel','Zylinder-Glanz Pik König Zwilling'),
+'cccccc':('Formel','Falten in Weiß (Turbane, Schleier)'),
+'a12219':('Formel','Fez-Falte Karo Bube (Rot dunkler)'),
+'e59b04':('Formel','Turban-Falten Karo König (Gold dunkler)'),
 }
 def collect():
     use=collections.defaultdict(set)
@@ -44,7 +45,7 @@ def collect():
     return use
 def main(path):
     use=collect(); missing=[c for c in use if c not in INFO]; assert not missing,missing
-    order=['Neutral','Metall','Weiß','Haut','Haar','Akzent','Handschatten']
+    order=['Neutral','Metall','Weiß','Haut','Haar','Akzent','Formel']
     rows=[(g,c) for g in order for c in sorted(INFO,key=lambda c:-len(use.get(c,()))) if INFO[c][0]==g and c in use]
     rh=30; im=Image.new('RGB',(900,70+len(rows)*rh+60),BG); d=ImageDraw.Draw(im)
     d.text((10,8),'Grundfarben der Personen (ohne Formel-Schatten): %d'%len(rows),fill=INK,font=FONTB)
@@ -53,8 +54,8 @@ def main(path):
         y=64+i*rh; d.rectangle([10,y,50,y+rh-6],fill=hx(c),outline=INK)
         d.text((60,y+4),'#'+c,fill=INK,font=FONT); d.text((140,y+4),'%2d x'%len(use[c]),fill=INK,font=FONT)
         d.text((190,y+4),g,fill=INK,font=FONTB); d.text((330,y+4),INFO[c][1],fill=INK,font=FONT)
-    n_hand=sum(1 for g,c in rows if g=='Handschatten')
-    d.text((10,64+len(rows)*rh+8),'Davon %d Handschatten (per Formel ersetzbar) -> %d echte Grundfarben.'%(n_hand,len(rows)-n_hand),fill=INK,font=FONTB)
+    n_hand=sum(1 for g,c in rows if g=='Formel')
+    d.text((10,64+len(rows)*rh+8),'Davon %d per Formel abgeleitet (früher Handschatten) -> %d echte Grundfarben.'%(n_hand,len(rows)-n_hand),fill=INK,font=FONTB)
     im.save(path); print(len(rows),n_hand)
 if __name__=='__main__':
     here=os.path.dirname(os.path.abspath(__file__))
