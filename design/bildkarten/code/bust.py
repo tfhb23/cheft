@@ -96,6 +96,9 @@ def full_shape(p):
         if g=='g4' and x%2==0 and (x,b-1) in body: gold.add((x,b-1))
         if g=='g5' and (x,b-2) in body: gold.add((x,b-2))
         if g=='g5u' and (x,b-2) in body: dark.add((x,b-2))
+        if g=='g5k':
+            for dy in (2,4):
+                if (x,b-dy) in body: gold.add((x,b-dy))
     return body,gold,dark-gold
 def clipped(pix,xmin=4,notch_left=False):
     """Rechts abschneiden: ab Spalte 24 (Symbol/Fenster) und ein Pixel Rand um den Buchstaben unten rechts (Spalte >=23, Zeile 33 bis 41)."""

@@ -9,6 +9,7 @@ def spec_v2(name):
     if name=='pik_koenig': sp['hat']=['z_a10']
     if name=='pik_dame': sp['hair']='bob_r2_l3'          # Haare +3 Pixel
     if name=='kreuz_koenig': sp['hat']=['krone_ck_final']   # Krone Variante D, Steine weiter außen und eine Zeile tiefer
+    if name in ('karo_dame','herz_koenig','karo_koenig','pik_koenig_zwilling'): sp['mouth2']=True   # Lippen 2 px
     if name.startswith('pik_'): sp['pal']['S']=hx('f6dfca')   # Pik-Hautfarbe: bleibt blass, löst aber keinen Weiß-Schatten mehr im Gesicht aus
     return suit,rank,em,sp
 def render_v2(name):

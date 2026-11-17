@@ -39,6 +39,13 @@ def compose(suit,spec,emph='ohne'):
     for e in spec.get('extra',[]): layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
     for a in spec.get('acc',[]): layers.append(P.ACC[a])
     grid=P.merge(*layers)
+    if spec.get('mouth2') and 20 in grid:      # Lippen nur 2 px breit (Mitte, Spalten 7 und 8)
+        r=list(grid[20]); idx=[i for i,ch in enumerate(r) if ch=='M']
+        if idx:
+            fill=r[idx[0]-1]
+            for i in idx:
+                if i not in (7,8): r[i]=fill
+            grid[20]=''.join(r)
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
