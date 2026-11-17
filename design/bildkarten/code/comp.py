@@ -44,8 +44,8 @@ def _move(x,nar):
     if nar=='A': return x+1 if x<7 else x
     return x-1 if x>=8 else x
 def _crown(center):
-    """Kreuz-König-Krone für den schmalen Kopf: 11 breit, Mitte = Kopfmitte, 5 Zacken, 3 Steine im gleichen Abstand (Mitte, +-3)."""
-    rows=['.G.G.G.G.G.','GGGGGGGGGGG','GGGGGGGGGGG','GGJGGJGGJGG','GGGGGGGGGGG']
+    """Kreuz-König-Krone für den schmalen Kopf: 11 breit, Mitte = Kopfmitte, 4 Zacken (2 breit, 1 Abstand), 3 Steine im gleichen Abstand (Mitte, +-3)."""
+    rows=['GG.GG.GG.GG','GGGGGGGGGGG','GGGGGGGGGGG','GGJGGJGGJGG','GGGGGGGGGGG']
     out={}
     for i,r in enumerate(rows):
         row=['.']*16
@@ -81,6 +81,32 @@ def _narrow(grid,nar,prot):
             m=(zs[0]+zs[-1])//2
             for i in (m-1,m,m+1): r[i]='G'
     return {y:''.join(r) for y,r in g.items()}
+
+def _shrink(g,center,ops,chin):
+    """Kopf verkleinern. ops: [('sq',y0,y1,[k..]) Spalten bei Mitte-k und Mitte+k entfernen (Zeilen y0..y1, Außenteile rücken zur Mitte),
+    ('down',[y..]) Zeilen löschen, obere Zeilen rücken nach unten (Gesicht bleibt), ('up',[y..]) Zeilen löschen, untere Zeilen rücken nach oben]. chin: Kinnzeile 22 raus (down)."""
+    g={y:list(r) for y,r in g.items()}
+    for op in ops:
+        if op[0]!='sq': continue
+        _,y0,y1,ks=op
+        for y in range(y0,y1+1):
+            if y not in g: continue
+            r=g[y]; n=['.']*16
+            for x,ch in enumerate(r):
+                d=x-center; m=abs(d)
+                if ch=='.' or m in ks: continue
+                s=sum(1 for k in ks if k<m)
+                nx=x+s if d<0 else x-s
+                n[nx]=ch
+            g[y]=n
+    down=[y for op in ops if op[0]=='down' for y in op[1]]+([22] if chin else [])
+    up=[y for op in ops if op[0]=='up' for y in op[1]]
+    out={}
+    for y,r in g.items():
+        if y in down or y in up: continue
+        ny=y+sum(1 for d in down if d>y)-sum(1 for u in up if u<y)
+        out[ny]=''.join(r)
+    return out
 def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
@@ -130,6 +156,8 @@ def compose(suit,spec,emph='ohne'):
                 if i not in (7,8): r[i]=fill
             grid[20]=''.join(r)
     if spec.get('narrow'): grid=_narrow(grid,spec['narrow'],prot)
+    if spec.get('shrink') or spec.get('chin'): grid=_shrink(grid,8 if spec.get('narrow')=='A' else 7,spec.get('shrink',[]),spec.get('chin'))
+    global LAST_GRID; LAST_GRID=dict(grid)
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
@@ -143,7 +171,7 @@ def compose(suit,spec,emph='ohne'):
             if ch!='.' and ch in cm: F.put(8+x,y,ov.get((x,y),cm[ch]))
     PX=Layer()                                  # Objekte (z. B. Vogel) optional erst nach dem Schatteneffekt zeichnen
     for (px_,py_,ch_) in spec.get('px',[]):
-        if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
+        if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_+(1 if spec.get('chin') else 0),cm[ch_])
     if lift:
         sh=Layer(); sh.im.paste(F.im,(0,-lift+spec.get('head_down',0))); sh.p=sh.im.load()
         if td and td!='aus':
