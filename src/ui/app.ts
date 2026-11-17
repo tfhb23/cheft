@@ -790,7 +790,7 @@ export class App {
       return true;
     }
     if (this.screen === 'game') {
-      if (this.online?.lobby?.paused || this.state?.round.ended) return false;
+      if (this.online?.lobby?.paused) return false;
       if (this.chooser) this.chooser = null;
       else if (this.showScores) this.showScores = false;
       else if (this.showSettings) this.showSettings = false;
@@ -1458,7 +1458,7 @@ export class App {
     const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
     else if (this.chooser) game.appendChild(this.renderChooser());
-    else if (this.showSettings) game.appendChild(this.renderSettings());
+    if (this.showSettings && !this.chooser && !(r.ended && !this.peekTable)) game.appendChild(this.renderSettings());
     if (this.showScores) game.appendChild(this.renderScores());
     if (this.online?.lobby?.paused) game.appendChild(this.renderPause(this.online.lobby));
     return game;

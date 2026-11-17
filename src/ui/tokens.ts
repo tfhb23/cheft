@@ -232,7 +232,6 @@ export const BORDER_TOKENS: ValueToken[] = [
 export const EFFECT_TOKENS: ValueToken[] = [
   { id: '3.68', css: '--op-dot', name: 'Deckkraft Nummern-Punkt', value: '0.85', use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.61', css: '--filter-dim', name: 'Abblenden', value: 'grayscale(0.5) contrast(0.6) brightness(1.08)', use: 'Karten, die gerade nicht gezogen werden können (ohne Durchscheinen)' },
-  { id: '3.69', css: '--card-ratio', name: 'Seitenverhältnis Karte', value: `${CARD_PX.w} / ${CARD_PX.h}`, use: 'Karten, die sich einer Spalte anpassen (Auswahl der Kartenrückseite)' },
   { id: '3.62', css: '--op-drag', name: 'Deckkraft beim Ziehen', value: '0.92', use: 'Karte unter dem Finger' },
   { id: '3.63', css: '--scale-drag', name: 'Vergrößerung beim Ziehen', value: '1.05', use: 'Karte unter dem Finger' },
   { id: '3.64', css: '--op-taken', name: 'Deckkraft genommen', value: '0.55', use: 'Im Rückblick: Karte, die schon jemand genommen hat' },

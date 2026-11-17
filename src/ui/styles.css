@@ -105,9 +105,12 @@ details > * + * { margin-top: var(--gap-tight); }
 
 /* Auswahl der Kartenrückseite: Vorschaubild in der Größe der Karten im Spiel (--card-w × --card-h) im Button */
 .thumb { display: block; width: var(--card-w); height: var(--card-h); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
-.option .choices.back-choices { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-3); padding: var(--sp-3); }
-/* Fünf Rückseiten nebeneinander: die Karten füllen ihre Spalte (Seitenverhältnis der Karte) */
-.option .choices.back-choices .card { width: 100%; height: auto; aspect-ratio: var(--card-ratio); }
+/* Alle Rückseiten in einer Zeile in Originalgröße; seitlich scrollbar (Wischen oder Pfeile) */
+.back-scroller { display: flex; align-items: center; gap: var(--sp-2); }
+.back-scroller > .btn.icon { flex: none; }
+.option .choices.back-choices { flex: 1; min-width: 0; display: flex; gap: var(--sp-3); padding: var(--sp-3); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.option .choices.back-choices::-webkit-scrollbar { display: none; }
+.option .choices.back-choices .card { flex: none; }
 
 /* Auswahlzeile: Beschriftung über zwei oder mehr gleich breiten Knöpfen */
 .option { display: flex; flex-direction: column; gap: var(--gap-hair); }

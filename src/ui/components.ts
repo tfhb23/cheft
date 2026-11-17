@@ -5,6 +5,7 @@
 import { h, Child } from './dom';
 import { t } from '../i18n';
 import { MOTION } from './tokens';
+import { ICON_ARROW_L, ICON_ARROW_R, pixelIcon } from './icons';
 
 export type BtnVariant = 'default' | 'primary' | 'dark' | 'danger';
 
@@ -152,7 +153,7 @@ export function roundsTable(names: string[], played: RoundsRow[], totalRounds: n
  * orange und leuchtet (Karte leuchtet, 5.13), die anderen dunkel und abgeblendet (Karte abgeblendet, 5.15).
  */
 export function backChoiceRow(items: { id: string; name: string; orange: string; dark: string }[], selected: string, onPick: (id: string) => void): HTMLElement {
-  return h(
+  const strip = h(
     'div',
     { class: 'choices back-choices' },
     ...items.map((d) => {
@@ -165,4 +166,11 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
       });
     }),
   );
+  const step = (dir: number) => () => strip.scrollBy({ left: dir * strip.clientWidth * 0.8, behavior: 'smooth' });
+  // Die gewählte Rückseite beim Aufbau ins Bild holen (nach dem Einfügen ins Dokument, deshalb verzögert)
+  requestAnimationFrame(() => {
+    const cur = strip.querySelector('.glow') as HTMLElement | null;
+    if (cur) strip.scrollLeft = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
+  });
+  return h('div', { class: 'back-scroller' }, iconBtn(pixelIcon(ICON_ARROW_L), '‹', step(-1)), strip, iconBtn(pixelIcon(ICON_ARROW_R), '›', step(1)));
 }
