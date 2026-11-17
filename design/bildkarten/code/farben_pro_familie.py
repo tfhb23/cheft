@@ -35,6 +35,7 @@ def rows_for(fam):
     for hexv,el,pers,fo in D[fam]:
         if el.startswith('Haut') and not fo:
             out.append((h6(sk),'Haut (Hautton der Familie)','alle',0))
+            out.append((h6(comp.EYE_COL[SUIT[fam]]),'Augen (Familienfarbe, 1 px)','alle',0))
             out.append((h6(tiefe.nase(sk)),'Haut −0,18: Nase','%s'%pn,1))
             out.append((h6(mix(sk,comp.LIPS[0])),'Rot 1.14, %d %% auf Haut: Lippen'%round(comp.LIPS[0]*100),pm,1))
             out.append((h6(mix(sk,comp.LIPS[1])),'Rot 1.14, %d %% auf Haut: Lippen'%round(comp.LIPS[1]*100),pf,1))

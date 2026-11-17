@@ -102,7 +102,7 @@ def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
 LIPS=(0.50,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
-EYE=None   # Augen: None = Tinte | S1 1 px aus Haarfarbe dunkler | S2 1 px Familienfarbe | S3 2 px Weiß+Iris | S4 1 px Familienfarbe + Lidschatten
+EYE='S2'   # Augen (freigegeben: S2). None = Tinte | S1 1 px aus Haarfarbe dunkler | S2 1 px Familienfarbe | S3 2 px Weiß+Iris | S4 1 px Familienfarbe + Lidschatten
 EYE_COL=dict(H=hx('4b2e18'),D=hx('3f5a3a'),C=hx('2f4a6b'),S=hx('4a5a6e'))
 WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
