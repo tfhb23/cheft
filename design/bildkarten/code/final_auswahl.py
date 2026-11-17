@@ -27,7 +27,7 @@ def render(suit,rank,sp,emph='schlagschatten'): return card(suit,rank,sp,emph,'s
 
 # ---------------- freigegebene neue Personen (zweite Person je Karte) ----------------
 def _falke(x,y):
-    sp=m2(11,'federkappe','keiner','kurz',('nase_n3',),px=px(OLD_FALKE,x,y),A=INK,F=GOLD,**KB); sp['px_after']=True   # Vogel ohne Schatten
+    sp=m2(11,'federkappe','keiner','kurz',('nase_n3',),px=px(OLD_FALKE,x,y),A=INK,**KB); sp['px_after']=True   # Vogel ohne Schatten
     return sp
 PERSONEN={
  # Herz Bube

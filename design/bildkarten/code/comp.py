@@ -34,6 +34,8 @@ def compose(suit,spec,emph='ohne'):
     cm['k']=_t.glanz(cm['K'])                       # Zylinder-Glanz per Formel (früher Handfarbe 5a4d44)
     la=spec.get('lip',LIPS[0])                       # Lippen: Rot (1.14) mit Deckkraft über dem Hautton (Frauen intensiver)
     cm['M']=tuple(round(cm['S'][i]*(1-la)+C['red'][i]*la) for i in range(3))
+    for _k in 'JZ':                                 # rote Edelsteine und Hutbänder -> Cheft-Orange (1.10)
+        if cm[_k]==C['red']: cm[_k]=C['orange']
     cm['w']=_t.hi(cm['H'])                          # Falkenbraun aus dem Haarbraun der Person (Formel)
     cm['h']=_t.lo(cm['H'])                          # dunklere Strähnen aus demselben Braun (Formel)
     cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
