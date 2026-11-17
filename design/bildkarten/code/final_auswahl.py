@@ -29,6 +29,10 @@ def render(suit,rank,sp,emph='schlagschatten'): return card(suit,rank,sp,emph,'s
 def _falke(x,y):
     sp=m2(11,'federkappe','keiner','kurz',('nase_n3',),px=px(OLD_FALKE,x,y),A=INK,**KB); sp['px_after']=True   # Vogel ohne Schatten
     return sp
+def _falke_kopf(x0,y0=6):
+    """Falke sitzt auf dem Kopf (Kappe ohne Feder). Rückgängig: _falke(22,20) mit 'federkappe'."""
+    sp=m2(11,'kappe_ohne_feder','keiner','kurz',('nase_n3',),px=px(OLD_FALKE,x0,y0),A=INK,**KB); sp['px_after']=True
+    return sp
 PERSONEN={
  # Herz Bube
  'herz_bube_a':('H',11,m2(11,['turbm_a','mond_klein'],'keiner','kurz_b',('brauen',),A=WHITE,a=SHADE)),
@@ -37,7 +41,7 @@ PERSONEN={
  'herz_dame_a':('H',12,m2(12,['fall_rc','mond_rc','sterne_schleier'],'keiner','rund_scheitel',('mund_schmal',),J=RED,**HH)),
  'herz_dame_b':('H',12,m2(12,['kamm5_8_rot_u','ohrringe'],'keiner','hochsteck',('mund_schmal',),**HH)),
  # Kreuz Bube
- 'kreuz_bube_a':('C',11,_falke(22,20)),
+ 'kreuz_bube_a':('C',11,_falke_kopf(13)),
  'kreuz_bube_b':('C',11,m2(11,['krone_klein','hermelin'],'keiner','pony_cj2',**KB)),
  # Kreuz Dame
  'kreuz_dame_a':('C',12,dict(m2(12,'diadem_gross','keiner','hochsteck',('mund_schmal',),J=RED,**KD),acc=['perlen'])),

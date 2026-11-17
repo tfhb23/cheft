@@ -625,3 +625,6 @@ EXTRA['brauen_3_hoch']={14:'....KKK..KKK....'}    # eine Zeile höher
 EXTRA['nase_n1']={17:'.......TT.......'}
 EXTRA['nase_n2']={17:'........T.......'}
 EXTRA['nase_n3']={17:'.......tt.......'}
+
+# Kappe ohne Feder (für den Falken auf dem Kopf)
+HAT['kappe_ohne_feder']=hat(['....AAAA','..AAAAAA','.AAAAAAA'])

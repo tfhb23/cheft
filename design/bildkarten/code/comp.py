@@ -5,7 +5,7 @@ GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf')
 def letters(suit,pal):
     ink=inkOf(suit); light=lightOf(suit)
     m=dict(S=SKIN[suit],E=C['ink'],M=C['mouth'],H=HAIR[suit],B=BEARD[suit],G=C['gold'],W=C['white'],V=SHADE,P=POWDER,
-           R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=C['ink'],T=hx('e0b48c'),v=hx('cdb98e'),O=C['sand'],q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
+           R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=C['ink'],T=hx('e0b48c'),v=hx('cdb98e'),O=C['sandD'],q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
     m.update(pal); return m
 EMPH={'ohne':None,'kontur_hell':C['inkL'],'kontur_dunkel':hx('5a3a2c'),'schlagschatten':C['inkL'],'innenschatten':hx('b8ab93')}
 def is_light(rgb): return (max(rgb[:3])-min(rgb[:3]))<=40 and sum(rgb[:3])/3>=185
