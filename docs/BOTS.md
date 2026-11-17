@@ -119,6 +119,21 @@ Neustart aus JSON, Erinnerung (Mastermind gleich Referenzrechnung), Teppichkarte
   können einzelne Entscheidungen deshalb bis etwa eine Sekunde dauern; falls das stört, wäre die Suche in `canOpenRommeWith` und
   `holdsOpeningWith` der Ansatzpunkt.
 
+## 5b. Prüflauf (17.11.2026)
+
+- `npm test`: 337 Tests grün.
+- Dauertest normal (1500 Spiele, 7572 Runden, 591 710 Entscheidungen) und extrem (`SOAK_EXTREME=1`, 1500 Spiele, 7622 Runden, 860 354 Entscheidungen): **keine Verstöße**. Rechenzeit: Maximum 2,3 s bzw. 1,2 s unter Volllast (zwei Dauertests parallel auf 4 Kernen), 81 bzw. 49 Entscheidungen über 250 ms.
+- Kalibrierung (Ausgewogen, voll, 3 × 960 Spiele; 7 Runden gesperrt / 5 Runden Erstzug erlaubt / 7 Runden, andere Startindizes):
+
+| Stufe | 7 R. (Start 0) | 5 R. offen (Start 20000) | 7 R. (Start 40000) | Mittel |
+|---|---|---|---|---|
+| Vergesslich | 20,4 % | 18,9 % | 19,8 % | 19,7 % |
+| Normal | 21,4 % | 23,5 % | 23,1 % | 22,7 % |
+| Scharfsinnig | 25,6 % | 26,3 % | 28,4 % | 26,8 % |
+| Mastermind | 32,6 % | 31,3 % | 28,7 % | 30,9 % |
+
+  Alle Mittelwerte liegen im Zielband, die Stufen sind sauber gestaffelt (Strafpunkte/Runde 57 / 54 / 51 / 49). Einzelne Läufe schwanken um die Messtoleranz (±2,5 bis 3 Punkte); Werte wurden deshalb nicht verändert.
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
