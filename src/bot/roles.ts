@@ -101,13 +101,13 @@ export function rolesPerRound(state: GameState, pid: number, id: RoleId, o: Role
   return out;
 }
 
-/** Kurztext für die Endauswertung, z. B. „3× Glücksritter, 2× Gerissener, 1× Ausgewogen“ (Wildcard) oder „5 von 7 Runden in Rolle“. */
-export function describeRoleRounds(state: GameState, pid: number, id: RoleId, o: RoleOptions = {}): string {
-  const rounds = rolesPerRound(state, pid, id, o);
-  if (id === 'wildcard') {
-    const counts = new Map<StyleId, number>();
-    for (const r of rounds) counts.set(r, (counts.get(r) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${n}× ${ROLE_LABEL[r]}`).join(', ');
-  }
-  return `${rounds.filter((r) => r === id).length} von ${rounds.length} Runden in Rolle`;
+/**
+ * Text für die Endauswertung: Bei allen Spielweisen steht nur die Rolle des Bots (eine Laune-Runde zählt nicht). Nur die Wildcard zeigt mehrere
+ * Rollen mit Zählung, z. B. „Wildcard: 3× Glücksritter, 2× Gerissener, 1× Ausgewogen“.
+ */
+export function describeRole(state: GameState, pid: number, id: RoleId, o: RoleOptions = {}): string {
+  if (id !== 'wildcard') return ROLE_LABEL[id];
+  const counts = new Map<StyleId, number>();
+  for (const r of rolesPerRound(state, pid, id, o)) counts.set(r, (counts.get(r) ?? 0) + 1);
+  return `${ROLE_LABEL.wildcard}: ` + [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${n}× ${ROLE_LABEL[r]}`).join(', ');
 }

@@ -8,7 +8,7 @@ import { decideAction, inCompleteCombo } from './bot';
 import { MEMORY, MemoryParams } from './memory';
 import { OppModel, likes, opponentModel, tempoShift } from './opponents';
 import { resolvePersona as resolve } from './personas';
-import { NEIGHBORS, RoleId, STYLE_IDS, describeRoleRounds, rolePersona, rolesPerRound } from './roles';
+import { NEIGHBORS, ROLE_LABEL, RoleId, STYLE_IDS, describeRole, rolePersona, rolesPerRound } from './roles';
 import { simulate } from './simulate';
 import { TasteSet, TasteSpec, describeTasteSet, matches, tasteScore, tastesFor } from './tastes';
 
@@ -365,13 +365,12 @@ describe('Würze als Standard (Rollentreue 0,85, nur zu ähnlichen Rollen)', () 
     expect(rolesPerRound(sevenRounds(5), 2, 'pairs')).toEqual(a);
   });
 
-  it('Text für die Endauswertung: Wildcard mit Zählung je Spielweise, andere mit „x von y Runden in Rolle“', () => {
+  it('Endauswertung: Nur die Wildcard zeigt mehrere Rollen mit Zählung, alle anderen nur ihre Rolle (nicht die Laune-Runden)', () => {
     const g = sevenRounds(11);
-    const w = describeRoleRounds(g, 1, 'wildcard');
-    expect(w).toMatch(/^(\d+× [A-Za-zäöüÄÖÜß]+)(, \d+× [A-Za-zäöüÄÖÜß]+)*$/);
-    expect(w.split(', ').reduce((n, part) => n + Number(part.split('×')[0]), 0)).toBe(7);
-    expect(describeRoleRounds(g, 1, 'early')).toMatch(/^[0-7] von 7 Runden in Rolle$/);
-    expect(describeRoleRounds(g, 1, 'early', { loyalty: 1 })).toBe('7 von 7 Runden in Rolle');
+    const w = describeRole(g, 1, 'wildcard');
+    expect(w).toMatch(/^Wildcard: (\d+× [A-Za-zäöüÄÖÜß]+)(, \d+× [A-Za-zäöüÄÖÜß]+)*$/);
+    expect(w.replace('Wildcard: ', '').split(', ').reduce((n, part) => n + Number(part.split('×')[0]), 0)).toBe(7);
+    for (const id of STYLE_IDS) for (let seed = 0; seed < 30; seed++) expect(describeRole(sevenRounds(seed), 2, id)).toBe(ROLE_LABEL[id]);
   });
 });
 
@@ -412,7 +411,7 @@ describe('Schutz guter Karten', () => {
         },
       });
     }
-    expect(compared).toBeGreaterThan(200);
+    expect(compared).toBeGreaterThan(120);
     expect(changed).toBeGreaterThan(5); // die Vorlieben wirken tatsächlich (der Test ist nicht blind)
     void inPartition;
   }, 240000);

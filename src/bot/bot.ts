@@ -70,7 +70,7 @@ export interface Knobs {
   bold: boolean;
   /** Gegner-Gedächtnis: Abwurf nach dem, was der nächste Spieler nimmt, abwirft und liegen lässt. Aus: nur nach seinen genommenen Karten. */
   oppModel: boolean;
-  /** Abwurfdruck: Gewicht der Strafpunkte einer Karte beim Abwerfen vor der Erstmeldung (Standard 0,12). Hoch = Hochkarten fliegen früh raus. */
+  /** Abwurfdruck: Gewicht der Strafpunkte einer Karte beim Abwerfen vor der Erstmeldung (Standard 0, früher 0,12: Hochkarten vor der Erstmeldung wegzuwerfen schadete). Hoch = Hochkarten fliegen früh raus. */
   shedPre: number;
   /** Abwurfdruck nach der Erstmeldung (Standard 0,9). */
   shedOpen: number;
@@ -80,7 +80,7 @@ export interface Knobs {
   handReach: number;
   /** Ab wie vielen Handkarten eines Gegners, der draußen ist, das Rundenende als nah gilt (Standard 2); dann zählt jeder Strafpunkt. */
   dangerHand: number;
-  /** Gefahrenmodus (alles Hohe abwerfen, wenn ein Gegner fast draußen ist) nur für Spieler, die selbst schon draußen sind (Standard aus). */
+  /** Gefahrenmodus (alles Hohe abwerfen, wenn ein Gegner fast draußen ist) nur für Spieler, die selbst schon draußen sind (Standard an, früher aus: Der Modus nahm auch Spielern ohne Erstmeldung die hohen Karten). */
   dangerOpenedOnly: boolean;
   /** Paar-Liebe: Skala des Behaltewerts von Paaren beim Abwerfen (Standard 1; Cheft-Sammler > 1, Rommé-Spieler < 1). */
   pairLove: number;
@@ -142,12 +142,12 @@ export function knobsFor(profile: BotProfile): Knobs {
     weighOpening: true,
     bold: true,
     oppModel: true,
-    shedPre: 0.12,
+    shedPre: 0,
     shedOpen: 0.9,
     blockWeight: 9,
     handReach: 4,
     dangerHand: 2,
-    dangerOpenedOnly: false,
+    dangerOpenedOnly: true,
     pairLove: 1,
     huntLeader: 0,
     tasteWeight: 0,
