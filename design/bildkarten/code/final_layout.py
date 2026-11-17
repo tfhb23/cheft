@@ -16,6 +16,8 @@ SHRINK={
  'herz_dame_a':[('sq',6,31,[7]),('up',[28,29])],
  'kreuz_bube_a':[('del',13,13,[6])],                                  # Hutkrempe links/rechts 1 px kürzer (stößt sonst ans Symbol)
  'kreuz_dame_b':[('del',11,13,[6]),('del',15,17,[6])],                # Zopfkrone/Haarkante links/rechts 1 px kürzer
+
+ 'herz_dame_b':[('put',18,18,[(-4,'S'),(4,'S'),(-5,'.'),(5,'.')]),('put',19,20,[(-4,'G'),(4,'G'),(-5,'.'),(5,'.')])],   # Ohr + Ohrring 1 px näher am Kopf (Spalte 4/12 statt 3/13), keine "Backen" mehr
 }
 SHRINK['pik_koenig_zwilling']=SHRINK['pik_koenig_zwilling']+[('del',13,13,[6])]   # Zylinderkrempe 1 px kürzer
 MODE='v6a'      # Person mittig (v5a = 2 px nach rechts)

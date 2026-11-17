@@ -10,7 +10,7 @@ def hell(p): return colorsys.rgb_to_hls(*[v/255 for v in p[:3]])[1]>0.8      # W
 def contacts(k):
     s,r,sp=final_spec(k); im=render_mid(k).convert('RGBA'); px=im.load(); ink=inkOf(s)
     bare=base(); idx=index_layer(s,r); bare.over(idx); bare.over(idx.rot())
-    win=Layer(); win.rect(10,11,24,32,C['cream']); bare.over(win); bp=bare.im.load()
+    win=Layer(); win.rect(10,11,23,32,C['cream']); bare.over(win); bp=bare.im.load()
     vis={(x,y) for y in range(H) for x in range(W) if 2<=x<=29 and 2<=y<=41 and bp[x,y][:3]==ink}
     t=[]
     for y in range(H):

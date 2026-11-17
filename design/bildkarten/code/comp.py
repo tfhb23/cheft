@@ -107,6 +107,12 @@ def _shrink(g,center,ops,chin):
                     for k in ks:
                         for x in (center-k,center+k):
                             if 0<=x<16: g[y][x]='.'
+    for op in ops:
+        if op[0]=='put':                                   # Zellen setzen: ('put',y0,y1,[(Versatz zur Mitte, Zeichen)])
+            _,y0,y1,items=op
+            for y in range(y0,y1+1):
+                if y in g:
+                    for off,ch in items: g[y][center+off]=ch
     down=[y for op in ops if op[0]=='down' for y in op[1]]+([22] if chin else [])
     up=[y for op in ops if op[0]=='up' for y in op[1]]
     out={}
@@ -191,6 +197,7 @@ def compose(suit,spec,emph='ohne'):
             for y in range(H):                  # 1 Pixel Abstand der Person zu den Index-Symbolen (links oben Spalte 3-9, unten rechts sichtbar ab Spalte 25)
                 for x in range(W):
                     if (x<=10 and 10<=y<=18) or (x>=24 and y>=25): sh.p[x,y]=(0,0,0,0)
+        if spec.get('body_clip'): _clip_body(L,*spec['body_clip'])
         L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):
@@ -263,7 +270,7 @@ def card(suit,rank,spec,emph='ohne',sym='ref'):
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
     if sym in ('cut1','symmA','symm','symm0','v3','v6'): x1=24 if sym!='symm0' else 23
-    if sym=='v6': x0=10                                                    # Fenster beginnt hinter dem Symbol links oben (Spalte 3 bis 9)
+    if sym=='v6': x0=10; x1=23; spec=dict(spec,body_clip=(9,22))   # Schultern rechts/links 1 px schmaler, Symbol unten rechts sichtbar ab Spalte 24 (5 von 7 Spalten)                                                    # Fenster beginnt hinter dem Symbol links oben (Spalte 3 bis 9)
     if sym=='v3':                                                           # Layout v3: Index links oben ganz sichtbar (Symbol 7 breit, Spalte 3 bis 9) -> Fenster beginnt erst ab Spalte 10
         x0=10; spec=dict(spec,dx=2,dyn=dict(spec['dyn'],notch_left=False))   # Person 2 Pixel verschoben, kein Symbol unten links
     if sym in ('symm','symm0'):
