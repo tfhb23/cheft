@@ -1,11 +1,11 @@
 from lib import *
 import parts as P
-SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('cfc8bd'); BLACK=hx('1b1b1b'); BROWN=hx('5a3a24'); DBROWN=hx('4e2c16')
+SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('cfc8bd'); BLACK=C['ink']; BROWN=hx('5a3a24'); DBROWN=BROWN
 GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf'); STEEL=C['inkL']; DSTEEL=hx('8a847e'); RUBY=C['red']
 def letters(suit,pal):
     ink=inkOf(suit); light=lightOf(suit)
     m=dict(S=C['skin'],E=C['ink'],M=C['mouth'],H=HAIR[suit],B=BEARD[suit],G=C['gold'],W=C['white'],V=SHADE,P=POWDER,
-           R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=C['ink'],T=hx('e0b48c'),v=hx('cdb98e'),O=hx('e8dcc0'),q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
+           R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=C['ink'],T=hx('e0b48c'),v=hx('cdb98e'),O=C['sand'],q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
     m.update(pal); return m
 EMPH={'ohne':None,'kontur_hell':C['inkL'],'kontur_dunkel':hx('5a3a2c'),'schlagschatten':C['inkL'],'innenschatten':hx('b8ab93')}
 def is_light(rgb): return (max(rgb[:3])-min(rgb[:3]))<=40 and sum(rgb[:3])/3>=185
@@ -32,6 +32,8 @@ def compose(suit,spec,emph='ohne'):
     pal=spec.get('pal',{}); cm=letters(suit,pal)
     import tiefe as _t; cm['t']=_t.lo(cm['S'])      # Nase per Formel aus der Hautfarbe
     cm['k']=_t.glanz(cm['K'])                       # Zylinder-Glanz per Formel (früher Handfarbe 5a4d44)
+    cm['w']=_t.hi(cm['H'])                          # Falkenbraun aus dem Haarbraun der Person (Formel)
+    cm['h']=_t.lo(cm['H'])                          # dunklere Strähnen aus demselben Braun (Formel)
     cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
     if 'a' in pal: cm['a']=_t.fold(cm['A'])         # Fez-/Turbanfalten per Formel (früher a02a20, c8902a, d8cfbf)
     layers=[P.BODY[spec['body']]]
