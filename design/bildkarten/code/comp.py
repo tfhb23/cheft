@@ -51,9 +51,12 @@ def compose(suit,spec,emph='ohne'):
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
     lift=spec.get('lift',0)
     F=Layer() if lift else L          # Person (Kopf, Hut, Haare ...) getrennt vom Körper, damit sie angehoben werden kann
+    ov={}
+    if spec.get('tiefe'):
+        import tiefe; ov=tiefe.apply(grid,cm,spec['tiefe'])
     for y,row in grid.items():
         for x,ch in enumerate(row):
-            if ch!='.' and ch in cm: F.put(8+x,y,cm[ch])
+            if ch!='.' and ch in cm: F.put(8+x,y,ov.get((x,y),cm[ch]))
     PX=Layer()                                  # Objekte (z. B. Vogel) optional erst nach dem Schatteneffekt zeichnen
     for (px_,py_,ch_) in spec.get('px',[]):
         if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
