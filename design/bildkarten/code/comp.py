@@ -87,9 +87,18 @@ def compose(suit,spec,emph='ohne'):
     ov={}; td=spec.get('tiefe','B')
     if td and td!='aus':
         import tiefe; ov=tiefe.apply(grid,cm,td)
+    nar=spec.get('narrow')                      # v5: Kopf 1 px schmaler. 'A' = Spalte 7 raus (linke Hälfte rückt 1 nach rechts), 'B' = Spalte 8 raus (rechte Hälfte rückt 1 nach links)
     for y,row in grid.items():
         for x,ch in enumerate(row):
-            if ch!='.' and ch in cm: F.put(8+x,y,ov.get((x,y),cm[ch]))
+            if ch!='.' and ch in cm:
+                nx=x
+                if nar=='A':
+                    if x==7: continue
+                    if x<7: nx=x+1
+                elif nar=='B':
+                    if x==8: continue
+                    if x>8: nx=x-1
+                F.put(8+nx,y,ov.get((x,y),cm[ch]))
     PX=Layer()                                  # Objekte (z. B. Vogel) optional erst nach dem Schatteneffekt zeichnen
     for (px_,py_,ch_) in spec.get('px',[]):
         if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
@@ -168,6 +177,7 @@ def outer_shadow(c,fig):
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
+    if sym in ('v5a','v5b'): spec=dict(spec,narrow=sym[-1].upper()); sym='v4'
     if sym=='v4': sym='v3'; spec=dict(spec,head_down=1,dyn=dict(spec['dyn'],cut=2))   # v4 = v3 + Kopf 1 px tiefer + Körper unten 2 px kürzer
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
