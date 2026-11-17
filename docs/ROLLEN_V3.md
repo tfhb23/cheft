@@ -29,7 +29,9 @@ Messung (endgültige Fassung mit Würze, Vorlieben und Gegner-Gedächtnis): 600 
 
 - **Unterschied Pärchenkönig und Glücksritter:** Beide gehen auf Cheft, der Glücksritter eine Paarstufe früher (3 statt 4 Paare), aber nur, wenn er nicht führt (siehe 6). Mit 14 Karten kommen 3 Paare viel öfter vor als 4. Der Zufallsanteil (`gamble`) des alten Zockers
   macht ihn zu schwach und ist deshalb 0.
-- **Hinweis Gerissener:** In dieser Messung 17,5 % statt etwa 21 % in früheren Läufen mit 5 Runden; eine Gegenprobe mit 800 Spielen und zwei Startindizes läuft (Ergebnis im Anhang dieses Abschnitts, falls vorhanden).
+- **Hinweis Gerissener:** Er ist bei 7 Runden reproduzierbar schwächer als der Ausgewogene (800 Spiele, zwei Startindizes, ohne Zutaten: 19,6 und 18,9 % gegen 23,6 und 24,4 %), also etwa 4,5 Punkte. Warten kostet in längeren Spielen mehr Tempo.
+  Mit `holdAt0` 0,3 statt 0,2 sind es 21,6 und 20,1 % (etwa 3 Punkte weniger), aber er wartet dann im Schnitt nur noch 4,1 statt 4,4 Züge (Ausgewogen 4,0) und ist kaum noch von der Ausgewogenen zu unterscheiden.
+  Empfehlung: 0,2 behalten, damit die Rolle erkennbar bleibt (der Stil ist hier wichtiger als ein Punkt Siegquote); wer ihn fairer will, nimmt 0,3.
 
 ## 3. Rollentreue-Würze (Erkennbarkeit)
 
