@@ -34,6 +34,53 @@ def _clip_body(L,xmin,xmax=23):
     for y in range(H):
         for x in range(W):
             if x<xmin or x>xmax or (x>=23 and 33<=y<=41): L.p[x,y]=(0,0,0,0)
+
+def _map(x,nar):
+    """Spalte x -> neue Spalte (None = fällt weg). A: Spalte 7 raus, linke Hälfte rückt nach rechts. B: Spalte 8 raus, rechte Hälfte rückt nach links."""
+    if nar=='A': return None if x==7 else (x+1 if x<7 else x)
+    return None if x==8 else (x-1 if x>8 else x)
+def _move(x,nar):
+    """Wie _map, aber ohne Wegfall (für Teile, die ihre Breite behalten: Kamm)."""
+    if nar=='A': return x+1 if x<7 else x
+    return x-1 if x>=8 else x
+def _crown(center):
+    """Kreuz-König-Krone für den schmalen Kopf: 11 breit, Mitte = Kopfmitte, 5 Zacken, 3 Steine im gleichen Abstand (Mitte, +-3)."""
+    rows=['.G.G.G.G.G.','GGGGGGGGGGG','GGGGGGGGGGG','GGJGGJGGJGG','GGGGGGGGGGG']
+    out={}
+    for i,r in enumerate(rows):
+        row=['.']*16
+        for k,ch in enumerate(r): row[center-5+k]=ch
+        out[9+i]=''.join(row)
+    return out
+def _narrow(grid,nar,prot):
+    g={}
+    for y,row in grid.items():
+        r=['.']*16
+        for x,ch in enumerate(row):
+            nx=_map(x,nar)
+            if nx is not None and ch!='.': r[nx]=ch
+        g[y]=r
+    center=8 if nar=='A' else 7
+    for h in prot:
+        if h=='krone_ck_final': rows=_crown(center)
+        else:
+            rows={}
+            for y,row in P.HAT[h].items():
+                r=['.']*16
+                for x,ch in enumerate(row):
+                    if ch!='.': r[_move(x,nar)]=ch
+                rows[y]=''.join(r)
+        for y,row in rows.items():
+            r=g.setdefault(y,['.']*16)
+            for x,ch in enumerate(row):
+                if ch!='.': r[x]=ch
+    for y,r in g.items():            # Hutband: Mittelelement 3 px breit (Band 7 breit, Mitte = Bandmitte)
+        zs=[i for i,ch in enumerate(r) if ch=='Z']
+        if zs and (zs[-1]-zs[0])%2==0 and any(r[i]=='G' for i in range(zs[0],zs[-1]+1)):
+            for i in range(zs[0],zs[-1]+1): r[i]='Z'
+            m=(zs[0]+zs[-1])//2
+            for i in (m-1,m,m+1): r[i]='G'
+    return {y:''.join(r) for y,r in g.items()}
 def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
@@ -52,7 +99,10 @@ def compose(suit,spec,emph='ohne'):
     layers.append(P.FACE)
     layers.append(P.HAIR[spec.get('hair','glatze')])
     layers.append(P.BEARD[spec.get('beard','keiner')])
-    for h in ([spec['hat']] if isinstance(spec.get('hat'),str) else spec.get('hat',[])): layers.append(P.HAT[h])
+    prot=[]
+    for h in ([spec['hat']] if isinstance(spec.get('hat'),str) else spec.get('hat',[])):
+        if spec.get('narrow') and (h.startswith('kamm') or h=='krone_ck_final'): prot.append(h)     # werden nach dem Schmaler-Machen neu gesetzt
+        else: layers.append(P.HAT[h])
     for e in spec.get('extra',[]): layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
     for a in spec.get('acc',[]): layers.append(P.ACC[a])
     grid=P.merge(*layers)
@@ -79,6 +129,7 @@ def compose(suit,spec,emph='ohne'):
             for i in idx:
                 if i not in (7,8): r[i]=fill
             grid[20]=''.join(r)
+    if spec.get('narrow'): grid=_narrow(grid,spec['narrow'],prot)
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
@@ -87,18 +138,9 @@ def compose(suit,spec,emph='ohne'):
     ov={}; td=spec.get('tiefe','B')
     if td and td!='aus':
         import tiefe; ov=tiefe.apply(grid,cm,td)
-    nar=spec.get('narrow')                      # v5: Kopf 1 px schmaler. 'A' = Spalte 7 raus (linke Hälfte rückt 1 nach rechts), 'B' = Spalte 8 raus (rechte Hälfte rückt 1 nach links)
     for y,row in grid.items():
         for x,ch in enumerate(row):
-            if ch!='.' and ch in cm:
-                nx=x
-                if nar=='A':
-                    if x==7: continue
-                    if x<7: nx=x+1
-                elif nar=='B':
-                    if x==8: continue
-                    if x>8: nx=x-1
-                F.put(8+nx,y,ov.get((x,y),cm[ch]))
+            if ch!='.' and ch in cm: F.put(8+x,y,ov.get((x,y),cm[ch]))
     PX=Layer()                                  # Objekte (z. B. Vogel) optional erst nach dem Schatteneffekt zeichnen
     for (px_,py_,ch_) in spec.get('px',[]):
         if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
