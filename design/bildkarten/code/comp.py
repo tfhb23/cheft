@@ -4,7 +4,7 @@ SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('cfc8bd'); BLACK=C['ink']; BROWN=hx('5a3a2
 GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf'); STEEL=C['inkL']; DSTEEL=hx('8a847e'); RUBY=C['red']
 def letters(suit,pal):
     ink=inkOf(suit); light=lightOf(suit)
-    m=dict(S=C['skin'],E=C['ink'],M=C['mouth'],H=HAIR[suit],B=BEARD[suit],G=C['gold'],W=C['white'],V=SHADE,P=POWDER,
+    m=dict(S=SKIN[suit],E=C['ink'],M=C['mouth'],H=HAIR[suit],B=BEARD[suit],G=C['gold'],W=C['white'],V=SHADE,P=POWDER,
            R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=C['ink'],T=hx('e0b48c'),v=hx('cdb98e'),O=C['sand'],q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
     m.update(pal); return m
 EMPH={'ohne':None,'kontur_hell':C['inkL'],'kontur_dunkel':hx('5a3a2c'),'schlagschatten':C['inkL'],'innenschatten':hx('b8ab93')}
@@ -32,6 +32,8 @@ def compose(suit,spec,emph='ohne'):
     pal=spec.get('pal',{}); cm=letters(suit,pal)
     import tiefe as _t; cm['t']=_t.lo(cm['S'])      # Nase per Formel aus der Hautfarbe
     cm['k']=_t.glanz(cm['K'])                       # Zylinder-Glanz per Formel (früher Handfarbe 5a4d44)
+    la=spec.get('lip',LIPS[0])                       # Lippen: Rot (1.14) mit Deckkraft über dem Hautton (Frauen intensiver)
+    cm['M']=tuple(round(cm['S'][i]*(1-la)+C['red'][i]*la) for i in range(3))
     cm['w']=_t.hi(cm['H'])                          # Falkenbraun aus dem Haarbraun der Person (Formel)
     cm['h']=_t.lo(cm['H'])                          # dunklere Strähnen aus demselben Braun (Formel)
     cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
@@ -81,6 +83,7 @@ import colorsys
 def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
+LIPS=(0.60,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
 WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
     if WHITE=='W1': return
@@ -130,6 +133,7 @@ def outer_shadow(c,fig):
         if all(occ(a,b) or cream(a,b) for a in (u-1,u,u+1) for b in (v-1,v,v+1)): sh.put(u,v,_cream_at(s))
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
+    spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
     if sym in ('cut1','symmA','symm','symm0'): x1=24 if sym!='symm0' else 23

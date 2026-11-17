@@ -11,7 +11,8 @@ def spec_v2(name):
     if name=='kreuz_koenig': sp['hat']=['krone_ck_final']   # Krone Variante D, Steine weiter außen und eine Zeile tiefer
     if name in ('karo_dame','herz_koenig','karo_koenig','pik_koenig_zwilling'): sp['mouth2']=True   # Lippen 2 px
     if name in ('karo_koenig','pik_koenig_zwilling'): sp['extra']=list(sp['extra'])+['nase_n3']   # Nase (Formel aus Hautfarbe)
-    if name.startswith('pik_'): sp['pal']['S']=hx('f6dfca')   # Pik-Hautfarbe: bleibt blass, löst aber keinen Weiß-Schatten mehr im Gesicht aus
+    sp['pal'].pop('S',None)   # Hautton kommt aus lib.SKIN (je Familie)
+    if name.startswith('pik_'): pass   # Pik-Hautfarbe: bleibt blass, löst aber keinen Weiß-Schatten mehr im Gesicht aus
     return suit,rank,em,sp
 def render_v2(name):
     suit,rank,em,sp=spec_v2(name); return card(suit,rank,sp,em,'symm')

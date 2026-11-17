@@ -10,6 +10,8 @@ _PAL=dict(re.findall(r"\{ id: '(1\.\d\d)', css: '[^']+', name: '[^']+', value: '
 def T(i): return hx(_PAL[i])
 GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.06',gold='1.13',red='1.14',inkL='1.20',redL='1.21',skin='1.22',mouth='1.23',white='1.24')
 C={k:T(v) for k,v in GUIDE_IDS.items()}
+# Hautton pro Familie (eine Definition je Familie; Nase und Lippen leiten sich daraus ab)
+SKIN=dict(H=T('1.22'),D=T('1.22'),C=T('1.22'),S=hx('f6dfca'))
 HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 
