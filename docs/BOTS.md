@@ -131,6 +131,8 @@ Neustart aus JSON, Erinnerung (Mastermind gleich Referenzrechnung), Teppichkarte
 
 ## 7. Offen: für die Rollen (nächster Chat)
 
+> **Bearbeitet:** Befund, Messungen und Vorschlag für 6 Rollen stehen in [ROLLEN.md](ROLLEN.md). Die Liste unten ist der Stand davor.
+
 1. **Spielweisen kritisch hinterfragen** (so war es vereinbart, sobald die Stufen klar sind). Bekannte Befunde:
    - **`blocker` und `counter` haben derzeit keine Wirkung auf den Abwurf.** Sie wirken nur im alten Abwurfzweig (`chooseDiscard`, Zeilen
      nach `if (k.counting) return ...`), der seit der Umstellung nie mehr erreicht wird, weil alle Stufen über das Gedächtnis abwerfen. Das
