@@ -41,7 +41,7 @@ def _map(x,nar):
     return None if x==8 else (x-1 if x>8 else x)
 def _move(x,nar):
     """Wie _map, aber ohne Wegfall (für Teile, die ihre Breite behalten: Kamm)."""
-    if nar=='A': return x+1 if x<7 else x
+    if nar=='A': return x+1 if x<=7 else x
     return x-1 if x>=8 else x
 def _crown(center):
     """Kreuz-König-Krone für den schmalen Kopf: 11 breit, Mitte = Kopfmitte, 4 Zacken (2 breit, 1 Abstand), 3 Steine im gleichen Abstand (Mitte, +-3)."""
@@ -65,7 +65,7 @@ def _narrow(grid,nar,prot):
         if h=='krone_ck_final': rows=_crown(center)
         else:
             rows={}
-            for y,row in P.HAT[h].items():
+            for y,row in (P.HAT[h] if h in P.HAT else P.EXTRA[h]).items():
                 r=['.']*16
                 for x,ch in enumerate(row):
                     if ch!='.': r[_move(x,nar)]=ch
@@ -99,6 +99,14 @@ def _shrink(g,center,ops,chin):
                 nx=x+s if d<0 else x-s
                 n[nx]=ch
             g[y]=n
+    for op in ops:
+        if op[0]=='del':                                   # Zellen bei Mitte-k und Mitte+k löschen (ohne Nachrücken)
+            _,y0,y1,ks=op
+            for y in range(y0,y1+1):
+                if y in g:
+                    for k in ks:
+                        for x in (center-k,center+k):
+                            if 0<=x<16: g[y][x]='.'
     down=[y for op in ops if op[0]=='down' for y in op[1]]+([22] if chin else [])
     up=[y for op in ops if op[0]=='up' for y in op[1]]
     out={}
@@ -129,7 +137,9 @@ def compose(suit,spec,emph='ohne'):
     for h in ([spec['hat']] if isinstance(spec.get('hat'),str) else spec.get('hat',[])):
         if spec.get('narrow') and (h.startswith('kamm') or h=='krone_ck_final'): prot.append(h)     # werden nach dem Schmaler-Machen neu gesetzt
         else: layers.append(P.HAT[h])
-    for e in spec.get('extra',[]): layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
+    for e in spec.get('extra',[]):
+        if spec.get('narrow') and e.startswith('monokel') and e in P.EXTRA: prot.append(e)      # Ring bleibt rund und geschlossen (wird verschoben statt beschnitten)
+        else: layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
     for a in spec.get('acc',[]): layers.append(P.ACC[a])
     grid=P.merge(*layers)
     st=spec.get('eye',EYE)
