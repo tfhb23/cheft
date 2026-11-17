@@ -11,7 +11,8 @@ import { h, Child } from './dom';
 import { t } from '../i18n';
 import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
 import { ICONS, pixelArt, pixelIcon } from './icons';
-import { ATLAS_CELLS, FIGURES, GLYPHS, STAR, SUIT_SHAPES, figureMap, PALETTE, backThumb } from './sprites';
+import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
+import { FACE_ART } from './face-art';
 import { BACK_DESIGNS } from './backs';
 import { SOUND_CATALOG, VIBRATION_CATALOG, preview, vibrate } from './sound';
 import {
@@ -536,7 +537,6 @@ export function chapters(env: GuideEnv): Chapter[] {
     stageCls: 'flat',
     facts: [['Basis', `${CARD_PX.w} × ${CARD_PX.h} Pixel, Atlas ${CARD_PX.atlasW} × ${CARD_PX.atlasH} (${CARD_PX.cols} Spalten, ${ATLAS_CELLS} Zellen)`]],
   };
-  const figureColors = (rank: number, suit: 'H' | 'S') => figureMap(suit, rank);
   const art = (rows: string[], colors: Record<string, string> | undefined, px: number) => {
     const svg = pixelArt(rows, colors) as unknown as HTMLElement;
     svg.classList.add('pix');
@@ -547,12 +547,18 @@ export function chapters(env: GuideEnv): Chapter[] {
   const cardArt: Spec[] = [
     {
       id: '5.20',
-      name: 'Bildkarten-Figuren (16 × 19 Pixel)',
-      where: 'Bube, Dame, König in Rot (Herz, Karo) und Schwarz (Pik, Kreuz); Haar- und Bartfarben je Farbe',
-      code: 'sprites.ts › JACK, QUEEN, KING · figureMap()',
-      stage: () => [11, 12, 13].flatMap((r) => [art(FIGURES[r], figureColors(r, 'H'), 1.5), art(FIGURES[r], figureColors(r, 'S'), 1.5)]),
+      name: 'Bildkarten-Personen (je 32 × 44 Pixel, zwei Decks)',
+      where: 'Bube, Dame, König in Herz, Karo, Kreuz, Pik: Person 1 im ersten Deck (Karten 0–51), Person 2 im zweiten Deck (Karten 52–103). Bei sieben Karten steht dort vorerst dieselbe Person doppelt',
+      code: 'face-art.ts (erzeugt von design/bildkarten/code/export_ts.py) · sprites.ts › drawPerson()',
+      stage: () => (['H', 'D', 'C', 'S'] as const).flatMap((su) => [11, 12, 13].flatMap((r) => FACE_ART[`${su}${r}`].map((rows) => art(rows, faceColors(), 1)))),
       stageCls: 'flat',
-      facts: [['Zeichenschlüssel', 'S Haut · H Haar · G Gold · R Robe · W Weiß · K Kontur · E Auge · M Mund · B Bart · F Feder · L Robe hell']],
+      facts: [
+        ['Familien', 'Herz: Dichtkunst, Rot, Gold, Weiß · Karo: Schätze, Gold · Kreuz: Königsfamilie, Schwarz, Gold · Pik: die Bösen, Weiß, Schwarz'],
+        ['Farben je Familie', 'Haut 1.20–1.23 · Haar 1.26–1.29 · Augen 1.30–1.33 (1 Pixel) · Gold 1.13 · Tinte 1.01 · Rot 1.14 · Orange 1.10 (Federn, Edelsteine, Hutbänder) · Weiß 1.24'],
+        ['Per Formel abgeleitet', 'Licht links/oben: Helligkeit +0,12, Sättigung ×0,92 · Schatten rechts/unten: Helligkeit −0,13, Sättigung ×1,10 (bei Weiß nur −0,06) · Nase: Haut −0,18 · Lippen: Rot 1.14 mit 50 % (Männer) und 90 % (Damen) Deckkraft auf der Haut · Falten: eine Stufe dunkler · Saumlinien auf Schwarz und Zylinderglanz: Schwarz +0,17 · Weiß-Kante: Creme −0,16'],
+        ['Saum', 'König: drei Goldlinien mit 1 Pixel Abstand · Dame: zwei Goldlinien plus Schattenlinie · Bube: eine Goldlinie plus zwei Schattenlinien'],
+        ['Neu erzeugen', 'Figuren und Formeln: design/bildkarten/code (Python, Pillow). Nach jeder Änderung an Palette 1.20–1.33 dort export_ts.py ausführen; die Datei face-art.ts nie von Hand ändern'],
+      ],
     },
     {
       id: '5.21',
@@ -592,7 +598,7 @@ export function chapters(env: GuideEnv): Chapter[] {
         return img;
       },
       stageCls: 'flat',
-      facts: [['Zellen', 'H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55']],
+      facts: [['Zellen', `H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55 · Bildkarten Deck 2: ${FACE2_CELL}–${ATLAS_CELLS - 1} (H, D, C, S je Bube, Dame, König)`]],
     },
   ];
   const backSpecs: Spec[] = BACK_DESIGNS.map((d, i) => ({

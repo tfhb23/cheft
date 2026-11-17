@@ -16,7 +16,7 @@
 export const u = (n: number): string => `calc(${n}px * var(--s))`;
 
 /** Basismaße der Karten in Pixeln des Sprites (unskaliert), siehe 3.71–3.78. */
-export const CARD_PX = { w: 32, h: 44, atlasW: 256, atlasH: 308, cols: 8 };
+export const CARD_PX = { w: 32, h: 44, atlasW: 256, atlasH: 396, cols: 8 };
 
 // ---------------------------------------------------------------- 1 Farben
 export interface ColorToken {
@@ -49,20 +49,20 @@ export const PALETTE_COLORS: ColorToken[] = [
   { id: '1.17', css: '--c-shell', name: 'App-Hülle', value: '#2e1d16', group: 'System und Überlagerung', use: 'Browser-Leiste (theme-color), Ladebild und Hintergrund der installierten App, Icon-Hintergrund' },
   { id: '1.18', css: '--c-scrim', name: 'Abdunkelung', value: 'rgba(60, 40, 20, 0.55)', group: 'System und Überlagerung', use: 'Hintergrund hinter Fenstern (Overlay)' },
   { id: '1.19', css: '--c-scrim-dark', name: 'Abdunkelung stark', value: 'rgba(30, 18, 12, 0.8)', group: 'System und Überlagerung', use: 'Tisch beim Rückblick auf Abwürfe' },
-  { id: '1.20', css: '--c-ink-light', name: 'Tinte hell', value: '#b9b3ad', group: 'Kartenkunst', use: 'Rahmen der schwarzen Bildkarten (Pik, Kreuz), Robe hell' },
-  { id: '1.21', css: '--c-red-light', name: 'Rot hell', value: '#f2b9ad', group: 'Kartenkunst', use: 'Rahmen der roten Bildkarten (Herz, Karo), Robe hell' },
-  { id: '1.22', css: '--c-skin', name: 'Haut', value: '#f3cfae', group: 'Kartenkunst', use: 'Gesichter der Bildkarten' },
-  { id: '1.23', css: '--c-mouth', name: 'Mund', value: '#d05a4a', group: 'Kartenkunst', use: 'Mund der Bildkarten' },
-  { id: '1.24', css: '--c-white', name: 'Weiß', value: '#ffffff', group: 'Kartenkunst', use: 'Kragen der Bildkarten' },
+  { id: '1.20', css: '--c-skin-h', name: 'Haut Herz', value: '#e6be9a', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Herz (Nase und Lippen werden daraus per Formel berechnet)' },
+  { id: '1.21', css: '--c-skin-d', name: 'Haut Karo', value: '#f5d5bb', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Karo' },
+  { id: '1.22', css: '--c-skin-c', name: 'Haut Kreuz', value: '#edc4a3', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Kreuz' },
+  { id: '1.23', css: '--c-skin-s', name: 'Haut Pik', value: '#f6e1d1', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Pik (die hellste Haut)' },
+  { id: '1.24', css: '--c-white', name: 'Weiß', value: '#ffffff', group: 'Kartenkunst', use: 'Weiß der Bildkarten: Turbane, Schleier, Hermelin, Perlen, alle Pik-Haare (Juwelen und Falten per Formel)' },
   { id: '1.25', css: '--c-back-b', name: 'Rückseite B', value: '#4a4440', group: 'Kartenkunst', use: 'Kartenrücken des zweiten Decks (Muster darauf in Tinte)' },
-  { id: '1.26', css: '--c-hair-h', name: 'Haar Herz', value: '#6b3f22', group: 'Kartenkunst', use: 'Haar der Bildkarten in Herz' },
-  { id: '1.27', css: '--c-hair-d', name: 'Haar Karo', value: '#e8b23a', group: 'Kartenkunst', use: 'Haar der Bildkarten in Karo' },
-  { id: '1.28', css: '--c-hair-c', name: 'Haar Kreuz', value: '#2b2b2b', group: 'Kartenkunst', use: 'Haar der Bildkarten in Kreuz' },
-  { id: '1.29', css: '--c-hair-s', name: 'Haar Pik', value: '#8a4a2a', group: 'Kartenkunst', use: 'Haar der Bildkarten in Pik' },
-  { id: '1.30', css: '--c-beard-h', name: 'Bart Herz', value: '#4e2c16', group: 'Kartenkunst', use: 'Bart des Königs in Herz' },
-  { id: '1.31', css: '--c-beard-d', name: 'Bart Karo', value: '#b3832a', group: 'Kartenkunst', use: 'Bart des Königs in Karo' },
-  { id: '1.32', css: '--c-beard-c', name: 'Bart Kreuz', value: '#1a1a1a', group: 'Kartenkunst', use: 'Bart des Königs in Kreuz' },
-  { id: '1.33', css: '--c-beard-s', name: 'Bart Pik', value: '#6a3620', group: 'Kartenkunst', use: 'Bart des Königs in Pik' },
+  { id: '1.26', css: '--c-hair-h', name: 'Haar Herz', value: '#7a4526', group: 'Kartenkunst', use: 'Haar und Brauen der Bildkarten in Herz' },
+  { id: '1.27', css: '--c-hair-d', name: 'Haar Karo', value: '#d7ad54', group: 'Kartenkunst', use: 'Haar, Bart und Brauen der Bildkarten in Karo (eine Farbe für die Familie)' },
+  { id: '1.28', css: '--c-hair-c', name: 'Haar Kreuz', value: '#645144', group: 'Kartenkunst', use: 'Haar, Brauen und Schnurrbart der Bildkarten in Kreuz, davon abgeleitet der Falkenkörper' },
+  { id: '1.29', css: '--c-hair-gray', name: 'Haar grau', value: '#ddd8cf', group: 'Kartenkunst', use: 'Haar, Bart und Brauen des Herz-Königs (begründete Ausnahme: Alter)' },
+  { id: '1.30', css: '--c-eye-h', name: 'Auge Herz', value: '#6a3a14', group: 'Kartenkunst', use: 'Augen der Bildkarten in Herz (1 Pixel)' },
+  { id: '1.31', css: '--c-eye-d', name: 'Auge Karo', value: '#3f7a3a', group: 'Kartenkunst', use: 'Augen der Bildkarten in Karo' },
+  { id: '1.32', css: '--c-eye-c', name: 'Auge Kreuz', value: '#2f62a0', group: 'Kartenkunst', use: 'Augen der Bildkarten in Kreuz' },
+  { id: '1.33', css: '--c-eye-s', name: 'Auge Pik', value: '#4a5a6e', group: 'Kartenkunst', use: 'Augen der Bildkarten in Pik (etwas dezenter)' },
   { id: '1.34', css: '--c-icon-line', name: 'Icon-Kontur', value: '#1c120d', group: 'App-Icon', use: 'Kartenkontur im App-Icon (PWA)' },
   { id: '1.35', css: '--c-icon-orange', name: 'Icon-Orange', value: '#e8521f', group: 'App-Icon', use: 'Buchstabe C und Ecke im App-Icon' },
   { id: '1.36', css: '--c-icon-paper', name: 'Icon-Papier', value: '#f6ecd6', group: 'App-Icon', use: 'Kartenfläche im App-Icon' },
@@ -262,7 +262,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.71', css: '--px-card-w', name: 'Karte Breite (Basis)', px: CARD_PX.w, use: 'Sprite-Grundmaß 32 × 44 Pixel; auch die Mini-Karten in Auswahl und Auswertung (1×)' },
   { id: '3.72', css: '--px-card-h', name: 'Karte Höhe (Basis)', px: CARD_PX.h, use: 'dito' },
   { id: '3.73', css: '--px-atlas-w', name: 'Atlas Breite (Basis)', px: CARD_PX.atlasW, use: 'Sprite-Atlas: 8 Spalten × 32 Pixel' },
-  { id: '3.74', css: '--px-atlas-h', name: 'Atlas Höhe (Basis)', px: CARD_PX.atlasH, use: 'Sprite-Atlas: 7 Zeilen × 44 Pixel' },
+  { id: '3.74', css: '--px-atlas-h', name: 'Atlas Höhe (Basis)', px: CARD_PX.atlasH, use: 'Sprite-Atlas: 9 Zeilen × 44 Pixel' },
   { id: '3.75', css: '--px-ov-meld', name: 'Überlappung Kombination (Basis)', px: -18, use: 'Karten einer Auslage; auch Mini-Karten in „Wie auslegen?“' },
   { id: '3.76', css: '--px-ov-pair', name: 'Überlappung Paar (Basis)', px: -20, use: 'Cheft-Paar' },
   { id: '3.77', css: '--px-ov-fan', name: 'Überlappung Fächer (Basis)', px: -26, use: 'Verdeckte Handkarten der Mitspieler' },

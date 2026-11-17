@@ -8,15 +8,16 @@ _TOK=_os.path.join(_os.path.abspath(_os.path.join(_os.path.dirname(_os.path.absp
 if not _os.path.exists(_TOK): _TOK='/home/user/cheft/src/ui/tokens.ts'
 _PAL=dict(re.findall(r"\{ id: '(1\.\d\d)', css: '[^']+', name: '[^']+', value: '(#[0-9a-fA-F]{6})'",open(_TOK).read()))
 def T(i): return hx(_PAL[i])
-GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.06',sandD='1.08',grau='1.09',gold='1.13',red='1.14',inkL='1.20',redL='1.21',skin='1.22',mouth='1.23',white='1.24')
+GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.06',sandD='1.08',grau='1.09',gold='1.13',red='1.14',white='1.24')
 C={k:T(v) for k,v in GUIDE_IDS.items()}
-# Hautton pro Familie (eine Definition je Familie; Nase und Lippen leiten sich daraus ab)
-SKIN=dict(H=hx('e6be9a'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f6e1d1'))   # Satz B, Karo/Kreuz = Mitte H1/H2 (freigegeben)
-HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
-BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
-HAIR['H']=hx('7a4526')   # Herz-Braun (P3), weicht von Guide 1.26 (#6b3f22) ab
-HAIR['C']=hx('645144')   # Kreuz-Braun (P5, minimal heller), weicht von Guide 1.28 (#2b2b2b) ab
-HAIR['D']=BEARD['D']=hx('d7ad54')   # Karo: eine Farbe für Haar, Bart und Brauen (Sandblond, K-d minimal dunkler); weicht von Guide 1.27/1.31 ab
+C.update(inkL=hx('b9b3ad'),redL=hx('f2b9ad'),mouth=hx('d05a4a'))   # alte Hilfsfarben (nur noch für ungenutzte Altteile)
+# Hautton, Haar und Augen pro Familie: alle aus den Tokens 1.20 bis 1.33 (Nase, Lippen und Schatten leiten sich daraus per Formel ab)
+SKIN=dict(H=T('1.20'),D=T('1.21'),C=T('1.22'),S=T('1.23'))
+C['skin']=SKIN['C']
+HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.24'))   # Pik: Weiß
+BEARD=dict(HAIR)                                              # Bart = Haarfarbe der Familie (Ausnahmen in den Personen)
+HAIR_GRAY=T('1.29')                                           # Herz König
+EYE_TOKENS=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 
 import os
 _ROOT=os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..'))
@@ -26,7 +27,8 @@ src=open(_SPR).read()
 def grab(name):
     m=re.search(r"export const %s(?:: Record<[^>]+>)? = \[(.*?)\];"%name,src,re.S)
     return re.findall(r"'([^']+)'",m.group(1))
-OLD={11:grab('JACK'),12:grab('QUEEN'),13:grab('KING')}
+try: OLD={11:grab('JACK'),12:grab('QUEEN'),13:grab('KING')}
+except Exception: OLD={}   # alte Figuren-Arrays sind aus sprites.ts entfernt
 GL={}
 for m in re.finditer(r"^  '?(\w)'?: \[((?:'[.#]+',? ?)+)\],?$",src[src.index('export const GLYPHS'):src.index('export const SUIT_SHAPES')],re.M):
     GL[m.group(1)]=re.findall(r"'([.#]+)'",m.group(2))

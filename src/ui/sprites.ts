@@ -5,26 +5,25 @@
 import { Card, Suit, isJoker } from '../engine/cards';
 import { CARD_PX, color } from './tokens';
 import { BACK_FIELD, BackDesign, BackRole, backDesign } from './backs';
+import { FACE_ART, FACE_CHARS, FACE_REFS } from './face-art';
 
 export const CARD_W = CARD_PX.w;
 export const CARD_H = CARD_PX.h;
 const COLS = CARD_PX.cols;
-/** Zellen im Atlas: 52 Karten, Joker, Rücken A, Platzhalter, Rücken B. */
-export const ATLAS_CELLS = 56;
+/** Zellen im Atlas: 52 Karten, Joker, Rücken A, Platzhalter, Rücken B, dazu 12 Bildkarten (Bube, Dame, König × 4 Farben) mit den Personen des zweiten Decks. */
+export const ATLAS_CELLS = 68;
+/** Erste Zelle der Bildkarten des zweiten Decks (Zellen 56–67: H11–H13, D11–D13, C11–C13, S11–S13). */
+export const FACE2_CELL = 56;
 
 /** Farben der Kartenkunst; alle Werte stehen in tokens.ts (Kapitel 1). */
 export const PALETTE = {
   ink: color('ink'),
-  inkLight: color('ink-light'),
   cream: color('cream'),
   red: color('red'),
-  redLight: color('red-light'),
   orange: color('orange'),
   orangeDark: color('orange-dark'),
   gold: color('gold'),
-  skin: color('skin'),
   white: color('white'),
-  mouth: color('mouth'),
   backB: color('back-b'),
 };
 
@@ -70,102 +69,17 @@ export const STAR = [
 ];
 
 
-/** Bildkarten-Figuren 16×19. S Haut, H Haar, G Gold, R Robe, W Weiß, K Kontur, E Auge, M Mund, B Bart, F Feder, L Robe hell */
-export const KING = [
-  '..G.G.G.G.G.G...',
-  '..GGGGGGGGGGG...',
-  '..GGGKGGGKGGG...',
-  '...KSSSSSSSK....',
-  '...KSSSSSSSK....',
-  '...KSESSSESK....',
-  '...KSSSSSSSK....',
-  '...KSSSMMSSK....',
-  '...KBBSSSSBK....',
-  '...KBBBBBBBK....',
-  '....KBBBBBK.....',
-  '.....KBBBK......',
-  '.RRRWWKKKKWWRRR.',
-  'RRRRRWWWWWWRRRRR',
-  'RRRRRRRWWRRRRRRR',
-  'RRRGRRRRRRRRGRRR',
-  'RRRRRRRGGRRRRRRR',
-  'RRRRRRRRRRRRRRRR',
-  'RRRRRRRRRRRRRRRR',
-];
-export const QUEEN = [
-  '.....G.G.G......',
-  '....GGGGGGG.....',
-  '...HHHGGGHHH....',
-  '..HHHSSSSSHHH...',
-  '..HHKSSSSSKHH...',
-  '..HHKSESSESKHH..',
-  '..HHKSSSSSSKHH..',
-  '..HHKSSMMSSKHH..',
-  '..HHHKSSSSKHHH..',
-  '..HHH.KSSK.HHH..',
-  '..HHH..KK..HHH..',
-  '.HHHRRWWWWRRHHH.',
-  '.HHRRRRWWRRRRHH.',
-  '.HRRRRRRRRRRRRH.',
-  '.RRRRRGRRGRRRRR.',
-  '.RRRRRRGGRRRRRR.',
-  'RRRRRRRRRRRRRRRR',
-  'RRRRRRRRRRRRRRRR',
-  'RRRRRRRRRRRRRRRR',
-];
-export const JACK = [
-  '.......FF.......',
-  '......FF........',
-  '..RRRRRRRRRRR...',
-  '.RRRRRRRRRRRRR..',
-  '..HHHHHHHHHHH...',
-  '...KSSSSSSSK....',
-  '...KSSSSSSSK....',
-  '...KSESSSESK....',
-  '...KSSSSSSSK....',
-  '...KSSSMMSSK....',
-  '....KSSSSSK.....',
-  '.....KSSSK......',
-  '..RRRWKKKKWRRR..',
-  '.RRRRRWWWWRRRRR.',
-  '.RRRRRRWWRRRRRR.',
-  '.RRLRRRRRRRRLRR.',
-  '.RRRRRRRRRRRRRR.',
-  '.RRRRRRRRRRRRRR.',
-  '.RRRRRRRRRRRRRR.',
-];
-const HAIR: Record<Suit, string> = { H: color('hair-h'), D: color('hair-d'), C: color('hair-c'), S: color('hair-s') };
-const BEARD: Record<Suit, string> = { H: color('beard-h'), D: color('beard-d'), C: color('beard-c'), S: color('beard-s') };
-
-/** Zeichenschlüssel der Bildkarten-Figuren: S Haut, H Haar, G Gold, R Robe, W Weiß, K Kontur, E Auge, M Mund, B Bart, F Feder, L Robe hell. */
-export function figureMap(suit: Suit, rank: number): Record<string, string> {
-  const ink = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
-  const light = ink === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
-  return {
-    S: PALETTE.skin,
-    H: HAIR[suit],
-    G: PALETTE.gold,
-    R: ink,
-    W: PALETTE.white,
-    K: PALETTE.ink,
-    E: PALETTE.ink,
-    M: PALETTE.mouth,
-    B: rank === 13 ? BEARD[suit] : ink,
-    F: PALETTE.orange,
-    L: light,
-  };
-}
-export const FIGURES: Record<number, string[]> = { 11: JACK, 12: QUEEN, 13: KING };
-
-function shapeMap(ctx: Ctx, rows: string[], x: number, y: number, map: Record<string, string>): void {
-  rows.forEach((row, ry) => {
-    for (let rx = 0; rx < row.length; rx++) {
-      const c = map[row[rx]];
-      if (c) px(ctx, x + rx, y + ry, c);
-    }
-  });
+/** Farbe eines Bildkarten-Pixels: Token-Name aus tokens.ts oder fester Hex-Wert (per Formel abgeleitete Töne). */
+export function faceColor(ref: string): string {
+  return ref.startsWith('#') ? ref : color(ref);
 }
 
+/** Bildkarten-Zeichenschlüssel (siehe face-art.ts): Zeichen → Farbe. */
+export function faceColors(): Record<string, string> {
+  const m: Record<string, string> = {};
+  [...FACE_CHARS].forEach((ch, i) => (m[ch] = faceColor(FACE_REFS[i])));
+  return m;
+}
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -236,7 +150,24 @@ function cardBase(ctx: Ctx, x: number, y: number, fill: string): void {
   px(ctx, x + CARD_W - 2, y + CARD_H - 2, PALETTE.ink);
 }
 
+/** Bildkarte als fertiges Pixelbild. deck 0 = erstes Deck, 1 = zweites Deck (andere Person; fehlt sie, steht dort die erste). */
+function drawPerson(ctx: Ctx, x: number, y: number, suit: Suit, rank: number, deck: 0 | 1): void {
+  const rows = FACE_ART[`${suit}${rank}`][deck];
+  const colors = faceColors();
+  rows.forEach((row, ry) => {
+    for (let rx = 0; rx < row.length; rx++) {
+      const c = colors[row[rx]];
+      if (c) px(ctx, x + rx, y + ry, c);
+    }
+  });
+}
+
 function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): void {
+  if (rank >= 11) {
+    // Bildkarte: fertiges Bild der Person (face-art.ts) inklusive Rahmen und Eckmarken
+    drawPerson(ctx, x, y, suit, rank, 0);
+    return;
+  }
   cardBase(ctx, x, y, PALETTE.cream);
   const ink = suit === 'H' || suit === 'D' ? PALETTE.red : PALETTE.ink;
   const rt = rankText(rank);
@@ -245,17 +176,7 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
   // unten rechts: Zahl und Farbe stehen auf dem Kopf (um 180 Grad gedreht wie bei echten Karten)
   textRot(ctx, rt, x, y + CARD_H - 10, ink);
   shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, ink);
-  if (rank >= 11) {
-    // Bildkarte: heller Rahmen, Figur in Kartenfarbe
-    const light = ink === PALETTE.red ? PALETTE.redLight : PALETTE.inkLight;
-    ctx.fillStyle = light;
-    ctx.fillRect(x + 7, y + 12, 18, 21);
-    ctx.fillStyle = PALETTE.cream;
-    ctx.fillRect(x + 8, y + 13, 16, 19);
-    shapeMap(ctx, FIGURES[rank], x + 8, y + 13, figureMap(suit, rank));
-  } else {
-    shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, ink, 2);
-  }
+  shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, ink, 2);
 }
 
 function drawJoker(ctx: Ctx, x: number, y: number): void {
@@ -334,6 +255,12 @@ export function buildAtlas(backId?: string): Atlas {
   drawSlot(ctx, p.x, p.y);
   p = at(i++);
   drawBack(ctx, p.x, p.y, design, PALETTE.backB, PALETTE.ink);
+  for (const s of suits) {
+    for (let r = 11; r <= 13; r++) {
+      p = at(i++);
+      drawPerson(ctx, p.x, p.y, s, r, 1);
+    }
+  }
   return {
     url: canvas.toDataURL('image/png'),
     width: canvas.width,
@@ -343,7 +270,10 @@ export function buildAtlas(backId?: string): Atlas {
       if (card === 'slot') return 54;
       if (card === 'back2') return 55;
       if (isJoker(card)) return 52;
-      return suits.indexOf(card.suit as Suit) * 13 + (card.rank - 1);
+      const base = suits.indexOf(card.suit as Suit) * 13 + (card.rank - 1);
+      // Bildkarten des zweiten Decks (Ids 52–103) haben eine andere Person: eigene Zellen ab FACE2_CELL
+      if (card.rank >= 11 && card.id >= 52 && card.id < 104) return FACE2_CELL + suits.indexOf(card.suit as Suit) * 3 + (card.rank - 11);
+      return base;
     },
   };
 }

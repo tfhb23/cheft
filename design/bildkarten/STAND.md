@@ -90,7 +90,7 @@ Fallen:
 1. **Zwillinge für die 7 fehlenden Karten entwerfen**, je Karte 3 bis 4 Vorschläge zum Auswählen (Vorschlag: mit Karo beginnen, da dort alle drei fehlen).
 2. Danach beide Decks nebeneinander prüfen (jede Karte als Paar).
 3. Später: Kleidungsdetails ergänzen.
-4. **Integration ins Spiel** (noch nicht begonnen, nur mit ausdrücklichem Auftrag): `src/ui/sprites.ts` zeichnet die Bildkarten bisher aus `KING/QUEEN/JACK`-Arrays. Der Atlas hat 56 Zellen (52 Karten, Joker, zwei Rückseiten, Platzhalter). Für zwei Decks mit unterschiedlichen Personen braucht es zusätzliche Atlas-Zellen oder zwei Atlanten und eine Zuordnung über `card.id` (≥ 52 = zweites Deck, vgl. `backOf`). Auch `src/ui/guide.ts` (Design Guide, Eintrag 5.20) müsste angepasst werden. Das ist ein eigenes Vorhaben und kein Teil dieser Übergabe.
+4. **Integration ins Spiel** (ERLEDIGT, siehe Abschnitt 9; ursprünglicher Plan:): `src/ui/sprites.ts` zeichnet die Bildkarten bisher aus `KING/QUEEN/JACK`-Arrays. Der Atlas hat 56 Zellen (52 Karten, Joker, zwei Rückseiten, Platzhalter). Für zwei Decks mit unterschiedlichen Personen braucht es zusätzliche Atlas-Zellen oder zwei Atlanten und eine Zuordnung über `card.id` (≥ 52 = zweites Deck, vgl. `backOf`). Auch `src/ui/guide.ts` (Design Guide, Eintrag 5.20) müsste angepasst werden. Das ist ein eigenes Vorhaben und kein Teil dieser Übergabe.
 
 ## 7. Test- und Build-Stand
 
@@ -102,3 +102,11 @@ Zum Zeitpunkt der Übergabe: `npx tsc --noEmit` ohne Fehler, `npx vitest run` 30
 - Kein Hintergrundschatten (`SHADOW='S0'`). Weiße Flächen: Innenkante rechts/unten warmgrau (`WHITE='W2'`). Alle weißen Elemente reines Weiß `ffffff` (auch Pik-Haare, `WHITEHAIR`).
 - Könige: 3 Goldlinien am Saum (1 px Abstand); Damen: 2 Goldlinien. Lippen 2 px: Karo Dame, Herz König, Karo König, Pik König Zwilling.
 - Offen: Nasen (Buben, Karo König, Pik König Zwilling; Varianten N1 bis N3 in `images/schatten_nasen/`), Entscheidung zu den Damen. Vergleichsskripte: `tiefe_vergleich.py`, `vergleich_schatten_nasen.py`, `vergleich_weiss.py`.
+
+## 9. Integration ins Spiel (live)
+
+- Die 24 Personen (12 Karten × 2) liegen als fertige 32 × 44-Pixelbilder in `src/ui/face-art.ts`. Die Datei wird erzeugt mit `python3 design/bildkarten/code/export_ts.py`, nie von Hand ändern. Farben, die einem Token (Palette 1.xx) entsprechen, stehen dort als Token-Name, abgeleitete Töne als Hex.
+- Fehlt die zweite Person (Herz König, Karo Bube/Dame/König, Kreuz König, Pik Bube/Dame), steht dort vorerst die erste Person doppelt. Austausch: Person in `design/bildkarten/code/final_auswahl.py` (`KARTEN`) eintragen und `export_ts.py` ausführen.
+- Atlas: 68 Zellen (9 Zeilen). Zellen 56–67 enthalten die Bildkarten des zweiten Decks (Karten-Id 52–103), Index in `buildAtlas().index()`.
+- Tokens 1.20–1.33 sind jetzt Haut je Familie, Weiß, Haar je Familie, Grau, Augen je Familie. `lib.py` liest sie direkt aus `src/ui/tokens.ts`. Design Guide 5.20 und 5.27 sind angepasst.
+- Offen: die 7 echten zweiten Personen entwerfen; Formeln (Licht/Schatten, Lippen, Nase) laufen bisher nur in Python und stecken als fertige Pixel in `face-art.ts`.

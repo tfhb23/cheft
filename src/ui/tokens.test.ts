@@ -71,7 +71,7 @@ describe('styles.css nutzt nur Tokens', () => {
   it('keine Variable aus tokens.ts bleibt unbenutzt (außer Dokumentation)', () => {
     const docOnly = new Set(['--bp-compact', '--bp-fan', '--hand-step-min', '--hand-step-over', '--hand-top', '--c-icon-line', '--c-icon-orange', '--c-icon-paper', '--c-shell']);
     const guideSrc = readFileSync(new URL('./guide.ts', import.meta.url), 'utf8');
-    const spritesSrc = readFileSync(new URL('./sprites.ts', import.meta.url), 'utf8');
+    const spritesSrc = readFileSync(new URL('./sprites.ts', import.meta.url), 'utf8') + readFileSync(new URL('./face-art.ts', import.meta.url), 'utf8');
     const tokensSrc = readFileSync(new URL('./tokens.ts', import.meta.url), 'utf8');
     const unused: string[] = [];
     for (const [name] of tokenVars()) {

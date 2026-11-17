@@ -1,6 +1,6 @@
 from lib import *
 import parts as P
-SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('ddd8cf'); BLACK=C['ink']; BROWN=HAIR['C']; DBROWN=BROWN
+SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=HAIR_GRAY; BLACK=C['ink']; BROWN=HAIR['C']; DBROWN=BROWN
 GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf'); STEEL=C['inkL']; DSTEEL=hx('8a847e'); RUBY=C['red']
 def letters(suit,pal):
     ink=inkOf(suit); light=lightOf(suit)
@@ -103,7 +103,7 @@ def _cream_shadow():
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
 LIPS=(0.50,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
 EYE='S2'   # Augen (freigegeben: S2). None = Tinte | S1 1 px aus Haarfarbe dunkler | S2 1 px Familienfarbe | S3 2 px Weiß+Iris | S4 1 px Familienfarbe + Lidschatten
-EYE_COL=dict(H=hx('6a3a14'),D=hx('3f7a3a'),C=hx('2f62a0'),S=hx('4a5a6e'))   # Herz, Karo, Kreuz kräftig; Pik mittel
+EYE_COL=dict(EYE_TOKENS)   # aus den Guide-Tokens 1.30 bis 1.33
 WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
     if WHITE=='W1': return
