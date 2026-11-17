@@ -94,7 +94,7 @@ def compose(suit,spec,emph='ohne'):
     for (px_,py_,ch_) in spec.get('px',[]):
         if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
     if lift:
-        sh=Layer(); sh.im.paste(F.im,(0,-lift)); sh.p=sh.im.load()
+        sh=Layer(); sh.im.paste(F.im,(0,-lift+spec.get('head_down',0))); sh.p=sh.im.load()
         if td and td!='aus':
             import tiefe; tiefe.body(L,lambda x,y: 0<=x<W and 0<=y<H and sh.p[x,y][3]>0,spec['dyn'].get('xmin',8))
         if dx:                                  # Layout v3: Person um dx Pixel verschieben; nur die Kleidung wird links/rechts neu abgeschnitten
@@ -106,7 +106,7 @@ def compose(suit,spec,emph='ohne'):
     out=emphasize(L,emph)
     if spec.get('px_after'):
         if lift:
-            sp2=Layer(); sp2.im.paste(PX.im,(0,-lift)); sp2.p=sp2.im.load(); PX=sp2
+            sp2=Layer(); sp2.im.paste(PX.im,(0,-lift+spec.get('head_down',0))); sp2.p=sp2.im.load(); PX=sp2
         if dx: PX=_shift(PX,dx)
         out.over(PX)
     return out
@@ -168,6 +168,7 @@ def outer_shadow(c,fig):
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
+    if sym=='v4': sym='v3'; spec=dict(spec,head_down=1,dyn=dict(spec['dyn'],cut=2))   # v4 = v3 + Kopf 1 px tiefer + Körper unten 2 px kürzer
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
     if sym in ('cut1','symmA','symm','symm0','v3'): x1=24 if sym!='symm0' else 23

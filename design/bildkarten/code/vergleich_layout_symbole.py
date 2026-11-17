@@ -15,7 +15,9 @@ from final_auswahl import *
 from comp import card
 
 def render_old(s, r, sp): return card(s, r, sp, 'schlagschatten', 'symm')
-def render_new(s, r, sp): return card(s, r, sp, 'schlagschatten', 'v3')
+MODE='v4'
+def render_v3(s, r, sp): return card(s, r, sp, 'schlagschatten', 'v3')
+def render_new(s, r, sp): return card(s, r, sp, 'schlagschatten', MODE)
 
 def spec_of(key):
     if key in MASTERS_V2:
@@ -58,11 +60,11 @@ def sheet(path, keys, S=5):
     rows = (len(keys) + cols - 1) // cols
     gw = 2 * cw + 8
     im = Image.new('RGB', (pad + cols * (gw + pad), 40 + rows * (ch + lab + pad)), BG); d = ImageDraw.Draw(im)
-    d.text((pad, 8), 'Bildkarten Layout: links Vorher, rechts Nachher (Index oben links ganz, Person 2 px verschoben, Symbol unten links entfernt)', fill=INK, font=FONTB)
+    d.text((pad, 8), 'Bildkarten Layout: links v3 (bisher), rechts v4 (Kopf 1 px tiefer, Körper unten 2 px kürzer)', fill=INK, font=FONTB)
     for i, k in enumerate(keys):
         s, r, sp = spec_of(k)
         x = pad + (i % cols) * (gw + pad); y = 40 + (i // cols) * (ch + lab + pad)
-        for j, fn in enumerate((render_old, render_new)):
+        for j, fn in enumerate((render_v3, render_new)):
             b = fn(s, r, sp).resize((cw, ch), Image.NEAREST); im.paste(b, (x + j * (cw + 8), y), b)
         d.text((x, y + ch + 1), k, fill=INK, font=FONT)
     im.save(path)
@@ -70,7 +72,7 @@ def sheet(path, keys, S=5):
 def detail(path, key, S=12):
     s, r, sp = spec_of(key); cw, ch = W * S, H * S
     im = Image.new('RGB', (2 * cw + 50, ch + 50), BG); d = ImageDraw.Draw(im)
-    for j, (t, fn) in enumerate((('Vorher', render_old), ('Nachher', render_new))):
+    for j, (t, fn) in enumerate((('v3', render_v3), ('v4', render_new))):
         b = fn(s, r, sp).resize((cw, ch), Image.NEAREST); x = 20 + j * (cw + 10)
         d.text((x, 4), t, fill=INK, font=FONTB); im.paste(b, (x, 28), b)
     im.save(path)
@@ -83,8 +85,8 @@ def main(out):
             miss, touch = check(k, mode)
             if mode == 'new' and (miss or touch): bad += 1
             if miss or touch: print('%-22s %-4s Symbol links oben fehlt: %d Pixel | Berührung: %d' % (k, mode, len(miss), len(touch)), touch[:3])
-    sheet(os.path.join(out, 'layout_symbole_vorher_nachher.png'), keys)
-    for k in ('herz_bube_a', 'pik_koenig', 'kreuz_bube_a'): detail(os.path.join(out, 'layout_symbole_detail_%s.png' % k), k)
+    sheet(os.path.join(out, 'layout_v4_vorher_nachher.png'), keys)
+    for k in ('herz_bube_a', 'pik_koenig', 'kreuz_bube_a'): detail(os.path.join(out, 'layout_v4_detail_%s.png' % k), k)
     print('Personen:', len(keys), '| Nachher mit Problemen:', bad)
 
 if __name__ == '__main__':

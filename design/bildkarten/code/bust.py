@@ -83,7 +83,8 @@ def full_shape(p):
     SHADE_PX.clear()
     xl=p.get('xl',4); shape=p['shape']
     xs=range(xl,32-xl)
-    bot={x:BS(abs(x+0.5-16),shape) for x in xs if BS(abs(x+0.5-16),shape)>=T2(x)}
+    cut=p.get('cut',0)
+    bot={x:BS(abs(x+0.5-16),shape)-cut for x in xs if BS(abs(x+0.5-16),shape)-cut>=T2(x)}
     lift=p.get('lift',0)
     body={(x,y) for x in bot for y in range(T2(x)-lift,bot[x]+1)}
     extra={(x,bot[x]+1) for x in bot} if EXTRA_ROW else set()
