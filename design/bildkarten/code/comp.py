@@ -29,6 +29,8 @@ def emphasize(L,mode):
     return L
 def _shift(L,dx):
     n=Layer(); n.im.paste(L.im,(dx,0)); n.p=n.im.load(); return n
+def _shift_y(L,dy):
+    n=Layer(); n.im.paste(L.im,(0,dy)); n.p=n.im.load(); return n
 def _clip_body(L,xmin,xmax=23):
     """Kleidung (Schulter) links ab xmin und rechts ab xmax abschneiden; rechts zusätzlich 1 Pixel Lücke zum Buchstaben unten rechts (Spalte >=23, Zeile 33 bis 41)."""
     for y in range(H):
@@ -205,6 +207,7 @@ def compose(suit,spec,emph='ohne'):
             sp2=Layer(); sp2.im.paste(PX.im,(0,-lift+spec.get('head_down',0))); sp2.p=sp2.im.load(); PX=sp2
         if dx: PX=_shift(PX,dx)
         out.over(PX)
+    if spec.get('dy'): out=_shift_y(out,spec['dy'])
     return out
 import colorsys
 def _cream_shadow():

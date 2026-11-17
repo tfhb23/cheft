@@ -12,7 +12,7 @@ SHRINK={
  'karo_koenig':[('down',[4,9]),('sq',3,12,[3]),('up',[26,27])],
  'herz_koenig':[('down',[8,11]),('sq',7,13,[3]),('up',[26,27])],
  'karo_bube':[('down',[8,10]),('sq',5,13,[3]),('del',13,17,[5])],    # Fez-Unterkante gleich breit wie der Fez, Haar nicht breiter als das Gesicht
- 'pik_dame':[('sq',12,27,[6]),('up',[25,26])],
+ 'pik_dame':[('up',[25,26])],                                         # Bob wieder volle Breite (je 1 weißer Pixel links/rechts), nur 2 px kürzer
  'herz_dame_a':[('sq',6,31,[7]),('up',[28,29])],
  'kreuz_bube_a':[('del',13,13,[6])],                                  # Hutkrempe links/rechts 1 px kürzer (stößt sonst ans Symbol)
  'kreuz_dame_b':[('del',11,13,[6]),('del',15,17,[6])],                # Zopfkrone/Haarkante links/rechts 1 px kürzer
