@@ -5,6 +5,7 @@
 import { Card, SUITS, Suit, isJoker, shuffle, sortBySuit } from '../engine/cards';
 import { Action, applyAction } from '../engine/actions';
 import {
+  BotProfile,
   GameState,
   PlayerInfo,
   Settings,
@@ -23,7 +24,9 @@ import {
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
 import { decideAction } from '../bot/bot';
-import { BotChoice, LEVELS, STYLES, resolveBots } from '../bot/names';
+import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
+import { describeRole, roleOfStyle } from '../bot/roles';
+import { describeTasteSet, tastesFor } from '../bot/tastes';
 import { makeRng } from '../engine/cards';
 import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
@@ -310,6 +313,16 @@ export class App {
     }
   }
 
+  /** Aufdecken am Spielende: Gedächtnis und Rolle des Bots (bei der Wildcard die Rollen der Runden), dazu seine Vorlieben. */
+  private botReveal(s: GameState, pid: number, bot: BotProfile): HTMLElement[] {
+    const role = roleOfStyle(bot.style);
+    const roleText = role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`);
+    const tastes = describeTasteSet(tastesFor(s.seed, pid));
+    const out: HTMLElement[] = [h('div', { class: 'factors accent' }, `${t(`level.${bot.level}`)} · ${roleText}`)];
+    if (tastes.length) out.push(h('div', { class: 'factors' }, t('gameEnd.tastes', { list: tastes.join(', ') })));
+    return out;
+  }
+
   // ------------------------------------------------------------ Persistenz
   private loadPrefs(): void {
     try {
@@ -322,6 +335,8 @@ export class App {
         // Neuer Standard: Sitzplätze zufällig (einmalig auch für gespeicherte Einstellungen).
         if ((stored.v ?? 0) < 4) this.prefs.seating = 'random';
       }
+      // Bot-Auswahl aus älteren Versionen (alte Spielweisen) auf die neuen Rollen abbilden
+      this.prefs.botChoices = (this.prefs.botChoices ?? []).map((c) => sanitizeChoice(c));
       if (!ROUND_CHOICES.includes(this.prefs.rounds)) this.prefs.rounds = 7;
       this.prefs.cardDesign = backDesign(this.prefs.cardDesign).id;
     } catch {
@@ -2599,7 +2614,7 @@ export class App {
           h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,
-          s.finished && p.bot ? h('div', { class: 'factors accent' }, `${t(`level.${p.bot.level}`)} · ${t(`style.${p.bot.style}`)}`) : null,
+          ...(s.finished && p.bot ? this.botReveal(s, p.id, p.bot) : []),
         ),
         h('td', { class: 'num' }, String(sc.base), sc.factors.length ? h('div', { class: 'factors' }, sc.factors.map((f) => t(`factor.${f}`)).join(', ')) : null),
         h('td', { class: 'num' }, String(sc.total)),

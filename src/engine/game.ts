@@ -18,6 +18,7 @@ import {
   meldAugen,
   replaceJoker,
 } from './melds';
+import { RoundProfile, buildProfiles } from './profile';
 
 export type Mode = 'romme' | 'cheft';
 export type DrawSource = 'stock' | 'discard' | 'carpet';
@@ -35,7 +36,8 @@ export interface Settings {
 }
 
 export type BotLevel = 'easy' | 'normal' | 'hard' | 'master';
-export type BotStyle = 'balanced' | 'sprinter' | 'cheft' | 'hand' | 'blocker' | 'counter' | 'joker' | 'gambler';
+/** Rollen der Bots (siehe bot/roles.ts): fünf Spielweisen und die Wildcard. Ältere Spielstände können noch die alten Namen tragen (roleOfStyle bildet sie ab). */
+export type BotStyle = 'balanced' | 'early' | 'cunning' | 'pairs' | 'gambler' | 'wildcard';
 
 export interface BotProfile {
   level: BotLevel;
@@ -100,6 +102,8 @@ export interface RoundResult {
   hand: boolean;
   jokerBurned: boolean;
   scores: PlayerScore[];
+  /** Öffentliches Rundenprofil je Spieler für das Gegner-Gedächtnis der Bots (optional: ältere Spielstände haben keins). */
+  profiles?: RoundProfile[];
 }
 
 export interface RoundState {
@@ -835,6 +839,7 @@ export function endRound(state: GameState, winner: number | null, jokerBurned: b
     hand: hand && !othersOpened,
     jokerBurned,
     scores,
+    profiles: buildProfiles(state),
   };
   r.result = result;
   r.ended = true;

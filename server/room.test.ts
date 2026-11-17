@@ -16,13 +16,13 @@ describe('Räume', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('net.tooFew');
     expect(room.addBot({ level: 'random', style: 'random' }).ok).toBe(true);
-    expect(room.addBot({ level: 'hard', style: 'blocker' }).ok).toBe(true);
-    expect(room.addBot({ level: 'easy', style: 'cheft' }).ok).toBe(false); // voll
+    expect(room.addBot({ level: 'hard', style: 'cunning' }).ok).toBe(true);
+    expect(room.addBot({ level: 'easy', style: 'pairs' }).ok).toBe(false); // voll
     r = room.start();
     expect(r.ok).toBe(true);
     expect(room.started).toBe(true);
     expect(room.state!.players.length).toBe(4);
-    expect(room.state!.players[3].bot).toEqual({ level: 'hard', style: 'blocker' });
+    expect(room.state!.players[3].bot).toEqual({ level: 'hard', style: 'cunning' });
     // Nach dem Start kein normaler Beitritt mehr; Plätze lassen sich nur übernehmen
     const late = room.addHuman('Spät');
     expect('ok' in late && late.ok).toBe(false);
@@ -239,7 +239,7 @@ describe('Räume', () => {
     const room = rooms.create();
     room.addHuman('A');
     room.addHuman('B');
-    room.addBot({ level: 'hard', style: 'blocker' });
+    room.addBot({ level: 'hard', style: 'cunning' });
     room.start();
     const now = Date.now();
     expect(room.claimable(now).map((c) => [c.pid, c.kind])).toEqual([[2, 'bot']]);

@@ -27,6 +27,9 @@ import { STYLES, LEVELS } from '../src/bot/names';
 import { decideAction } from '../src/bot/bot';
 import { MEMORY, perceive, recall } from '../src/bot/memory';
 import { simulate } from '../src/bot/simulate';
+import { CAND, persona } from '../src/bot/personas';
+import { RoleId, rolePersona } from '../src/bot/roles';
+import { tastesFor } from '../src/bot/tastes';
 
 interface Job {
   indices: number[];
@@ -92,10 +95,37 @@ function runGame(i: number, res: Result): void {
   const extreme = process.env.SOAK_EXTREME === '1';
   const wild = () => {
     const lo = rng() * 1.5;
+    const pool = Object.values(CAND);
     return {
-      memory: { span: rng() * 12, spread: [lo, lo + rng() * 2] as [number, number], accuracy: rng(), form: rng() * 0.5, tableMiss: rng() * 0.6, missExtra: Math.floor(rng() * 3), observe: rng(), handMiss: rng() * 0.9, noise: rng() * 10 },
+      persona: rng() < 0.4 ? rolePersona((['balanced', 'early', 'cunning', 'pairs', 'gambler', 'wildcard'] as RoleId[])[Math.floor(rng() * 6)], { tastes: rng() < 0.8, oppUse: rng() < 0.2 ? rng() * 10 - 3 : rng(), loyalty: rng(), jitter: rng() < 0.2 ? rng() * 5 : rng(), tilt: (rng() * 2 - 1) * (rng() < 0.2 ? 5 : 1) }) : rng() < 0.7 ? persona(pool[Math.floor(rng() * pool.length)], { loyalty: rng(), jitter: rng() < 0.2 ? rng() * 5 : rng(), tilt: (rng() * 2 - 1) * (rng() < 0.2 ? 5 : 1), pool: rng() < 0.8 ? pool : undefined, levels: rng() < 0.3 ? LEVELS.filter(() => rng() < 0.6) : undefined }) : undefined,
+      memory: { span: rng() * 12, spread: [lo, lo + rng() * 2] as [number, number], accuracy: rng(), form: rng() * 0.5, tableMiss: rng() * 0.6, missExtra: Math.floor(rng() * 3), observe: rng(), handMiss: rng() * 0.9, noise: rng() * 10, oppObserve: rng() * 1.5, oppDetail: rng() * 1.2, oppSpan: rng() < 0.3 ? Infinity : rng() * 10, oppAccuracy: rng() },
       knobs: {
-        ambition: rng(),
+        taste: rng() < 0.3 ? undefined : rng() < 0.6 ? ('auto' as const) : (() => { const t = tastesFor(Math.floor(rng() * 1e9), 0); return { ...t, intensity: rng() * 8, tastes: t.tastes.map((x) => ({ ...x, weight: x.weight * rng() * 50 })) }; })(),
+        tasteScale: rng() < 0.2 ? (rng() - 0.3) * 200 : rng() * 3,
+        tasteBand: rng() < 0.2 ? (rng() < 0.5 ? -5 : rng() * 1e3) : rng() * 10,
+        tasteProt: rng() < 0.2 ? (rng() < 0.5 ? 0 : 1e9) : rng() * 40,
+        oppUse: rng() < 0.2 ? rng() * 10 - 3 : rng() * 1.5,
+        setLove: rng() * 4,
+        runLove: rng() * 4,
+        ambition: rng() < 0.1 ? (rng() < 0.5 ? -3 : 7) : rng(),
+        shedPre: rng() < 0.2 ? rng() * 50 - 10 : rng() * 2,
+        shedOpen: rng() < 0.2 ? rng() * 50 - 10 : rng() * 4,
+        blockWeight: rng() < 0.2 ? rng() * 400 - 50 : rng() * 40,
+        handReach: Math.floor(rng() * 16) - 1,
+        dangerHand: Math.floor(rng() * 16) - 1,
+        pairLove: rng() < 0.2 ? rng() * 100 - 5 : rng() * 5,
+        huntLeader: rng() < 0.2 ? rng() * 20 - 3 : rng() * 2,
+        handHunter: rng() < 0.4,
+        jokerHunter: rng() < 0.3,
+        burn: rng() < 0.3,
+        master: rng() < 0.3,
+        patient: rng() < 0.3,
+        steal: rng() < 0.8,
+        layAll: rng() < 0.8,
+        takeDiscardToOpen: rng() < 0.8,
+        cheftEagerPairs: [99, 7, 5, 4, 3, 2, 1, 0][Math.floor(rng() * 8)],
+        pairTakeAt: Math.floor(rng() * 8),
+        gamble: rng() < 0.3 ? rng() * 3 : rng(),
         bold: rng() < 0.5,
         weighOpening: rng() < 0.7,
         oppModel: rng() < 0.7,
@@ -109,6 +139,7 @@ function runGame(i: number, res: Result): void {
     style: STYLES[Math.floor(rng() * STYLES.length)] as BotStyle,
     opts: extreme ? wild() : undefined,
   }));
+  const tamper = rng() < 0.3;
   const bigGap = rng() < 0.4; // viele Spiele mit großem Rückstand von Anfang an (mutiger Modus)
   const tag = `Spiel ${i} (${n} Spieler, ${rounds} Runden, Erstzug ${firstTurnOpenAllowed ? 'erlaubt' : 'gesperrt'}, ${seats.map((s) => `${s.level}/${s.style}`).join(' ')})`;
   const fail = (msg: string) => {
@@ -126,6 +157,16 @@ function runGame(i: number, res: Result): void {
       dealer: i % n,
       visit: (g, pid) => {
         res.decisions++;
+        if (extreme && tamper && g.round.no > 1 && (g.round.plies ?? 0) === 0) {
+          // Beschädigte Rundenprofile (fehlend, leer, falsche Längen, riesige oder negative Werte): Bots dürfen daran nicht scheitern
+          g.history.forEach((h, k) => {
+            const m = (i + k) % 6;
+            if (m === 0) delete h.profiles;
+            else if (m === 1) h.profiles = h.profiles?.slice(0, 1);
+            else if (m === 2) h.profiles = h.profiles?.map((p) => ({ ...p, discards: [], takes: [], openTurn: -9, openAugen: 1e9 }));
+            else if (m === 3) h.profiles = h.profiles?.map((p) => ({ ...p, discards: p.discards.map((c) => c * 1000 - 7), takes: [1e9, -1] }));
+          });
+        }
         if (bigGap && g.round.no === 1 && (g.round.plies ?? 0) === 0) g.totals = g.totals.map((_, j) => (j === 0 ? 120 + (i % 80) : 0));
         if (g.round.no !== lastRoundNo) {
           lastRoundNo = g.round.no;
