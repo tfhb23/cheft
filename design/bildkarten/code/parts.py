@@ -620,3 +620,8 @@ EXTRA['brauen_2i_hoch']={14:'.....KK..KK.....'}
 # ======================= Runde 32 =======================
 EXTRA['brauen_3']={15:'....KKK..KKK....'}        # Brauen 3 Pixel, mittig über den Augen (Spalten 4-6 und 9-11)
 EXTRA['brauen_3_hoch']={14:'....KKK..KKK....'}    # eine Zeile höher
+
+# Nasen-Varianten (Buben etc.): N1 2 px in Nasenfarbe T, N2 1 px (rechts der Mitte, Licht links), N3 2 px per Formel aus der Hautfarbe (t)
+EXTRA['nase_n1']={17:'.......TT.......'}
+EXTRA['nase_n2']={17:'........T.......'}
+EXTRA['nase_n3']={17:'.......tt.......'}

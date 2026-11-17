@@ -30,6 +30,7 @@ def emphasize(L,mode):
 def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
+    import tiefe as _t; cm['t']=_t.lo(cm['S'])      # Nase per Formel aus der Hautfarbe
     layers=[P.BODY[spec['body']]]
     if spec.get('back'): layers.append(P.BACK[spec['back']])
     layers.append(P.FACE)
@@ -75,18 +76,33 @@ import colorsys
 def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
+SHADOW='S1'   # S0 ohne | S1 verlaufend (3 Stufen, alle Teile) | S2 verlaufend nur bei hellen Flächen | S3 schmal (2 Stufen, alle)
+STEPS={'S1':[0.075,0.05,0.025],'S2':[0.075,0.05,0.025],'S3':[0.06,0.03]}
+def _cream_at(dl):
+    r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
+    r,g,b=colorsys.hls_to_rgb(h,l-dl,s); return (round(r*255),round(g*255),round(b*255))
 def outer_shadow(c,fig):
-    """Dezenter Schlagschatten außen (rechts/unten), in abgedunkeltem Kartencreme statt Grau; berührt keine Buchstaben/Symbole."""
-    col=_cream_shadow(); occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
+    """Verlaufender Schlagschatten außen (rechts/unten), in abgedunkeltem Kartencreme statt Grau; berührt keine Buchstaben/Symbole."""
+    if SHADOW=='S0': return
+    steps=STEPS[SHADOW]; n=len(steps)
+    occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
     cream=lambda x,y: 0<=x<W and 0<=y<H and c.p[x,y][:3]==C['cream'] and c.p[x,y][3]>0
-    sh=Layer()
+    only_light=(SHADOW=='S2'); best={}
     for y in range(H):
         for x in range(W):
             if not occ(x,y): continue
-            for dx,dy in ((1,0),(0,1),(1,1)):
-                u,v=x+dx,y+dy
-                if occ(u,v) or not cream(u,v) or not 8<=u<=23: continue
-                if all(occ(a,b) or cream(a,b) for a in (u-1,u,u+1) for b in (v-1,v,v+1)): sh.put(u,v,col)
+            if only_light and not is_light(fig.p[x,y][:3]): continue
+            for dy in range(0,n+1):
+                for dx in range(0,n+1):
+                    d=max(dx,dy)
+                    if d==0 or d>n: continue
+                    u,v=x+dx,y+dy
+                    if occ(u,v) or not cream(u,v) or not 8<=u<=23: continue
+                    s=steps[d-1]
+                    if s>best.get((u,v),0): best[(u,v)]=s
+    sh=Layer()
+    for (u,v),s in best.items():
+        if all(occ(a,b) or cream(a,b) for a in (u-1,u,u+1) for b in (v-1,v,v+1)): sh.put(u,v,_cream_at(s))
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
