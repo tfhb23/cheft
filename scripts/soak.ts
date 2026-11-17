@@ -27,6 +27,7 @@ import { STYLES, LEVELS } from '../src/bot/names';
 import { decideAction } from '../src/bot/bot';
 import { MEMORY, perceive, recall } from '../src/bot/memory';
 import { simulate } from '../src/bot/simulate';
+import { CAND, persona } from '../src/bot/personas';
 
 interface Job {
   indices: number[];
@@ -92,10 +93,30 @@ function runGame(i: number, res: Result): void {
   const extreme = process.env.SOAK_EXTREME === '1';
   const wild = () => {
     const lo = rng() * 1.5;
+    const pool = Object.values(CAND);
     return {
+      persona: rng() < 0.7 ? persona(pool[Math.floor(rng() * pool.length)], { loyalty: rng(), jitter: rng() < 0.2 ? rng() * 5 : rng(), tilt: (rng() * 2 - 1) * (rng() < 0.2 ? 5 : 1), pool: rng() < 0.8 ? pool : undefined, levels: rng() < 0.3 ? LEVELS.filter(() => rng() < 0.6) : undefined }) : undefined,
       memory: { span: rng() * 12, spread: [lo, lo + rng() * 2] as [number, number], accuracy: rng(), form: rng() * 0.5, tableMiss: rng() * 0.6, missExtra: Math.floor(rng() * 3), observe: rng(), handMiss: rng() * 0.9, noise: rng() * 10 },
       knobs: {
-        ambition: rng(),
+        ambition: rng() < 0.1 ? (rng() < 0.5 ? -3 : 7) : rng(),
+        shedPre: rng() < 0.2 ? rng() * 50 - 10 : rng() * 2,
+        shedOpen: rng() < 0.2 ? rng() * 50 - 10 : rng() * 4,
+        blockWeight: rng() < 0.2 ? rng() * 400 - 50 : rng() * 40,
+        handReach: Math.floor(rng() * 16) - 1,
+        dangerHand: Math.floor(rng() * 16) - 1,
+        pairLove: rng() < 0.2 ? rng() * 100 - 5 : rng() * 5,
+        huntLeader: rng() < 0.2 ? rng() * 20 - 3 : rng() * 2,
+        handHunter: rng() < 0.4,
+        jokerHunter: rng() < 0.3,
+        burn: rng() < 0.3,
+        master: rng() < 0.3,
+        patient: rng() < 0.3,
+        steal: rng() < 0.8,
+        layAll: rng() < 0.8,
+        takeDiscardToOpen: rng() < 0.8,
+        cheftEagerPairs: [99, 7, 5, 4, 3, 2, 1, 0][Math.floor(rng() * 8)],
+        pairTakeAt: Math.floor(rng() * 8),
+        gamble: rng() < 0.3 ? rng() * 3 : rng(),
         bold: rng() < 0.5,
         weighOpening: rng() < 0.7,
         oppModel: rng() < 0.7,

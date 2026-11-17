@@ -22,6 +22,7 @@ import {
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
 import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
+import { Persona, resolvePersona } from './personas';
 import { Cand, MemoryParams, Signal, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, pickByScore, recall } from './memory';
 
 export interface Knobs {
@@ -67,12 +68,28 @@ export interface Knobs {
   bold: boolean;
   /** Gegner-Gedächtnis: Abwurf nach dem, was der nächste Spieler nimmt, abwirft und liegen lässt. Aus: nur nach seinen genommenen Karten. */
   oppModel: boolean;
+  /** Abwurfdruck: Gewicht der Strafpunkte einer Karte beim Abwerfen vor der Erstmeldung (Standard 0,12). Hoch = Hochkarten fliegen früh raus. */
+  shedPre: number;
+  /** Abwurfdruck nach der Erstmeldung (Standard 0,9). */
+  shedOpen: number;
+  /** Blockierwille: Skala, mit der das Risiko „der nächste Spieler nimmt die Karte“ in die Abwurfwahl eingeht (Standard 9, 0 = ignoriert den Nachbarn). */
+  blockWeight: number;
+  /** Handmacher: Wie viele Karten dürfen höchstens zur Hand fehlen, damit gewartet wird (Standard 4). */
+  handReach: number;
+  /** Ab wie vielen Handkarten eines Gegners, der draußen ist, das Rundenende als nah gilt (Standard 2); dann zählt jeder Strafpunkt. */
+  dangerHand: number;
+  /** Paar-Liebe: Skala des Behaltewerts von Paaren beim Abwerfen (Standard 1; Cheft-Sammler > 1, Rommé-Spieler < 1). */
+  pairLove: number;
+  /** Jagd auf den Tabellenführenden 0..1: bei Joker-Klau werden seine Auslagen bevorzugt, und seine Abwurf-Wünsche zählen stärker (Standard 0). */
+  huntLeader: number;
 }
 
 /** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
 export interface DecideOptions {
   knobs?: Partial<Knobs>;
   memory?: Partial<MemoryParams>;
+  /** Rolle mit Rollentreue, Launen, Stimmung und Tagesform je Runde (siehe personas.ts); Knobs und Memory oben überschreiben sie. */
+  persona?: Persona;
 }
 
 const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'balanced' };
@@ -99,6 +116,13 @@ export function knobsFor(profile: BotProfile): Knobs {
     weighOpening: true,
     bold: true,
     oppModel: true,
+    shedPre: 0.12,
+    shedOpen: 0.9,
+    blockWeight: 9,
+    handReach: 4,
+    dangerHand: 2,
+    pairLove: 1,
+    huntLeader: 0,
   };
   // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
@@ -139,7 +163,8 @@ function profileOf(state: GameState, pid: number): BotProfile {
 }
 
 function knobs(state: GameState, pid: number, opts: DecideOptions = {}): Knobs {
-  return { ...knobsFor(profileOf(state, pid)), ...opts.knobs };
+  const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
+  return { ...knobsFor(profileOf(state, pid)), ...eff?.knobs, ...opts.knobs };
 }
 
 /** Deterministischer Zufall je Zug (für Zocker). Der Zugzähler `plies` macht jeden Zug zu einem neuen Wurf. */
@@ -169,7 +194,8 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   const hand = p.hand;
   const k = knobs(state, pid, opts);
   // Wahrnehmung: Was übersieht der Bot in diesem Zug? Der Spielzustand selbst bleibt unverändert.
-  const per = perceive(state, pid, memoryFor(profileOf(state, pid).level, opts.memory), isForced(state));
+  const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
+  const per = perceive(state, pid, memoryFor(eff?.level ?? profileOf(state, pid).level, { ...eff?.memory, ...opts.memory }), isForced(state));
   const view = perceivedState(state, per);
   const top = per.topBlind ? undefined : r.discard[r.discard.length - 1];
   // Wer hinten liegt, spielt mutiger: auf Hand, früher Cheft, mit der Erstmeldung warten (hier der Ausgangspunkt)
@@ -197,7 +223,7 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
     if (r.carpet && !per.carpetBlind && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
     if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard').ok) {
       // Die Ablagekarte zu nehmen heißt, sofort rauszukommen: Das lohnt nur, wenn Warten nicht besser wäre
-      if (!(hunter && holdForHand(state, pid, hunter)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
+      if (!(hunter && holdForHand(state, pid, hunter, k.handReach)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
     }
     // Stapel leer: letzter Zug, die Teppichkarte zählt wie eine Stapelkarte.
     if (stockEmpty && r.carpet) return { kind: 'draw', source: 'carpet' };
@@ -321,7 +347,7 @@ function groupsOf(melds: MeldShape[]): number[][] {
 }
 
 /** Handmacher: zurückhalten, wenn höchstens drei Karten fehlen und noch niemand draußen ist. */
-function holdForHand(state: GameState, pid: number, hunter: boolean): boolean {
+function holdForHand(state: GameState, pid: number, hunter: boolean, reach = 4): boolean {
   if (!hunter) return false;
   const r = state.round;
   if (r.players.some((q) => q.opened)) return false;
@@ -329,7 +355,7 @@ function holdForHand(state: GameState, pid: number, hunter: boolean): boolean {
   const hand = r.players[pid].hand;
   const part = findPartition(hand, { types: hand.length ? (r.players[pid].mode === 'cheft' ? ALL_TYPES : ROMME_TYPES) : ROMME_TYPES, allowSkip: true });
   const missing = hand.length - (part ? part.used : 0);
-  return missing <= 4;
+  return missing <= reach;
 }
 
 /** Beste Erstmeldung (Rommé oder Cheft), die die Regeln und das Profil erfüllt. */
@@ -407,7 +433,7 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
     if (isHand || part.augen >= threshold + margin) consider(groupsOf(part.melds), part.used, part.augen);
   }
   // Mastermind: Reicht die Erstmeldung auch ohne Joker, bleiben die Joker auf der Hand (Klauen, Verbrennen).
-  if (k.master && hand.some(isJoker) && !(!ignoreProfile && must === null && holdForHand(state, pid, hunter))) {
+  if (k.master && hand.some(isJoker) && !(!ignoreProfile && must === null && holdForHand(state, pid, hunter, k.handReach))) {
     let alt: Best | null = null;
     for (let kk = 0; kk < n; kk++) {
       if (hand[kk].id === must) continue;
@@ -424,7 +450,7 @@ function bestOpening(state: GameState, pid: number, k: Knobs, ignoreProfile: boo
   if (!best) return null;
   const b = best as Best;
   // Handmacher: lieber warten, außer die Erstmeldung ist bereits die Hand oder eine Pflichtkarte zwingt.
-  if (!ignoreProfile && must === null && b.used < n - 1 && holdForHand(state, pid, hunter)) return null;
+  if (!ignoreProfile && must === null && b.used < n - 1 && holdForHand(state, pid, hunter, k.handReach)) return null;
   return b.groups;
 }
 
@@ -461,7 +487,7 @@ function findLayOff(state: GameState, view: GameState, pid: number, k: Knobs, pe
   if (p.hand.length < 2) return null;
   const sorted = [...p.hand].sort((a, b) => (isJoker(a) ? 1 : 0) - (isJoker(b) ? 1 : 0) || penaltyValue(b) - penaltyValue(a));
   for (const c of sorted) {
-    if (isJoker(c) && (k.jokerHunter || k.burn) && p.hand.length <= 3 && !endIsNear(state, pid)) continue; // zum Verbrennen aufheben
+    if (isJoker(c) && (k.jokerHunter || k.burn) && p.hand.length <= 3 && !endIsNear(state, pid, k.dangerHand)) continue; // zum Verbrennen aufheben
     const targets = layOffTargets(view, pid, c.id);
     if (targets.length === 0) continue;
     const own = targets.find((t) => t.meld.owner === pid) ?? targets[0];
@@ -501,7 +527,8 @@ function findSteal(state: GameState, view: GameState, pid: number, k: Knobs, per
     }
     const rest = sim.round.players[pid].hand;
     // Reststrafpunkte; ein behaltener Joker zählt für Verbrenner weniger, weil er die Runde beenden kann
-    const score = rest.reduce((sum, c) => sum + (isJoker(c) && k.burn ? 8 : penaltyValue(c)), 0) + rest.length * 0.5;
+    let score = rest.reduce((sum, c) => sum + (isJoker(c) && k.burn ? 8 : penaltyValue(c)), 0) + rest.length * 0.5;
+    if (k.huntLeader > 0 && state.round.melds.find((m) => m.id === o.meldId)?.owner === leaderOf(state, pid)) score -= 12 * k.huntLeader;
     if (score < bestScore) {
       bestScore = score;
       best = o;
@@ -531,9 +558,17 @@ function carpetMate(state: GameState, pid: number): Card | null {
   return same.length === 1 ? same[0] : null;
 }
 
+/** Der Tabellenführende (wenigste Strafpunkte, ohne mich), oder -1 wenn ich selbst vorn liege. */
+function leaderOf(state: GameState, pid: number): number {
+  const t = state.totals;
+  let best = -1;
+  for (let i = 0; i < t.length; i++) if (i !== pid && (best < 0 || t[i] < t[best])) best = i;
+  return best >= 0 && t[best] < t[pid] ? best : -1;
+}
+
 /** Ende der Runde droht: Ein anderer Spieler ist draußen und hat nur noch wenige Karten. */
-function endIsNear(state: GameState, pid: number): boolean {
-  return state.round.players.some((q, i) => i !== pid && q.opened && q.hand.length <= 2);
+function endIsNear(state: GameState, pid: number, limit = 2): boolean {
+  return state.round.players.some((q, i) => i !== pid && q.opened && q.hand.length <= limit);
 }
 
 function useJoker(state: GameState, pid: number, jokerId: number): Action | null {
@@ -566,7 +601,7 @@ const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Mat
  * Wie wertvoll ist die Karte für die Hand? Erwartete Augen der besten Kombinationen, an denen sie beteiligt sein kann
  * (fertige Kombination, oder Wahrscheinlichkeit, die fehlenden Karten noch zu bekommen).
  */
-function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean): number {
+function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean, pairLove = 1): number {
   if (isJoker(c)) return 60;
   const draws = 3;
   const U = Math.max(8, un.total);
@@ -587,8 +622,8 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
     // Paar: identische Karte (Cheft zählt Paare, Rommé-Spieler halten sie als Option)
     const same = hand.filter((o) => !isJoker(o) && sameCard(o, c)).length;
     const pts = augen(c.rank) * 2;
-    if (same >= 2) consider(pts + 6);
-    else consider((jokersInHand ? 0.8 : chance(c.suit, c.rank)) * pts * (mode === 'cheft' ? 1.4 : 0.7));
+    if (same >= 2) consider((pts + 6) * pairLove);
+    else consider((jokersInHand ? 0.8 : chance(c.suit, c.rank)) * pts * (mode === 'cheft' ? 1.4 : 0.7) * pairLove);
   }
   if (mode !== 'cheft') {
     // Satz: drei Farben gleichen Werts
@@ -683,14 +718,18 @@ export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: 
 }
 
 /** Wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt (nach dem, was der Bot noch weiß). */
-function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception, oppModel: boolean): number {
+function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception, k: Knobs): number {
+  const oppModel = k.oppModel;
   const r = state.round;
   const p = r.players[pid];
   const memory = recall(state, pid, per);
   const un = memory.unseen;
   const next = r.players[nextIndex(state, pid)];
   const nextTaken = memory.takes.filter((x) => x.player === nextIndex(state, pid));
-  const danger = endIsNear(state, pid);
+  const danger = endIsNear(state, pid, k.dangerHand);
+  const leader = k.huntLeader > 0 ? leaderOf(state, pid) : -1;
+  const nextIdx = nextIndex(state, pid);
+  const blockScale = k.blockWeight * (nextIdx === leader ? 1 + k.huntLeader : 1);
   // Ausgelegte Joker: Die passenden Karten sind zum Klauen wertvoll
   const jokerTargets: { suit: string; rank: number }[] = [];
   if (p.opened) {
@@ -703,13 +742,13 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
   }
   const scores: number[] = [];
   for (const c of pool) {
-    const keep = keepValue(c, p.hand, un, p.mode, p.opened);
+    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove);
     let score = -keep;
     if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
-    else score += p.opened ? penaltyValue(c) * 0.9 : penaltyValue(c) * 0.12;
+    else score += p.opened ? penaltyValue(c) * k.shedOpen : penaltyValue(c) * k.shedPre;
     if (isJoker(c)) score -= 500;
     // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
-    if (oppModel) score -= 9 * nextPlayerRisk(state, pid, c, memory.signals);
+    if (oppModel) score -= blockScale * nextPlayerRisk(state, pid, c, memory.signals);
     else for (const t of nextTaken) score -= blockPenalty(c, t.cands);
     if (next.mode === 'cheft' && !next.opened) score -= 1;
     if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) score -= 25;
@@ -738,7 +777,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception)
   // Wer auf die Teppichkarte wartet, wirft deren Partner nicht weg
   const mate = k.patient && !p.opened && waitForCarpet(state, pid, k) ? carpetMate(state, pid) : null;
   if (mate && pool.length > 1) pool = pool.filter((c) => c.id !== mate.id);
-  if (k.counting) return masterDiscard(state, pid, pool, per, k.oppModel);
+  if (k.counting) return masterDiscard(state, pid, pool, per, k);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);
