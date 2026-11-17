@@ -14,6 +14,8 @@ C={k:T(v) for k,v in GUIDE_IDS.items()}
 SKIN=dict(H=hx('e3b58c'),D=hx('f5d5bb'),C=hx('edc4a3'),S=hx('f8e8dc'))   # Satz B, Karo/Kreuz = Mitte H1/H2 (freigegeben)
 HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
+KARO_MIX=True   # Karo: Haar, Bart und Brauen = Mitte aus Guide 1.27 (Haar Karo) und 1.31 (Bart Karo); False = rückgängig
+if KARO_MIX: HAIR['D']=BEARD['D']=tuple((a+b)//2 for a,b in zip(HAIR['D'],BEARD['D']))
 
 import os
 _ROOT=os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..'))

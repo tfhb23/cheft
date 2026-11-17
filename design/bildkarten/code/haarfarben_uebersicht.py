@@ -8,8 +8,7 @@ from tiefe_vergleich import spec_of
 HAAR={
 'Herz':[('6b3f22','Haar und Brauen','Bube A, Bube B (nur Brauen), Dame A, Dame B','1.26 Haar Herz',''),
         ('cfc8bd','Haar, Bart und Brauen (grau)','König','–','Ausnahme: Alter, bewusst grau')],
-'Karo':[('e8b23a','Haar und Brauen (blond)','Bube, Dame, König','1.27 Haar Karo',''),
-        ('b3832a','Bart (dunkleres Gold)','König','1.31 Bart Karo','Ausnahme: Bart dunkler als Haar')],
+'Karo':[('cd9a32','Haar, Bart und Brauen (Mix aus Blond und Bart)','Bube, Dame, König','Mix aus 1.27 und 1.31','Ein Wert für die ganze Familie; rückgängig: KARO_MIX in lib.py')],
 'Kreuz':[('5a3a24','Haar, Brauen und Schnurrbart','alle (5 Personen)','–  (Guide 1.28 = #2b2b2b)','Strähnen der Zopfkrone per Formel (−0,13)')],
 'Pik':[('ffffff','Haar (weiß)','Bube, Dame, König','–  (Guide 1.29 = #8a4a2a)',''),
        ('23201f','Schnurrbart und Brauen (Tinte 1.01)','König Zwilling (Glatze)','1.01 Tinte','Ausnahme: Glatze, Schnurrbart braucht Kontrast')],
