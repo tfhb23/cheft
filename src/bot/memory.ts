@@ -46,13 +46,24 @@ export interface MemoryParams {
    * Karten werden praktisch nie gewählt (Fehler sind Beinahe-Treffer, keine Ausreißer).
    */
   noise: number;
+  /**
+   * Gegner-Gedächtnis über das ganze Spiel (Rundenprofile, siehe opponents.ts): Wie viele der vergangenen Runden eines
+   * Mitspielers hat der Bot überhaupt registriert (Anteil 0..1)?
+   */
+  oppObserve: number;
+  /** Detailgrad 0..1: unter 1/3 nur grob (Cheft, früh oder spät raus), unter 2/3 dazu Farbe und Wertklasse, darüber auch die einzelne Farbe. */
+  oppDetail: number;
+  /** Wie viele Runden zurück der Bot sich erinnert (Infinity = das ganze Spiel). */
+  oppSpan: number;
+  /** Chance, dass eine registrierte Runde richtig gemerkt wird; sonst ist sie verwässert (falsche Werte). */
+  oppAccuracy: number;
 }
 
 export const MEMORY: Record<BotLevel, MemoryParams> = {
-  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5 },
-  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9 },
-  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6 },
-  master: { span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0 },
+  easy: { span: 3, spread: [0, 2], accuracy: 0.75, form: 0.3, tableMiss: 0.08, missExtra: 2, observe: 0.4, handMiss: 0.2, noise: 1.5, oppObserve: 0, oppDetail: 0, oppSpan: 0, oppAccuracy: 0.6 },
+  normal: { span: 5, spread: [0.3, 1.7], accuracy: 0.85, form: 0.2, tableMiss: 0.04, missExtra: 1, observe: 0.7, handMiss: 0.12, noise: 0.9, oppObserve: 0.6, oppDetail: 0.2, oppSpan: 3, oppAccuracy: 0.75 },
+  hard: { span: 9, spread: [0.7, 1.3], accuracy: 0.93, form: 0.1, tableMiss: 0.02, missExtra: 0, observe: 0.9, handMiss: 0.06, noise: 0.6, oppObserve: 0.85, oppDetail: 0.6, oppSpan: 5, oppAccuracy: 0.9 },
+  master: { span: Infinity, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0, oppObserve: 1, oppDetail: 1, oppSpan: Infinity, oppAccuracy: 1 },
 };
 
 export function memoryFor(level: BotLevel, override: Partial<MemoryParams> = {}): MemoryParams {

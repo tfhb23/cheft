@@ -18,6 +18,7 @@ import {
   meldAugen,
   replaceJoker,
 } from './melds';
+import { RoundProfile, buildProfiles } from './profile';
 
 export type Mode = 'romme' | 'cheft';
 export type DrawSource = 'stock' | 'discard' | 'carpet';
@@ -100,6 +101,8 @@ export interface RoundResult {
   hand: boolean;
   jokerBurned: boolean;
   scores: PlayerScore[];
+  /** Öffentliches Rundenprofil je Spieler für das Gegner-Gedächtnis der Bots (optional: ältere Spielstände haben keins). */
+  profiles?: RoundProfile[];
 }
 
 export interface RoundState {
@@ -835,6 +838,7 @@ export function endRound(state: GameState, winner: number | null, jokerBurned: b
     hand: hand && !othersOpened,
     jokerBurned,
     scores,
+    profiles: buildProfiles(state),
   };
   r.result = result;
   r.ended = true;

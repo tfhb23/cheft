@@ -23,6 +23,8 @@ import {
 import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
 import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
 import { Persona, resolvePersona } from './personas';
+import { OppModel, likes, opponentModel, tempoShift } from './opponents';
+import { TasteSet, tasteScore, tastesFor } from './tastes';
 import { Cand, MemoryParams, Signal, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, pickByScore, recall } from './memory';
 
 export interface Knobs {
@@ -92,6 +94,16 @@ export interface Knobs {
   /** Lieber Sätze (gleiche Zahl) oder Folgen sammeln: Faktoren auf den Behaltewert (Standard 1). */
   setLove: number;
   runLove: number;
+  /** Vorlieben des Bots (siehe tastes.ts): 'auto' = zufällig aus Spiel und Platz, oder eine feste Vorgabe. Standard: keine. */
+  taste?: 'auto' | TasteSet;
+  /** Schutz guter Karten: Ab diesem Behaltewert zählt die Vorliebe gar nicht mehr (Standard 14, darunter anteilig). */
+  tasteProt: number;
+  /** Skala für alle Vorlieben-Gewichte (Standard 1). */
+  tasteScale: number;
+  /** Bandbreite (Punkte der Abwurfbewertung): Die Vorliebe entscheidet nur zwischen Karten, die ohne sie höchstens so viel schlechter abzuwerfen sind als die beste (Standard 4). */
+  tasteBand: number;
+  /** Gegner-Gedächtnis nutzen (0 = nicht, 1 = voll; was der Bot weiß, bestimmt seine Stufe). Standard 0. */
+  oppUse: number;
 }
 
 /** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
@@ -136,6 +148,10 @@ export function knobsFor(profile: BotProfile): Knobs {
     tasteWeight: 0,
     setLove: 1,
     runLove: 1,
+    tasteProt: 14,
+    tasteScale: 1,
+    tasteBand: 4,
+    oppUse: 0,
   };
   // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
@@ -205,11 +221,14 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   const r = state.round;
   const p = r.players[pid];
   const hand = p.hand;
-  const k = knobs(state, pid, opts);
+  const k0 = knobs(state, pid, opts);
   // Wahrnehmung: Was übersieht der Bot in diesem Zug? Der Spielzustand selbst bleibt unverändert.
   const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
   const per = perceive(state, pid, memoryFor(eff?.level ?? profileOf(state, pid).level, { ...eff?.memory, ...opts.memory }), isForced(state));
   const view = perceivedState(state, per);
+  // Gegner-Gedächtnis: Wie spielen die Mitspieler in diesem Spiel? Das verschiebt den Ehrgeiz (Warten lohnt gegen schnelle Gegner kaum).
+  const opps = k0.oppUse ? state.players.map((_, i) => (i === pid ? null : opponentModel(state, pid, i, per.params))) : null;
+  const k = opps ? { ...k0, ambition: Math.min(1, Math.max(0, k0.ambition + tempoShift(opps, k0.oppUse))) } : k0;
   const top = per.topBlind ? undefined : r.discard[r.discard.length - 1];
   // Wer hinten liegt, spielt mutiger: auf Hand, früher Cheft, mit der Erstmeldung warten (hier der Ausgangspunkt)
   const bold = k.bold && isBold(state, pid, k.ambition, k.tuning);
@@ -282,7 +301,7 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
     }
   }
 
-  return { kind: 'discard', cardId: chooseDiscard(state, pid, k, per) };
+  return { kind: 'discard', cardId: chooseDiscard(state, pid, k, per, opps) };
 }
 
 /** Wartet der Bot mit dieser möglichen Erstmeldung noch (siehe strategy.ts)? */
@@ -685,6 +704,26 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
 }
 
 /**
+ * Gehört die Karte schon zu einer fertigen Kombination der Hand (Paar bei Cheft oder vor der Erstmeldung, Satz aus drei Farben,
+ * Folge aus drei Karten)? Solche Karten gibt kein Bot wegen einer Vorliebe auf.
+ */
+export function inCompleteCombo(c: Card, hand: Card[], mode: 'romme' | 'cheft', opened: boolean): boolean {
+  if (isJoker(c)) return true;
+  const real = hand.filter((o) => !isJoker(o));
+  if ((mode === 'cheft' || !opened) && real.filter((o) => sameCard(o, c)).length >= 2) return true;
+  if (mode === 'cheft') return false;
+  if (new Set(real.filter((o) => o.rank === c.rank).map((o) => o.suit)).size >= 3) return true;
+  const has = (r: number) => real.some((o) => o.suit === c.suit && (o.rank === r || (r === 14 && o.rank === 1)));
+  for (const pos of c.rank === 1 ? [1, 14] : [c.rank]) {
+    for (let a = pos - 2; a <= pos; a++) {
+      if (a < 1 || a + 2 > 14) continue;
+      if (has(a) && has(a + 1) && has(a + 2)) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Wie stark deutet eine (womöglich verschwommene) Erinnerung an die vom nächsten Spieler genommene Karte darauf hin,
  * dass er `c` sammelt? Eine scharfe Erinnerung zählt voll, eine verschwommene anteilig.
  */
@@ -720,7 +759,7 @@ export function similarity(c: Card, cands: Cand[]): number {
  * Rommé-Spieler nur, wenn er sie sofort anlegen oder damit rauskommen kann). Dann zählt, was er genommen hat (er sammelt in
  * diese Richtung), abgezogen, was er abgeworfen oder liegen gelassen hat, obwohl er es hätte nehmen können.
  */
-export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: Signal[]): number {
+export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: Signal[], opp?: { cheftRate: number; like: number }): number {
   const r = state.round;
   const me = r.players[pid];
   const ni = nextIndex(state, pid);
@@ -728,7 +767,7 @@ export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: 
   let elig: number;
   if (me.mode === 'cheft' && next.mode === 'romme') elig = 0;
   else if (next.mode === 'cheft') elig = 1;
-  else elig = next.opened ? 0.7 : 0.2;
+  else elig = next.opened ? 0.7 : 0.2 + 0.5 * (opp?.cheftRate ?? 0); // ein Rommé-Spieler mit Cheft-Neigung nimmt eher
   if (elig === 0) return 0;
   let pos = 0;
   let neg = 0;
@@ -739,11 +778,11 @@ export function nextPlayerRisk(state: GameState, pid: number, c: Card, signals: 
     else if (s.kind === 'throw') neg += 0.5 * sim;
     else neg += (elig >= 0.7 ? 0.6 : 0.2) * sim;
   }
-  return Math.min(1, elig * Math.max(0, pos - neg));
+  return Math.min(1, elig * (Math.max(0, pos - neg) + 0.5 * Math.max(0, opp?.like ?? 0)));
 }
 
 /** Wirft die Karte ab, die am wenigsten zu den noch erreichbaren Kombinationen beiträgt (nach dem, was der Bot noch weiß). */
-function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception, k: Knobs): number {
+function masterDiscard(state: GameState, pid: number, pool: Card[], per: Perception, k: Knobs, opps: (OppModel | null)[] | null = null): number {
   const oppModel = k.oppModel;
   const r = state.round;
   const p = r.players[pid];
@@ -755,6 +794,11 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
   const leader = k.huntLeader > 0 ? leaderOf(state, pid) : -1;
   const nextIdx = nextIndex(state, pid);
   const blockScale = k.blockWeight * (nextIdx === leader ? 1 + k.huntLeader : 1);
+  const nextModel = opps ? opps[nextIdx] : null;
+  // Vorlieben: nur ohne Ernstfall (kein Gegner fast draußen) und ohne Pflichtzug
+  const tastes = k.taste === 'auto' ? tastesFor(state.seed, pid) : k.taste;
+  const tasteOn = !!tastes && !per.forced && !endIsNear(state, pid, Math.max(2, k.dangerHand));
+  const st = tastes?.structure;
   // Ausgelegte Joker: Die passenden Karten sind zum Klauen wertvoll
   const jokerTargets: { suit: string; rank: number }[] = [];
   if (p.opened) {
@@ -766,19 +810,47 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
     }
   }
   const scores: number[] = [];
+  const bases: number[] = []; // Bewertung ohne Vorliebe
+  const complete: boolean[] = [];
   for (const c of pool) {
-    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove, k.setLove, k.runLove);
-    let score = -keep;
-    if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
-    else score += p.opened ? penaltyValue(c) * k.shedOpen : penaltyValue(c) * k.shedPre;
-    if (isJoker(c)) score -= 500;
-    if (k.tasteWeight) score -= k.tasteWeight * tasteMatches(c, k);
+    // Behaltewert neutral (ohne Struktur-Vorliebe) und mit ihr; ohne Vorlieben sind beide gleich
+    const keepN = keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove, k.setLove, k.runLove);
+    const keep = st && tasteOn ? keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove * st.pair, k.setLove * st.set, k.runLove * st.run) : keepN;
+    const core = (kv: number): number => {
+      let s = -kv;
+      if (danger) s = penaltyValue(c) * 3 - kv * 0.3; // es zählt jetzt jeder Strafpunkt
+      else s += p.opened ? penaltyValue(c) * k.shedOpen : penaltyValue(c) * k.shedPre;
+      if (isJoker(c)) s -= 500;
+      return s;
+    };
+    let extra = 0;
+    if (k.tasteWeight) extra -= k.tasteWeight * tasteMatches(c, k);
     // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
-    if (oppModel) score -= blockScale * nextPlayerRisk(state, pid, c, memory.signals);
-    else for (const t of nextTaken) score -= blockPenalty(c, t.cands);
-    if (next.mode === 'cheft' && !next.opened) score -= 1;
-    if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) score -= 25;
+    if (oppModel) extra -= blockScale * nextPlayerRisk(state, pid, c, memory.signals, nextModel ? { cheftRate: nextModel.cheftRate * k.oppUse, like: likes(nextModel, c) * k.oppUse } : undefined);
+    else for (const t of nextTaken) extra -= blockPenalty(c, t.cands);
+    if (next.mode === 'cheft' && !next.opened) extra -= 1;
+    if (jokerTargets.some((j) => j.suit === c.suit && j.rank === c.rank)) extra -= 25;
+    const isComplete = inCompleteCombo(c, p.hand, p.mode, p.opened);
+    complete.push(isComplete);
+    bases.push(core(keepN) + extra); // die Bewertung ganz ohne Vorlieben
+    let score = core(keep) + extra;
+    if (tasteOn && tastes) {
+      // Schutz: Eine Karte, die zu einer fertigen Kombination gehört, zählt gar nicht, eine fast fertige nur anteilig
+      const protect = isComplete ? 1 : Math.min(1, Math.max(0, keepN / Math.max(1e-9, k.tasteProt)));
+      score -= tasteScore(tastes, c) * k.tasteScale * (1 - protect);
+    }
     scores.push(score);
+  }
+  if (tasteOn && tastes) {
+    // Bandregel: Die Vorliebe entscheidet nur zwischen Karten, die ohne sie fast gleich gut zu behalten sind, und opfert nie eine
+    // fertige Kombination, solange der normale Abwurf keine ist (sonst würde eine geliebte lose Karte eine gute Karte verdrängen)
+    let top = 0;
+    for (let i = 1; i < bases.length; i++) if (bases[i] > bases[top]) top = i;
+    const band = Number.isFinite(k.tasteBand) ? Math.max(0, k.tasteBand) : 0;
+    const eligible: number[] = [];
+    for (let i = 0; i < pool.length; i++) if (i === top || (bases[i] >= bases[top] - band && (complete[top] || !complete[i]))) eligible.push(i);
+    const chosen = eligible[pickByScore(state, pid, per, eligible.map((i) => (Number.isFinite(scores[i]) ? scores[i] : bases[i])))];
+    return pool[chosen ?? top].id;
   }
   // Sorgfalt: Wer ungenau entscheidet, nimmt manchmal eine fast gleich gute andere Karte
   return pool[pickByScore(state, pid, per, scores)].id;
@@ -794,7 +866,7 @@ function visibleCopies(state: GameState, card: Card): number {
 }
 
 /** Wählt die Abwurfkarte: hohe Strafpunkte, wenig Nutzen, regelkonform, profilabhängig. */
-function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception): number {
+function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception, opps: (OppModel | null)[] | null = null): number {
   const r = state.round;
   const p = r.players[pid];
   const hand = p.hand;
@@ -803,7 +875,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception)
   // Wer auf die Teppichkarte wartet, wirft deren Partner nicht weg
   const mate = k.patient && !p.opened && waitForCarpet(state, pid, k) ? carpetMate(state, pid) : null;
   if (mate && pool.length > 1) pool = pool.filter((c) => c.id !== mate.id);
-  if (k.counting) return masterDiscard(state, pid, pool, per, k);
+  if (k.counting) return masterDiscard(state, pid, pool, per, k, opps);
   const next = nextIndex(state, pid);
   const nextP = r.players[next];
   const nextTaken = r.taken.filter((x) => x.player === next).map((x) => x.card);

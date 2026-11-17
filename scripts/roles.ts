@@ -12,6 +12,8 @@ import { cpus } from 'node:os';
 import { appendFileSync } from 'node:fs';
 import { simulate } from '../src/bot/simulate';
 import { CAND, persona } from '../src/bot/personas';
+import { RoleId, RoleOptions, rolePersona } from '../src/bot/roles';
+import { tasteScore, tastesFor } from '../src/bot/tastes';
 import { makeDeck } from '../src/engine/cards';
 import type { BotLevel, BotStyle, LogEntry } from '../src/engine/game';
 
@@ -28,9 +30,17 @@ export interface Spec {
   pool?: string[];
   knobs?: object;
   memory?: object;
+  /** Rolle des Entwurfs V3 (src/bot/roles.ts) mit Optionen; hat Vorrang vor persona. */
+  role?: RoleId;
+  roleOpts?: RoleOptions;
+  /** Misst, wie stark die Abwürfe von den (automatischen) Vorlieben des Bots abhängen. */
+  probeTaste?: boolean;
 }
 
 interface Acc {
+  tasteN: number;
+  tasteSum: number;
+  tasteDeck: number;
   games: number;
   rounds: number;
   wins: number;
@@ -68,7 +78,7 @@ interface Acc {
   discFace: number;
   discRanks: number;
 }
-const zero = (): Acc => ({ games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0, disc: 0, discH: 0, discLow: 0, discFace: 0, discRanks: 0 });
+const zero = (): Acc => ({ tasteN: 0, tasteSum: 0, tasteDeck: 0, games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0, disc: 0, discH: 0, discLow: 0, discFace: 0, discRanks: 0 });
 
 interface Job {
   indices: number[];
@@ -78,11 +88,23 @@ interface Job {
 
 function seatFor(s: Spec) {
   const pool = s.pool?.map((k) => CAND[k]);
+  if (s.role) return { level: s.level, style: 'balanced' as BotStyle, opts: { persona: rolePersona(s.role, s.roleOpts), knobs: s.knobs as never, memory: s.memory as never } };
   const p = s.persona || s.pool ? persona(CAND[s.persona ?? 'ausgewogen'], { loyalty: s.loyalty ?? 1, jitter: s.jitter ?? 0, tilt: s.tilt ?? 0, levels: s.levels, pool }) : undefined;
   return { level: s.level, style: (s.style ?? 'balanced') as BotStyle, opts: { persona: p, knobs: s.knobs as never, memory: s.memory as never } };
 }
 
 const DECK = makeDeck();
+/** Mittlerer Zuschlag einer zufälligen Karte (Maß dafür, was „kein Einfluss“ wäre). */
+function DECK_TASTE_MEAN(ts: ReturnType<typeof tastesFor>): number {
+  let s = 0;
+  let n = 0;
+  for (const c of DECK) {
+    if (c.suit === 'J') continue;
+    s += tasteScore(ts, c);
+    n++;
+  }
+  return s / n;
+}
 
 function run(job: Job): Acc[] {
   const accs = job.specs.map(zero);
@@ -133,6 +155,12 @@ function run(job: Job): Acc[] {
         } else if (e.key === 'log.discard') {
           const card = DECK[Number(e.params?.card)];
           if (card && card.suit !== 'J') {
+            if (job.specs[specOf(pl)].probeTaste) {
+              const ts = tastesFor(res.state.seed, pl);
+              a.tasteN++;
+              a.tasteSum += tasteScore(ts, card);
+              a.tasteDeck += DECK_TASTE_MEAN(ts);
+            }
             a.disc++;
             if (card.suit === 'H') a.discH++;
             if (card.rank >= 2 && card.rank <= 6) a.discLow++;
@@ -241,6 +269,8 @@ export function summarize(a: Acc, rounds: number) {
     comeback: pct(a.comebacks, a.halfBehind),
     leadHeld: pct(a.leadHeld, a.halfLead),
     winsWithBig: pct(a.winsWithBig, a.wins),
+    /** Wie viel Punkte weniger Vorlieben-Zuschlag haben die abgeworfenen Karten gegenüber einer Zufallskarte? Positiv = die Vorlieben prägen den Abwurf. */
+    tasteBias: a.tasteN > 0 ? (a.tasteDeck - a.tasteSum) / a.tasteN : NaN,
     dH: pct(a.discH, a.disc),
     dLow: pct(a.discLow, a.disc),
     dFace: pct(a.discFace, a.disc),

@@ -36,7 +36,7 @@ const keyOf = (c: Card) => (isJoker(c) ? 'J' : `${c.suit}${c.rank}`);
 const card = (key: string, nth = 0): Card => deck.filter((c) => keyOf(c) === key)[nth];
 
 /** Ein Gedächtnis ohne Zufall und ohne Fehler, mit festem Zeitplan: Spanne 3 Runden (bei 4 Spielern 12 Züge). */
-const STEADY: MemoryParams = { span: 3, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0 };
+const STEADY: MemoryParams = { span: 3, spread: [1, 1], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0, noise: 0, oppObserve: 0, oppDetail: 0, oppSpan: 0, oppAccuracy: 1 };
 const BLACK = deck.filter((c) => c.suit === 'S' || c.suit === 'C');
 
 /** Leerer Tisch: nur das, was ein Test selbst hineinlegt. Spieler 0 hat keine Handkarten. */
