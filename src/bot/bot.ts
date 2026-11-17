@@ -104,6 +104,8 @@ export interface Knobs {
   tasteBand: number;
   /** Gegner-Gedächtnis nutzen (0 = nicht, 1 = voll; was der Bot weiß, bestimmt seine Stufe). Standard 0. */
   oppUse: number;
+  /** Davon: Wie stark verschiebt das Gegner-Gedächtnis den Ehrgeiz (Warten gegen schnelle Gegner)? Faktor auf oppUse, Standard 1, 0 = nur die Abwurfwahl. */
+  oppTempo: number;
 }
 
 /** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
@@ -152,6 +154,7 @@ export function knobsFor(profile: BotProfile): Knobs {
     tasteScale: 1,
     tasteBand: 4,
     oppUse: 0,
+    oppTempo: 1,
   };
   // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
@@ -228,7 +231,7 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   const view = perceivedState(state, per);
   // Gegner-Gedächtnis: Wie spielen die Mitspieler in diesem Spiel? Das verschiebt den Ehrgeiz (Warten lohnt gegen schnelle Gegner kaum).
   const opps = k0.oppUse ? state.players.map((_, i) => (i === pid ? null : opponentModel(state, pid, i, per.params))) : null;
-  const k = opps ? { ...k0, ambition: Math.min(1, Math.max(0, k0.ambition + tempoShift(opps, k0.oppUse))) } : k0;
+  const k = opps ? { ...k0, ambition: Math.min(1, Math.max(0, k0.ambition + tempoShift(opps, k0.oppUse * (Number.isFinite(k0.oppTempo) ? k0.oppTempo : 1)))) } : k0;
   const top = per.topBlind ? undefined : r.discard[r.discard.length - 1];
   // Wer hinten liegt, spielt mutiger: auf Hand, früher Cheft, mit der Erstmeldung warten (hier der Ausgangspunkt)
   const bold = k.bold && isBold(state, pid, k.ambition, k.tuning);
