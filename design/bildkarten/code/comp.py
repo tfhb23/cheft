@@ -1,0 +1,73 @@
+from lib import *
+import parts as P
+SKIN_PALE=hx('f8e3d2'); GRAY_BEARD=hx('cfc8bd'); BLACK=hx('1b1b1b'); BROWN=hx('5a3a24'); DBROWN=hx('4e2c16')
+GREEN=hx('4f8a3a'); LGREEN=hx('86b868'); POWDER=hx('ebe6de'); SHADE=hx('d8cfbf'); STEEL=hx('b9b3ad'); DSTEEL=hx('8a847e'); RUBY=hx('d2362a')
+def letters(suit,pal):
+    ink=inkOf(suit); light=lightOf(suit)
+    m=dict(S=C['skin'],E=C['ink'],M=C['mouth'],H=HAIR[suit],B=BEARD[suit],G=C['gold'],W=C['white'],V=SHADE,P=POWDER,
+           R=ink,L=light,K=C['ink'],N=STEEL,n=DSTEEL,k=hx('5a4d44'),T=hx('e0b48c'),v=hx('cdb98e'),O=hx('e8dcc0'),q=hx('b08050'),u=hx('c9b27c'),w=hx('6b4a2b'),h=hx('3a2012'),y=hx('f2d43a'),b=hx('3a78c8'),Z=C['red'],Q=GREEN,F=C['orange'],A=ink,a=C['ink'],J=C['red'])
+    m.update(pal); return m
+EMPH={'ohne':None,'kontur_hell':hx('b9b3ad'),'kontur_dunkel':hx('5a3a2c'),'schlagschatten':hx('b9b3ad'),'innenschatten':hx('b8ab93')}
+def is_light(rgb): return (max(rgb[:3])-min(rgb[:3]))<=40 and sum(rgb[:3])/3>=185
+def emphasize(L,mode):
+    col=EMPH.get(mode)
+    if not col: return L
+    src={(x,y) for y in range(H) for x in range(W) if L.p[x,y][3] and is_light(L.p[x,y][:3])}
+    occ=lambda x,y: 0<=x<W and 0<=y<H and L.p[x,y][3]>0
+    if mode in('kontur_hell','kontur_dunkel'):
+        for (x,y) in src:
+            for dx,dy in((1,0),(-1,0),(0,1),(0,-1)):
+                if not occ(x+dx,y+dy): L.put(x+dx,y+dy,col)
+    elif mode=='schlagschatten':
+        for (x,y) in src:
+            if not occ(x+1,y+1) : L.put(x+1,y+1,col)
+            if not occ(x+1,y) : L.put(x+1,y,col)
+            if not occ(x,y+1) : L.put(x,y+1,col)
+    elif mode=='innenschatten':
+        for (x,y) in src:
+            if not occ(x,y+1) or not occ(x+1,y): L.put(x,y,col)
+    return L
+def compose(suit,spec,emph='ohne'):
+    """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
+    pal=spec.get('pal',{}); cm=letters(suit,pal)
+    layers=[P.BODY[spec['body']]]
+    if spec.get('back'): layers.append(P.BACK[spec['back']])
+    layers.append(P.FACE)
+    layers.append(P.HAIR[spec.get('hair','glatze')])
+    layers.append(P.BEARD[spec.get('beard','keiner')])
+    for h in ([spec['hat']] if isinstance(spec.get('hat'),str) else spec.get('hat',[])): layers.append(P.HAT[h])
+    for e in spec.get('extra',[]): layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
+    for a in spec.get('acc',[]): layers.append(P.ACC[a])
+    grid=P.merge(*layers)
+    if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
+    import bust
+    L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
+    lift=spec.get('lift',0)
+    F=Layer() if lift else L          # Person (Kopf, Hut, Haare ...) getrennt vom Körper, damit sie angehoben werden kann
+    for y,row in grid.items():
+        for x,ch in enumerate(row):
+            if ch!='.' and ch in cm: F.put(8+x,y,cm[ch])
+    PX=Layer()                                  # Objekte (z. B. Vogel) optional erst nach dem Schatteneffekt zeichnen
+    for (px_,py_,ch_) in spec.get('px',[]):
+        if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
+    if lift:
+        sh=Layer(); sh.im.paste(F.im,(0,-lift)); sh.p=sh.im.load(); L.over(sh)
+    out=emphasize(L,emph)
+    if spec.get('px_after'):
+        if lift:
+            sp2=Layer(); sp2.im.paste(PX.im,(0,-lift)); sp2.p=sp2.im.load(); PX=sp2
+        out.over(PX)
+    return out
+def card(suit,rank,spec,emph='ohne',sym='ref'):
+    c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
+    x0,y0,x1,y1=P.WIN
+    if sym in ('cut1','symmA','symm','symm0'): x1=24 if sym!='symm0' else 23
+    if sym in ('symm','symm0'):
+        sl=Layer(); sl.mask(rot(SH[suit]),3,26,inkOf(suit)); c.over(sl)   # Symbol unten links, spiegelbildlich zum Symbol unten rechts
+    win=Layer(); win.rect(x0,y0,x1,y1,C['cream'])
+    if sym=='symm': win.rect(7,24,8,32,C['cream'])                          # links unten ebenfalls 1 Pixel Lücke (wie rechts), oben links bleibt unverändert
+    c.over(win)
+    fig=compose(suit,spec,emph)
+    if sym=='schulter':
+        for yy in range(H): fig.p[23,yy]=(0,0,0,0)
+    c.over(fig); return c.im
