@@ -83,12 +83,13 @@ import colorsys
 def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
-LIPS=(0.60,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
+LIPS=(0.50,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
 WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
     if WHITE=='W1': return
     occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
-    light=lambda x,y: occ(x,y) and is_light(fig.p[x,y][:3])
+    def _weiss(p): return (max(p[:3])-min(p[:3]))<=14 and sum(p[:3])/3>=190     # nur Weiß/Hellgrau, nie Haut
+    light=lambda x,y: occ(x,y) and _weiss(fig.p[x,y])
     cream=lambda x,y: 0<=x<W and 0<=y<H and c.p[x,y][:3]==C['cream'] and c.p[x,y][3]>0
     if WHITE in ('W2','W4'):
         col=_cream_at(0.16)
