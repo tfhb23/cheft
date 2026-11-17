@@ -11,6 +11,8 @@ das bisherige Verhalten der Bots ist bitgleich erhalten (Prüfsumme über 120 Sp
   „Zufällig“ bleibt davon getrennt (verdeckte Wahl für das ganze Spiel, die Wildcard darf dabei herauskommen).
 - **Vorlieben** pro Bot und Spiel (zufällig, mit Abneigungen und Aberglaube), nur beim Abwerfen, mit Schutz guter Karten.
 - **Gegner-Gedächtnis** über das laufende Spiel, für Menschen und Bots gleich, nach Stufe abgeschwächt und mit Merkfehlern.
+- **Endauswertung:** Bei allen Spielweisen steht nur die eigentliche Rolle (nicht die Rolle einer Laune-Runde); nur die Wildcard zeigt mehrere Rollen mit Zählung (`describeRole`).
+- **Beide Bot-Schwächen sind behoben** (Abschnitt 9a).
 - **Rollentreue-Würze** für die fünf Spielweisen (Abschnitt 3): Treue 0,85, Ausweichen nur zu ähnlichen Rollen, Launen 0,2, Stimmung 0,5. Die Rolle bleibt erkennbar (94 % der Erkennbarkeit bleiben).
 
 ## 2. Die Spielweisen (Regler, Messung)
@@ -170,28 +172,45 @@ Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen
 
 ## 9. Namen (24 Kombinationen)
 
-Tabelle in `src/bot/rolenames.ts` (`ROLE_NAMES`), geprüft in `rolenames.test.ts` (jede Kombination mindestens vier Namen, kein Name doppelt, `Q` und `Data` enthalten). Die Stufe färbt die Namen: Vergesslich naive, Normal Alltags-, Scharfsinnig kluge, Mastermind legendäre Figuren.
-Am Tisch sitzen höchstens drei Bots, die Namenswahl vergibt keinen Namen doppelt; vier Namen je Kombination reichen dafür immer. Für mehr Abwechslung über viele Spiele wären fünf bis sechs je Kombination schöner.
+Tabelle in `src/bot/rolenames.ts` (`ROLE_NAMES`), geprüft in `rolenames.test.ts`. **188 Namen, 6 bis 9 je Kombination** (mindestens fünf, nicht einheitlich). Jeder Name trägt eine Kennzeichnung männlich / weiblich / neutral (Tiere, Geister, Wesen):
+**46 % männlich, 38 % weiblich, 16 % neutral**; jede Kombination hat mindestens einen männlichen, einen weiblichen und einen neutralen Namen. Kein Name kommt doppelt vor. Die Stufe färbt die Namen (Vergesslich naive, Normal Alltags-, Scharfsinnig kluge, Mastermind legendäre Figuren).
+Am Tisch sitzen höchstens drei Bots, die Namenswahl vergibt keinen Namen doppelt.
+
+**Gäste und Wunschnamen:** **Q** (Mastermind-Wildcard: allmächtiger Verwandler), **Data** (Mastermind-Ausgewogener: perfektes Gedächtnis, nüchtern, ohne Gefühlsschwankung), **Picard** (Mastermind-Gerissener: das Picard-Manöver; alternativ Ausgewogen),
+**Mulan** (Mastermind-Frühvogel: entschlossene Kriegerin), **Nasrudin** (Vergesslich-Gerissener: der scheinbare Narr; Nasreddin steht zusätzlich bei Scharfsinnig).
+
+Beispiele je Rolle (alle Namen im Code):
 
 | | Vergesslich | Normal | Scharfsinnig | Mastermind |
 |---|---|---|---|---|
-| **Ausgewogen** | Tünnes, Dursun, Bajie, Bolle | Effi, Memed, Genji, Botchan | Schäl, Dede, Zhou Yu, Çelebi | Faust, Danişmend, Sima Yi, Zeami, **Data** |
-| **Frühvogel** | Hans, Temel, Momotaro, Struwwel | Till, Bamsı, Kintaro, Hızır | Swinegel, Ferhat, Musashi, Tengu | Siegfried, Dede Korkut, Lü Bu, Yoshitsune |
-| **Gerissener** | Däumling, Keloğlan, Issun, Pumuckl | Krabat, Köroğlu, Gildong, Goemon | Reineke, Rumpelstilz, Nasreddin, Ne Zha, Kitsune | Eulenspiegel, Aladdin, Tanuki, Zhuge Liang |
-| **Pärchenkönig** | Moritz, Hacivat, Heungbu, Tahir | Max, Tamino, Baoyu, Mongryong | Hänsel, Kerem, Niulang, Tristan | Schahriyar, Mecnun, Liang Shanbo, Graf vom Strahl |
-| **Glücksritter** | Hieronymus, Hans im Glück, Lu Da, Kalender | Felix, Kaygusuz, Bahtiyar, Ebisu | Munk, Köse, Li Kui, Leverkühn | Wallenstein, Fortunatus, Ji Gong, Fukurokuju |
-| **Wildcard** | Rübezahl, Taugenichts, Momo, Schlemihl | Şahmeran, Kaguya, Karagöz, Peer Gynt | Mephisto, Tamamo, Merlin, Loki | **Q**, Sun Wukong, Proteus, Nüwa |
+| **Ausgewogen** | Tünnes, Sterntaler, Wichtel, … | Effi, Murasaki, Kodama, … | Schäl, Frau Holle, Heinzelmännchen, … | Faust, **Data**, Hildegard, Simurg, Amaterasu, … |
+| **Frühvogel** | Hans, Rotkäppchen, Hahn, … | Till, Nene Hatun, Lerche, … | **Swinegel** (Igel aus „Hase und Igel“), Tomoe Gozen, Tengu, … | Siegfried, **Mulan**, Zümrüdü Anka, … |
+| **Gerissener** | Däumling, **Nasrudin**, Kluge Else, Gestiefelter Kater, … | Krabat, Diaochan, Hürrem, Bakeneko, … | Reineke, Nasreddin, Kitsune, Kösem, Xishi, … | Eulenspiegel, **Picard**, Scheherazade, Tanuki, Cixi, … |
+| **Pärchenkönig** | Moritz, Gretel, Leyla, Turteltaube, … | Max, Pamina, Yuanyang, … | Hänsel, Aslı, Niulang, Falter, … | Schahriyar, Isolde, Fenghuang, … |
+| **Glücksritter** | Hans im Glück, Otafuku, Maneki-neko, … | Felix, Goldmarie, Mazu, … | Köse, Lorelei, Pixiu, … | Wallenstein, Fortunatus, Qilin, Benzaiten, … |
+| **Wildcard** | Rübezahl, Undine, Irrlicht, … | Şahmeran, Tsuru, Nöck, … | Mephisto, Melusine, Loki, … | **Q**, Sun Wukong, Nüwa, Nue, … |
 
-Was sich gegenüber den alten Listen geändert hat und warum:
+Herkunft gegenüber den alten Listen: Frühvogel aus dem Sprinter, Gerissener aus dem Jokerjäger (Schelme und Schlauberger), Pärchenkönig aus dem Cheft-Fan (berühmte Liebes- und Geschwisterpaare, jetzt männliche, weibliche und neutrale Hälften; „Pärchenkönig“ ist nicht auf Männer beschränkt),
+Glücksritter aus dem Zocker (Glückskinder und Glücksgötter; Hasan Sabbah ist raus), Wildcard neu (Gestaltwandler und Unberechenbare). Die Namen der gestrichenen Spielweisen Blocker, Zähler und Handmacher sind größtenteils frei. Die Liste soll später noch überarbeitet werden.
 
-- **Frühvogel** (alter Sprinter): Der Fuchs Reineke ist ein Schlauberger und ging zum Gerissenen; dafür kam **Swinegel** („Ick bün al hier!“, der Igel aus „Hase und Igel“, der schon am Ziel ist).
-- **Gerissener** (alter Jokerjäger): lauter Schelme und Schlauberger. Neu dabei **Reineke** und **Zhuge Liang** (statt Sarutahiko, der weniger bekannt ist).
-- **Pärchenkönig** (alter Cheft-Fan): Die Namen waren schon berühmte Paare (Max und Moritz, Hacivat und Karagöz, Tahir und Zühre, Hänsel und Gretel, Kerem und Aslı). Weil „Pärchenkönig“ männlich ist, stehen jetzt die männlichen Hälften der Paare darin; die weiblichen (Zühre, Chunhyang, Gretel, Aslı, Daiyu, Zhinü, Mulan, Zeynep, Scheherazade, Käthchen) sind frei und lassen sich für eine
-  weibliche Variante nutzen. Neu: Tamino (Zauberflöte), Mongryong, Niulang (Weberin und Kuhhirte), Tristan, **Schahriyar** (der König, dem Scheherazade erzählt), Liang Shanbo, Graf vom Strahl.
-- **Glücksritter** (alter Zocker): neu **Hans im Glück**, **Ebisu** und **Fukurokuju** (Glücksgötter), **Fortunatus** (Volksbuch mit dem Glückssäckel) statt Hasan Sabbah (Gründer der Assassinen, für eine Familienrunde ungünstig), Bahtiyar bedeutet „der Glückliche“.
-- **Wildcard** (neu): Gestaltwandler und Unberechenbare; Rübezahl, Mephisto, Sun Wukong, Proteus, Tamamo (Fuchsgeist), Şahmeran (Schlangenkönigin), dazu **Q** aus Star Trek: Das nächste Jahrhundert (allmächtiger Verwandler und Unberechenbarer) als Mastermind-Wildcard.
-- **Data** (Star Trek TNG): Mastermind-Ausgewogener. Er passt dort am besten: perfektes Gedächtnis (Mastermind), nüchtern ohne Gefühlsschwankung und ohne Vorliebe für Risiko (Ausgewogen); als Gerissener wäre er zu listig, als Frühvogel zu hastig.
-- Nicht mehr verwendet (frei für spätere Rollen): die Namen der gestrichenen Spielweisen Blocker (z. B. Hagen, Brunhild, Guan Yu, Nobunaga), Zähler (Humboldt, Piri Reis, Kongming, Emil) und Handmacher (Siddhartha, Parzival, Miyamoto, Wotan).
+## 9a. Fehlerbehebung der Grundstrategie
+
+Beide Schwächen sind behoben und gelten für alle Bots: (1) Der **Gefahrenmodus** (alles Hohe abwerfen, wenn ein Gegner fast draußen ist) gilt nur noch für Spieler, die selbst schon draußen sind (`dangerOpenedOnly`); (2) **Hochkarten vor der Erstmeldung** werden nicht mehr aus Gewohnheit abgeworfen (`shedPre` 0 statt 0,12).
+Einzeln brachte (1) etwa 3 Strafpunkte pro Runde, (2) etwa 0,7, zusammen etwa 4,4.
+
+**Stärke im Vergleich zu den heutigen Bots** (die „Lineal“-Bots spielen das alte Verhalten; 600 Spiele zu 7 Runden, ein Platz gegen drei Lineal-Bots, Normal, fair 25 %):
+
+| Rolle | mit neuem System vor der Fehlerbehebung | jetzt |
+|---|---|---|
+| Ausgewogen | 21,0 | 25,8 |
+| Frühvogel | 21,5 | 26,2 |
+| Gerissener | 17,5 | 21,2 |
+| Pärchenkönig | 20,2 | 23,2 |
+| Glücksritter | 18,8 | 21,4 |
+| Wildcard | 20,0 | 24,5 |
+
+Stufen (Ausgewogener, behoben, gegen drei Lineal-Bots derselben Stufe): Vergesslich 24,6 %, Normal 25,8 %, Scharfsinnig 25,3 %, Mastermind 25,3 %. Das neue System (Vorlieben, Würze, Gegner-Gedächtnis) hatte die Bots gegenüber den heutigen etwa 4 Punkte schwächer gemacht;
+die Fehlerbehebung holt das zurück, **die Bots sind damit nicht stärker als die heutigen**. Eine Abwertung über andere Regler ist deshalb nicht nötig. Die extremeren Rollen (Gerissener, Pärchenkönig, Glücksritter) liegen bewusst darunter.
 
 ## 10. Vorschlag zur Übernahme
 
