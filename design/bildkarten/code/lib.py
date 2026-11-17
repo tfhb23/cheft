@@ -16,8 +16,7 @@ HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
 BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 HAIR['H']=hx('7a4526')   # Herz-Braun (P3), weicht von Guide 1.26 (#6b3f22) ab
 HAIR['C']=hx('5c4b3f')   # Kreuz-Braun (P5), weicht von Guide 1.28 (#2b2b2b) ab
-KARO_MIX=True   # Karo: Haar, Bart und Brauen = Mitte aus Guide 1.27 (Haar Karo) und 1.31 (Bart Karo); False = rückgängig
-if KARO_MIX: HAIR['D']=BEARD['D']=tuple((a+b)//2 for a,b in zip(HAIR['D'],BEARD['D']))
+HAIR['D']=BEARD['D']=hx('d7ad54')   # Karo: eine Farbe für Haar, Bart und Brauen (Sandblond, K-d minimal dunkler); weicht von Guide 1.27/1.31 ab
 
 import os
 _ROOT=os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..'))
