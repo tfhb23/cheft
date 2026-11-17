@@ -135,6 +135,24 @@ export const CAND: Record<string, PersonaDef> = {
     knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
     adapt: (st, pid) => (st.round.stock.length >= 38 || standing(st, pid).behind >= 30 ? { cheftEagerPairs: 3 } : {}),
   },
+  netzE: {
+    id: 'netzE',
+    label: 'Glücksritter: früh Cheft, sobald er nicht führt',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (standing(st, pid).behind > 0 ? { cheftEagerPairs: 3 } : {}),
+  },
+  netzF: {
+    id: 'netzF',
+    label: 'Glücksritter: früh Cheft, wenn er 15+ Punkte hinten liegt',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (standing(st, pid).behind >= 15 ? { cheftEagerPairs: 3 } : {}),
+  },
+  netzG: {
+    id: 'netzG',
+    label: 'Glücksritter: früh Cheft ab 60 Punkten Rückstand (Verzweiflung)',
+    knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+    adapt: (st, pid) => (standing(st, pid).behind >= 60 ? { cheftEagerPairs: 2, pairTakeAt: 2 } : standing(st, pid).behind >= 15 ? { cheftEagerPairs: 3 } : {}),
+  },
   jaeger: { id: 'jaeger', label: 'Königsjäger', knobs: { huntLeader: 1, blockWeight: 12 } },
 };
 
