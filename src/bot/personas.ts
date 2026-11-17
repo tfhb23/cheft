@@ -97,6 +97,16 @@ export const CAND: Record<string, PersonaDef> = {
     label: 'Vorsichtig',
     knobs: { ambition: 0.1, bold: false, cheftEagerPairs: 99, pairTakeAt: 5, shedPre: 0.6, shedOpen: 1.5, dangerHand: 4, pairLove: 0.5 },
   },
+  // ---- Überarbeitete Kandidaten (zweite Runde, nach den Sweeps)
+  tempo2: { id: 'tempo2', label: 'Tempo', knobs: { weighOpening: false, bold: false, ambition: 0, cheftEagerPairs: 99, pairTakeAt: 5 } },
+  lauerer: { id: 'lauerer', label: 'Lauerer (mild)', knobs: { ambition: 0.8, tuning: { holdAt0: 0.2 } } },
+  lauerer2: { id: 'lauerer2', label: 'Lauerer (mittel)', knobs: { ambition: 0.9, tuning: { holdAt0: 0, w0: 2, w1: 4 } } },
+  lauerer3: { id: 'lauerer3', label: 'Lauerer (stark)', knobs: { ambition: 1, tuning: { holdAt0: -5, w0: 2, w1: 8 } } },
+  cheft2: { id: 'cheft2', label: 'Cheft-Fan', knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 1.8, ambition: 0.5 } },
+  cheft3: { id: 'cheft3', label: 'Cheft-Fan (stark)', knobs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 4, ambition: 0.7 } },
+  zocker2: { id: 'zocker2', label: 'Zocker', knobs: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6 } },
+  zocker3: { id: 'zocker3', label: 'Zocker (wild)', knobs: { cheftEagerPairs: 3, pairTakeAt: 2, gamble: 0.25, pairLove: 2, ambition: 0.7 } },
+  hasardeur: { id: 'hasardeur', label: 'Hasardeur', knobs: { cheftEagerPairs: 3, pairTakeAt: 2, pairLove: 2, ambition: 0.9, tuning: { holdAt0: 0, w0: 2, w1: 4 } } },
   jaeger: { id: 'jaeger', label: 'Königsjäger', knobs: { huntLeader: 1, blockWeight: 12 } },
 };
 
