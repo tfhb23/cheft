@@ -12,6 +12,7 @@ import { cpus } from 'node:os';
 import { appendFileSync } from 'node:fs';
 import { simulate } from '../src/bot/simulate';
 import { CAND, persona } from '../src/bot/personas';
+import { makeDeck } from '../src/engine/cards';
 import type { BotLevel, BotStyle, LogEntry } from '../src/engine/game';
 
 export interface Spec {
@@ -61,8 +62,13 @@ interface Acc {
   noWinnerRounds: number;
   winsWithBig: number;
   plies: number;
+  disc: number;
+  discH: number;
+  discLow: number;
+  discFace: number;
+  discRanks: number;
 }
-const zero = (): Acc => ({ games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0 });
+const zero = (): Acc => ({ games: 0, rounds: 0, wins: 0, pen: 0, pen2: 0, roundWins: 0, handWins: 0, burnWins: 0, cheftRounds: 0, unopened: 0, steals: 0, carpet: 0, discardTake: 0, opens: 0, openAugen: 0, openTurns: 0, early: 0, late: 0, cheftAll: 0, cheftNone: 0, earlyAll: 0, earlyNone: 0, halfBehind: 0, comebacks: 0, halfLead: 0, leadHeld: 0, big: 0, doubled: 0, noWinnerRounds: 0, winsWithBig: 0, plies: 0, disc: 0, discH: 0, discLow: 0, discFace: 0, discRanks: 0 });
 
 interface Job {
   indices: number[];
@@ -75,6 +81,8 @@ function seatFor(s: Spec) {
   const p = s.persona || s.pool ? persona(CAND[s.persona ?? 'ausgewogen'], { loyalty: s.loyalty ?? 1, jitter: s.jitter ?? 0, tilt: s.tilt ?? 0, levels: s.levels, pool }) : undefined;
   return { level: s.level, style: (s.style ?? 'balanced') as BotStyle, opts: { persona: p, knobs: s.knobs as never, memory: s.memory as never } };
 }
+
+const DECK = makeDeck();
 
 function run(job: Job): Acc[] {
   const accs = job.specs.map(zero);
@@ -122,6 +130,15 @@ function run(job: Job): Acc[] {
           draws[pl]++;
           if (e.key === 'log.draw.carpet') a.carpet++;
           if (e.key === 'log.draw.discard') a.discardTake++;
+        } else if (e.key === 'log.discard') {
+          const card = DECK[Number(e.params?.card)];
+          if (card && card.suit !== 'J') {
+            a.disc++;
+            if (card.suit === 'H') a.discH++;
+            if (card.rank >= 2 && card.rank <= 6) a.discLow++;
+            if (card.rank >= 11) a.discFace++;
+            if (card.rank === 7 || card.rank === 11) a.discRanks++;
+          }
         } else if (e.key === 'log.cheft') {
           sawCheft[pl] = true;
         } else if (e.key === 'log.steal') a.steals++;
@@ -224,6 +241,10 @@ export function summarize(a: Acc, rounds: number) {
     comeback: pct(a.comebacks, a.halfBehind),
     leadHeld: pct(a.leadHeld, a.halfLead),
     winsWithBig: pct(a.winsWithBig, a.wins),
+    dH: pct(a.discH, a.disc),
+    dLow: pct(a.discLow, a.disc),
+    dFace: pct(a.discFace, a.disc),
+    dRanks: pct(a.discRanks, a.disc),
     rounds,
   };
 }

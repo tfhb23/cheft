@@ -82,6 +82,16 @@ export interface Knobs {
   pairLove: number;
   /** Jagd auf den Tabellenführenden 0..1: bei Joker-Klau werden seine Auslagen bevorzugt, und seine Abwurf-Wünsche zählen stärker (Standard 0). */
   huntLeader: number;
+  /** Vorlieben (Entwurf): Zuschlag beim Behalten einer Karte, die zur Vorliebe passt. Wirkt nur bei der Abwurfwahl und nur als Gewicht (Standard 0 = keine). */
+  tasteWeight: number;
+  tasteSuit?: 'H' | 'D' | 'C' | 'S';
+  tasteColor?: 'red' | 'black';
+  tasteLow?: boolean;
+  tasteFace?: boolean;
+  tasteRanks?: number[];
+  /** Lieber Sätze (gleiche Zahl) oder Folgen sammeln: Faktoren auf den Behaltewert (Standard 1). */
+  setLove: number;
+  runLove: number;
 }
 
 /** Überschreibt Regler und Gedächtniswerte, für Tests und Simulationen. */
@@ -123,6 +133,9 @@ export function knobsFor(profile: BotProfile): Knobs {
     dangerHand: 2,
     pairLove: 1,
     huntLeader: 0,
+    tasteWeight: 0,
+    setLove: 1,
+    runLove: 1,
   };
   // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
   switch (profile.style) {
@@ -558,6 +571,18 @@ function carpetMate(state: GameState, pid: number): Card | null {
   return same.length === 1 ? same[0] : null;
 }
 
+/** Wie viele Vorlieben erfüllt die Karte? */
+function tasteMatches(c: Card, k: Knobs): number {
+  if (isJoker(c)) return 0;
+  let m = 0;
+  if (k.tasteSuit && c.suit === k.tasteSuit) m++;
+  if (k.tasteColor && (c.suit === 'H' || c.suit === 'D') === (k.tasteColor === 'red')) m++;
+  if (k.tasteLow && c.rank >= 2 && c.rank <= 6) m++;
+  if (k.tasteFace && c.rank >= 11) m++;
+  if (k.tasteRanks && k.tasteRanks.includes(c.rank)) m++;
+  return m;
+}
+
 /** Der Tabellenführende (wenigste Strafpunkte, ohne mich), oder -1 wenn ich selbst vorn liege. */
 function leaderOf(state: GameState, pid: number): number {
   const t = state.totals;
@@ -601,7 +626,7 @@ const outsChance = (m: number, U: number, draws: number) => 1 - Math.pow(1 - Mat
  * Wie wertvoll ist die Karte für die Hand? Erwartete Augen der besten Kombinationen, an denen sie beteiligt sein kann
  * (fertige Kombination, oder Wahrscheinlichkeit, die fehlenden Karten noch zu bekommen).
  */
-function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean, pairLove = 1): number {
+function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', opened: boolean, pairLove = 1, setLove = 1, runLove = 1): number {
   if (isJoker(c)) return 60;
   const draws = 3;
   const U = Math.max(8, un.total);
@@ -630,14 +655,14 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
     const haveSuits = SUITS.filter((s) => have(s, c.rank));
     const missing = Math.max(0, 3 - haveSuits.length - Math.min(jokersInHand, 1));
     const pts3 = augen(c.rank) * 3;
-    if (missing === 0) consider(pts3 + 6);
+    if (missing === 0) consider((pts3 + 6) * setLove);
     else {
       const ch = SUITS.filter((s) => !have(s, c.rank))
         .map((s) => chance(s, c.rank))
         .sort((a, b) => b - a);
       let p = 1;
       for (let i = 0; i < missing; i++) p *= ch[i] ?? 0;
-      consider(p * pts3);
+      consider(p * pts3 * setLove);
     }
     // Folge: Fenster aus drei Karten derselben Farbe (Ass auch oben)
     for (const k of c.rank === 1 ? [1, 14] : [c.rank]) {
@@ -652,7 +677,7 @@ function keepValue(c: Card, hand: Card[], un: Unseen, mode: 'romme' | 'cheft', o
         }
         if (jokersInHand && chances.length) chances.splice(chances.indexOf(Math.min(...chances)), 1); // der Joker deckt die schwerste Lücke
         const p = chances.reduce((x, y) => x * y, 1);
-        consider(p * pts + (chances.length === 0 ? 6 : 0));
+        consider((p * pts + (chances.length === 0 ? 6 : 0)) * runLove);
       }
     }
   }
@@ -742,11 +767,12 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
   }
   const scores: number[] = [];
   for (const c of pool) {
-    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove);
+    const keep = keepValue(c, p.hand, un, p.mode, p.opened, k.pairLove, k.setLove, k.runLove);
     let score = -keep;
     if (danger) score = penaltyValue(c) * 3 - keep * 0.3; // es zählt jetzt jeder Strafpunkt
     else score += p.opened ? penaltyValue(c) * k.shedOpen : penaltyValue(c) * k.shedPre;
     if (isJoker(c)) score -= 500;
+    if (k.tasteWeight) score -= k.tasteWeight * tasteMatches(c, k);
     // Was der nächste Spieler sammelt, behalten wir lieber (Blockieren)
     if (oppModel) score -= blockScale * nextPlayerRisk(state, pid, c, memory.signals);
     else for (const t of nextTaken) score -= blockPenalty(c, t.cands);
