@@ -39,7 +39,7 @@ function corr(a: number[], b: number[]): number | null {
 }
 
 // Ergebnis: je Variante und Anzahl bekannter Runden die Korrelationen
-const acc = new Map<string, { sum: number; n: number; unknown: number; cheftErr: number; cheftN: number }>();
+const acc = new Map<string, { sum: number; n: number; unknown: number; cheftErr: number; cheftN: number; hit: number; hitN: number }>();
 const key = (v: string, r: number) => `${v}|${r}`;
 
 for (let i = 0; i < games; i++) {
@@ -51,7 +51,7 @@ for (let i = 0; i < games; i++) {
     for (const [name, params] of variants) {
       for (let j = 1; j < 4; j++) {
         const m = opponentModel(g, 0, j, params);
-        const a = acc.get(key(name, done)) ?? { sum: 0, n: 0, unknown: 0, cheftErr: 0, cheftN: 0 };
+        const a = acc.get(key(name, done)) ?? { sum: 0, n: 0, unknown: 0, cheftErr: 0, cheftN: 0, hit: 0, hitN: 0 };
         if (!m) {
           a.unknown++;
           acc.set(key(name, done), a);
@@ -65,6 +65,23 @@ for (let i = 0; i < games; i++) {
           a.sum += r;
           a.n++;
         }
+        // Trefferquote: Ist die Hauptvorliebe eine Farbe oder eine Wertklasse, rät das Bild sie?
+        const main = truth.tastes.find((x) => x.weight >= 3.5 && !x.superstition);
+        if (main && m.detail >= 1) {
+          const sp = main.spec;
+          if (sp.kind === 'suit' && m.detail === 2) {
+            a.hitN++;
+            if (m.suit.indexOf(Math.max(...m.suit)) === ['H', 'D', 'C', 'S'].indexOf(sp.suit)) a.hit++;
+          } else if (sp.kind === 'range' && sp.range !== 'ace') {
+            a.hitN++;
+            const cls = { low: m.low, mid: m.mid, face: m.face };
+            const best = (Object.keys(cls) as ('low' | 'mid' | 'face')[]).reduce((x, y) => (cls[y] > cls[x] ? y : x));
+            if (best === sp.range) a.hit++;
+          } else if (sp.kind === 'color') {
+            a.hitN++;
+            if ((m.red > 0) === (sp.color === 'red')) a.hit++;
+          }
+        }
         const real = g.history.filter((h) => h.profiles?.[j]?.cheft).length / done;
         a.cheftErr += Math.abs(m.cheftRate - real);
         a.cheftN++;
@@ -75,7 +92,7 @@ for (let i = 0; i < games; i++) {
   simulate({
     seed: 91000 + i,
     rounds,
-    seats: Array.from({ length: 4 }, () => ({ level: 'normal' as const, style: 'balanced' as const, opts: { knobs: { taste: 'auto' as const } } })),
+    seats: Array.from({ length: 4 }, () => ({ level: 'normal' as const, style: 'balanced' as const, opts: { knobs: { taste: 'auto' as const, ...JSON.parse(process.env.TASTE_KNOBS ?? '{}') } } })),
     visit: (g) => {
       if (g.round.plies === 0) check(g);
     },
@@ -99,6 +116,14 @@ for (const [name] of variants) {
   const cells = Array.from({ length: rounds - 1 }, (_, k) => {
     const a = acc.get(key(name, k + 1));
     return (a && a.cheftN ? (a.cheftErr / a.cheftN).toFixed(2) : '–').padStart(14);
+  });
+  console.log(name.padEnd(16) + cells.join(''));
+}
+console.log('\nTrefferquote der Hauptvorliebe (Farbe, Wertklasse oder Rot/Schwarz; Zufall: Farbe 25 %, Klasse 33 %, Rot/Schwarz 50 %):');
+for (const [name] of variants) {
+  const cells = Array.from({ length: rounds - 1 }, (_, k) => {
+    const a = acc.get(key(name, k + 1));
+    return (a && a.hitN ? `${((100 * a.hit) / a.hitN).toFixed(0)} % (${a.hitN})` : '–').padStart(14);
   });
   console.log(name.padEnd(16) + cells.join(''));
 }
