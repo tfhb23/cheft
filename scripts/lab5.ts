@@ -9,7 +9,7 @@
  */
 import { appendFileSync } from 'node:fs';
 import { Spec, Summary, line, runSpecs } from './roles';
-import type { RoleId } from '../src/bot/roles';
+import { RoleId, SPICE } from '../src/bot/roles';
 import type { BotLevel } from '../src/engine/game';
 
 const set = process.argv[2] ?? 'roles';
@@ -68,6 +68,10 @@ if (set === 'opp') {
   for (const u of [5, -1]) runs.push({ specs: [lvl('master', u), same('master'), same('master'), same('master')] });
 }
 
+if (set === 'final') {
+  for (const id of ROLES) runs.push(solo(R(`${id} final (Würze)`, id, { roleOpts: { ...SPICE }, probeTaste: true })));
+}
+
 if (set === 'human') {
   for (const id of ROLES.slice(0, 5)) {
     runs.push(solo(R(`${id}`, id)));
@@ -96,7 +100,9 @@ for (const r of runs) {
   for (const k of r.show ?? [0]) {
     const s = sums[k] as Summary & { tasteBias?: number };
     const bias = Number.isFinite(s.tasteBias) ? ` | Vorlieben-Einfluss ${s.tasteBias!.toFixed(2)} Pkt` : '';
-    console.log(line(r.specs[k].name, sums[k]) + bias + `  (${secs.toFixed(0)} s)`);
+    const x = sums[k] as unknown as Record<string, number>;
+    const big = Number.isFinite(x.bigWin100) ? ` | ≥100 Vorsprung ${x.bigWin100.toFixed(1)}% ≥200 ${x.bigWin200.toFixed(1)}% | ≥200 Rückstand ${x.bigLoss200.toFixed(1)}%` : '';
+    console.log(line(r.specs[k].name, sums[k]) + bias + big + `  (${secs.toFixed(0)} s)`);
     if (out) appendFileSync(out, JSON.stringify({ set, spec: r.specs[k], games, rounds, sum: sums[k], ctl: sums[1], acc: accs[k] }) + '\n');
   }
 }
