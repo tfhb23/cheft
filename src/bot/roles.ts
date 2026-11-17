@@ -10,8 +10,10 @@
  *   Glücksritter  Cheft schon mit drei Paaren, aus Laune auch früher, hohes Risiko
  *   Wildcard      spielt jede Runde eine andere dieser Spielweisen (gleichverteilt, Wiederholungen möglich)
  */
+import type { GameState } from '../engine/game';
 import type { Knobs } from './bot';
 import { Persona, PersonaDef, persona } from './personas';
+import { standing } from './strategy';
 
 export type RoleId = 'balanced' | 'early' | 'cunning' | 'pairs' | 'gambler' | 'wildcard';
 export type StyleId = Exclude<RoleId, 'wildcard'>;
@@ -33,7 +35,8 @@ export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   early: { weighOpening: false, bold: false, ambition: 0, cheftEagerPairs: 99, pairTakeAt: 5 },
   cunning: { ambition: 0.8, tuning: { holdAt0: 0.2 } },
   pairs: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 1.8, ambition: 0.5 },
-  gambler: { cheftEagerPairs: 3, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
+  // Der Glücksritter ist vernünftig, solange er führt, und setzt alles auf Cheft (schon mit 3 Paaren), sobald er nicht mehr führt (siehe def)
+  gambler: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
 };
 
 /**
@@ -69,7 +72,8 @@ export interface RoleOptions {
 function def(id: StyleId, o: RoleOptions): PersonaDef {
   const knobs: Partial<Knobs> = { ...STYLE_KNOBS[id], oppUse: o.oppUse ?? 1, ...o.knobs };
   if (o.tastes ?? true) knobs.taste = 'auto';
-  return { id, label: ROLE_LABEL[id], knobs };
+  const adapt = id === 'gambler' ? (st: GameState, pid: number): Partial<Knobs> => (standing(st, pid).behind > 0 ? { cheftEagerPairs: 3 } : {}) : undefined;
+  return { id, label: ROLE_LABEL[id], knobs, adapt };
 }
 
 /** Die Rolle als Persona für `DecideOptions.persona`. Die Wildcard wählt jede Runde gleichverteilt eine Spielweise. */
