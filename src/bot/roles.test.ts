@@ -8,7 +8,7 @@ import { decideAction, inCompleteCombo } from './bot';
 import { MEMORY, MemoryParams } from './memory';
 import { OppModel, likes, opponentModel, tempoShift } from './opponents';
 import { resolvePersona as resolve } from './personas';
-import { RoleId, STYLE_IDS, rolePersona } from './roles';
+import { NEIGHBORS, RoleId, STYLE_IDS, describeRoleRounds, rolePersona, rolesPerRound } from './roles';
 import { simulate } from './simulate';
 import { TasteSet, TasteSpec, describeTasteSet, matches, tasteScore, tastesFor } from './tastes';
 
@@ -291,9 +291,9 @@ describe('Rollen', () => {
     expect(repeats).toBeGreaterThan(0);
   });
 
-  it('die Spielweisen halten ohne Rollentreue immer ihre Rolle', () => {
+  it('die Spielweisen halten ohne Würze (Treue 1) immer ihre Rolle', () => {
     for (const id of STYLE_IDS) {
-      const p = rolePersona(id);
+      const p = rolePersona(id, { loyalty: 1 });
       const g = testGame(4, 3);
       for (let round = 1; round <= 9; round++) {
         g.round.no = round;
@@ -322,6 +322,58 @@ function decideRoleActive(p: ReturnType<typeof rolePersona>, g: GameState, pid: 
   // Welche Spielweise ist in dieser Runde aktiv? Über resolvePersona (rein aus dem Zustand).
   return (resolve(p, g, pid) as { active: string }).active;
 }
+
+
+describe('Würze als Standard (Rollentreue 0,85, nur zu ähnlichen Rollen)', () => {
+  const sevenRounds = (seed: number): GameState => {
+    const g = testGame(4, 100003 + seed * 7919); // echte Spiele haben große Seeds
+    g.history = Array.from({ length: 7 }, () => ({}) as never);
+    return g;
+  };
+
+  it('weicht in etwa 15 % der Runden ab, und nur zu den vereinbarten Nachbarn', () => {
+    let total = 0;
+    let off = 0;
+    for (const id of STYLE_IDS) {
+      for (let seed = 0; seed < 120; seed++) {
+        for (const r of rolesPerRound(sevenRounds(seed), 1, id)) {
+          total++;
+          if (r !== id) {
+            off++;
+            expect(NEIGHBORS[id]).toContain(r);
+          }
+        }
+      }
+    }
+    expect(off / total).toBeGreaterThan(0.1);
+    expect(off / total).toBeLessThan(0.2);
+  });
+
+  it('der Frühvogel wird nie zum Glücksritter, der Glücksritter nie zum Frühvogel', () => {
+    for (let seed = 0; seed < 200; seed++) {
+      expect(rolesPerRound(sevenRounds(seed), 0, 'early')).not.toContain('gambler');
+      expect(rolesPerRound(sevenRounds(seed), 0, 'gambler')).not.toContain('early');
+    }
+  });
+
+  it('im Schnitt weicht ein Bot in 7 Runden etwa einmal ab; die Wahl ist je Spiel und Platz fest', () => {
+    let off = 0;
+    for (let seed = 0; seed < 200; seed++) off += rolesPerRound(sevenRounds(seed), 2, 'pairs').filter((r) => r !== 'pairs').length;
+    expect(off / 200).toBeGreaterThan(0.7);
+    expect(off / 200).toBeLessThan(1.4);
+    const a = rolesPerRound(sevenRounds(5), 2, 'pairs');
+    expect(rolesPerRound(sevenRounds(5), 2, 'pairs')).toEqual(a);
+  });
+
+  it('Text für die Endauswertung: Wildcard mit Zählung je Spielweise, andere mit „x von y Runden in Rolle“', () => {
+    const g = sevenRounds(11);
+    const w = describeRoleRounds(g, 1, 'wildcard');
+    expect(w).toMatch(/^(\d+× [A-Za-zäöüÄÖÜß]+)(, \d+× [A-Za-zäöüÄÖÜß]+)*$/);
+    expect(w.split(', ').reduce((n, part) => n + Number(part.split('×')[0]), 0)).toBe(7);
+    expect(describeRoleRounds(g, 1, 'early')).toMatch(/^[0-7] von 7 Runden in Rolle$/);
+    expect(describeRoleRounds(g, 1, 'early', { loyalty: 1 })).toBe('7 von 7 Runden in Rolle');
+  });
+});
 
 // ---------------------------------------------------------------- Schutz und Kein Mogeln
 

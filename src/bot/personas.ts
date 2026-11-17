@@ -64,7 +64,7 @@ export function resolvePersona(p: Persona, state: GameState, pid: number): Resol
   if (p.tilt !== 0) {
     const last = state.history[state.history.length - 1];
     if (last) {
-      const pen = last.scores[pid]?.total ?? 0;
+      const pen = last.scores?.[pid]?.total ?? 0;
       const heat = pen > 0 ? Math.min(1, pen / 100) : -0.3;
       ambition += p.tilt * 0.5 * heat;
     }

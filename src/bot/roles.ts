@@ -12,7 +12,7 @@
  */
 import type { GameState } from '../engine/game';
 import type { Knobs } from './bot';
-import { Persona, PersonaDef, persona } from './personas';
+import { Persona, PersonaDef, persona, resolvePersona } from './personas';
 import { standing } from './strategy';
 
 export type RoleId = 'balanced' | 'early' | 'cunning' | 'pairs' | 'gambler' | 'wildcard';
@@ -59,7 +59,7 @@ export interface RoleOptions {
   tastes?: boolean;
   /** Gegner-Gedächtnis nutzen, 0 bis 1 (Standard 1; was der Bot weiß, bestimmt seine Stufe). */
   oppUse?: number;
-  /** Rollentreue, Launen, Stimmung (Standard: aus). */
+  /** Rollentreue, Launen, Stimmung (Standard: SPICE, d. h. Treue 0,85, Launen 0,2, Stimmung 0,5; 1 / 0 / 0 schaltet die Würze ab). */
   loyalty?: number;
   /** Wohin eine Laune-Runde ausweicht: 'neighbors' (Standard, nur ähnliche Spielweisen) oder 'all'. */
   deviate?: 'neighbors' | 'all';
@@ -80,7 +80,34 @@ function def(id: StyleId, o: RoleOptions): PersonaDef {
 export function rolePersona(id: RoleId, o: RoleOptions = {}): Persona {
   const pool = STYLE_IDS.map((s) => def(s, o));
   const base = id === 'wildcard' ? pool[0] : def(id, o);
-  if (id === 'wildcard') return persona(base, { loyalty: 0, pool, jitter: o.jitter ?? 0, tilt: o.tilt ?? 0 });
+  const jitter = o.jitter ?? SPICE.jitter;
+  const tilt = o.tilt ?? SPICE.tilt;
+  if (id === 'wildcard') return persona(base, { loyalty: 0, pool, jitter, tilt });
   const allowed = o.deviate === 'all' ? pool.filter((d) => d.id !== id) : pool.filter((d) => NEIGHBORS[id as StyleId].includes(d.id as StyleId));
-  return persona(base, { loyalty: o.loyalty ?? 1, pool: allowed, jitter: o.jitter ?? 0, tilt: o.tilt ?? 0 });
+  return persona(base, { loyalty: o.loyalty ?? SPICE.loyalty, pool: allowed, jitter, tilt });
+}
+
+/**
+ * Welche Spielweise hat der Bot in jeder gespielten Runde gespielt? Rein aus Spiel und Runde berechnet (Wildcard wie Laune-Runden),
+ * für die Endauswertung. Der Bot auf Platz `pid` muss mit `rolePersona(id, o)` gespielt haben.
+ */
+export function rolesPerRound(state: GameState, pid: number, id: RoleId, o: RoleOptions = {}): StyleId[] {
+  const p = rolePersona(id, o);
+  const out: StyleId[] = [];
+  for (let r = 1; r <= state.history.length; r++) {
+    const st = { ...state, round: { ...state.round, no: r } };
+    out.push(resolvePersona(p, st, pid).active as StyleId);
+  }
+  return out;
+}
+
+/** Kurztext für die Endauswertung, z. B. „3× Glücksritter, 2× Gerissener, 1× Ausgewogen“ (Wildcard) oder „5 von 7 Runden in Rolle“. */
+export function describeRoleRounds(state: GameState, pid: number, id: RoleId, o: RoleOptions = {}): string {
+  const rounds = rolesPerRound(state, pid, id, o);
+  if (id === 'wildcard') {
+    const counts = new Map<StyleId, number>();
+    for (const r of rounds) counts.set(r, (counts.get(r) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${n}× ${ROLE_LABEL[r]}`).join(', ');
+  }
+  return `${rounds.filter((r) => r === id).length} von ${rounds.length} Runden in Rolle`;
 }

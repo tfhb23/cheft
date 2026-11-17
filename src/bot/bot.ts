@@ -80,6 +80,8 @@ export interface Knobs {
   handReach: number;
   /** Ab wie vielen Handkarten eines Gegners, der draußen ist, das Rundenende als nah gilt (Standard 2); dann zählt jeder Strafpunkt. */
   dangerHand: number;
+  /** Gefahrenmodus (alles Hohe abwerfen, wenn ein Gegner fast draußen ist) nur für Spieler, die selbst schon draußen sind (Standard aus). */
+  dangerOpenedOnly: boolean;
   /** Paar-Liebe: Skala des Behaltewerts von Paaren beim Abwerfen (Standard 1; Cheft-Sammler > 1, Rommé-Spieler < 1). */
   pairLove: number;
   /** Jagd auf den Tabellenführenden 0..1: bei Joker-Klau werden seine Auslagen bevorzugt, und seine Abwurf-Wünsche zählen stärker (Standard 0). */
@@ -145,6 +147,7 @@ export function knobsFor(profile: BotProfile): Knobs {
     blockWeight: 9,
     handReach: 4,
     dangerHand: 2,
+    dangerOpenedOnly: false,
     pairLove: 1,
     huntLeader: 0,
     tasteWeight: 0,
@@ -793,7 +796,7 @@ function masterDiscard(state: GameState, pid: number, pool: Card[], per: Percept
   const un = memory.unseen;
   const next = r.players[nextIndex(state, pid)];
   const nextTaken = memory.takes.filter((x) => x.player === nextIndex(state, pid));
-  const danger = endIsNear(state, pid, k.dangerHand);
+  const danger = endIsNear(state, pid, k.dangerHand) && (p.opened || !k.dangerOpenedOnly);
   const leader = k.huntLeader > 0 ? leaderOf(state, pid) : -1;
   const nextIdx = nextIndex(state, pid);
   const blockScale = k.blockWeight * (nextIdx === leader ? 1 + k.huntLeader : 1);

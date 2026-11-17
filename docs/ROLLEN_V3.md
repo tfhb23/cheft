@@ -168,7 +168,32 @@ Wunsch: eine Rolle mit extremen Ergebnissen, die nicht ständig verliert, sonder
 
 Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen gleich (z. B. Pärchenkönig 16 / 16 / 17 / 16 %): Rolle und Gedächtnis sind unabhängige Achsen.
 
-## 9. Vorschlag zur Übernahme
+## 9. Namen (24 Kombinationen)
+
+Tabelle in `src/bot/rolenames.ts` (`ROLE_NAMES`), geprüft in `rolenames.test.ts` (jede Kombination mindestens vier Namen, kein Name doppelt, `Q` und `Data` enthalten). Die Stufe färbt die Namen: Vergesslich naive, Normal Alltags-, Scharfsinnig kluge, Mastermind legendäre Figuren.
+Am Tisch sitzen höchstens drei Bots, die Namenswahl vergibt keinen Namen doppelt; vier Namen je Kombination reichen dafür immer. Für mehr Abwechslung über viele Spiele wären fünf bis sechs je Kombination schöner.
+
+| | Vergesslich | Normal | Scharfsinnig | Mastermind |
+|---|---|---|---|---|
+| **Ausgewogen** | Tünnes, Dursun, Bajie, Bolle | Effi, Memed, Genji, Botchan | Schäl, Dede, Zhou Yu, Çelebi | Faust, Danişmend, Sima Yi, Zeami, **Data** |
+| **Frühvogel** | Hans, Temel, Momotaro, Struwwel | Till, Bamsı, Kintaro, Hızır | Swinegel, Ferhat, Musashi, Tengu | Siegfried, Dede Korkut, Lü Bu, Yoshitsune |
+| **Gerissener** | Däumling, Keloğlan, Issun, Pumuckl | Krabat, Köroğlu, Gildong, Goemon | Reineke, Rumpelstilz, Nasreddin, Ne Zha, Kitsune | Eulenspiegel, Aladdin, Tanuki, Zhuge Liang |
+| **Pärchenkönig** | Moritz, Hacivat, Heungbu, Tahir | Max, Tamino, Baoyu, Mongryong | Hänsel, Kerem, Niulang, Tristan | Schahriyar, Mecnun, Liang Shanbo, Graf vom Strahl |
+| **Glücksritter** | Hieronymus, Hans im Glück, Lu Da, Kalender | Felix, Kaygusuz, Bahtiyar, Ebisu | Munk, Köse, Li Kui, Leverkühn | Wallenstein, Fortunatus, Ji Gong, Fukurokuju |
+| **Wildcard** | Rübezahl, Taugenichts, Momo, Schlemihl | Şahmeran, Kaguya, Karagöz, Peer Gynt | Mephisto, Tamamo, Merlin, Loki | **Q**, Sun Wukong, Proteus, Nüwa |
+
+Was sich gegenüber den alten Listen geändert hat und warum:
+
+- **Frühvogel** (alter Sprinter): Der Fuchs Reineke ist ein Schlauberger und ging zum Gerissenen; dafür kam **Swinegel** („Ick bün al hier!“, der Igel aus „Hase und Igel“, der schon am Ziel ist).
+- **Gerissener** (alter Jokerjäger): lauter Schelme und Schlauberger. Neu dabei **Reineke** und **Zhuge Liang** (statt Sarutahiko, der weniger bekannt ist).
+- **Pärchenkönig** (alter Cheft-Fan): Die Namen waren schon berühmte Paare (Max und Moritz, Hacivat und Karagöz, Tahir und Zühre, Hänsel und Gretel, Kerem und Aslı). Weil „Pärchenkönig“ männlich ist, stehen jetzt die männlichen Hälften der Paare darin; die weiblichen (Zühre, Chunhyang, Gretel, Aslı, Daiyu, Zhinü, Mulan, Zeynep, Scheherazade, Käthchen) sind frei und lassen sich für eine
+  weibliche Variante nutzen. Neu: Tamino (Zauberflöte), Mongryong, Niulang (Weberin und Kuhhirte), Tristan, **Schahriyar** (der König, dem Scheherazade erzählt), Liang Shanbo, Graf vom Strahl.
+- **Glücksritter** (alter Zocker): neu **Hans im Glück**, **Ebisu** und **Fukurokuju** (Glücksgötter), **Fortunatus** (Volksbuch mit dem Glückssäckel) statt Hasan Sabbah (Gründer der Assassinen, für eine Familienrunde ungünstig), Bahtiyar bedeutet „der Glückliche“.
+- **Wildcard** (neu): Gestaltwandler und Unberechenbare; Rübezahl, Mephisto, Sun Wukong, Proteus, Tamamo (Fuchsgeist), Şahmeran (Schlangenkönigin), dazu **Q** aus Star Trek: Das nächste Jahrhundert (allmächtiger Verwandler und Unberechenbarer) als Mastermind-Wildcard.
+- **Data** (Star Trek TNG): Mastermind-Ausgewogener. Er passt dort am besten: perfektes Gedächtnis (Mastermind), nüchtern ohne Gefühlsschwankung und ohne Vorliebe für Risiko (Ausgewogen); als Gerissener wäre er zu listig, als Frühvogel zu hastig.
+- Nicht mehr verwendet (frei für spätere Rollen): die Namen der gestrichenen Spielweisen Blocker (z. B. Hagen, Brunhild, Guan Yu, Nobunaga), Zähler (Humboldt, Piri Reis, Kongming, Emil) und Handmacher (Siddhartha, Parzival, Miyamoto, Wotan).
+
+## 10. Vorschlag zur Übernahme
 
 **Übernehmen:**
 
@@ -193,7 +218,7 @@ Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen
 4. Spielstand: `history[].profiles` ist neu (optional). Spielstand-Code und Server-Kopie werden etwas größer (siehe 8).
 5. Danach `npm run calibrate` kontrollieren (Ziel für die Stufen etwa 17 / 23 / 28 / 32 %).
 
-## 10. Technische Anmerkungen
+## 11. Technische Anmerkungen
 
 - **Rechenzeit** (Ruhezustand, 9 Runden, 4 Bots): Median 0,6 ms je Entscheidung, 99 % unter 11 ms, 99,9 % unter 31 ms, Maximum 130 bis 334 ms. Das Gegner-Gedächtnis macht keinen Unterschied (0,58 gegen 0,60 ms). Die 874 ms im Dauertest waren Last durch parallele Läufe.
 - **Spielstandgröße:** Die Rundenprofile machen den Spielstand (JSON) bei 9 Runden um etwa 5,8 KB größer (17,7 statt 11,9 KB), bei 7 Runden etwa 4,5 KB. Der Spielstand-Code im Menü und die verschlüsselte Server-Kopie werden entsprechend größer.
@@ -202,7 +227,7 @@ Cheft-Anteil und Züge bis zur Erstmeldung sind in jeder Zeile über alle Stufen
 - Neue Regler in `Knobs` (Standard = bisheriges Verhalten): `shedPre`, `shedOpen`, `blockWeight`, `handReach`, `dangerHand`, `pairLove`, `huntLeader`, `setLove`, `runLove`, `taste`, `tasteScale`, `tasteBand`, `tasteProt`, `oppUse`, `oppTempo`.
   Neue Gedächtniswerte: `oppObserve`, `oppDetail`, `oppSpan`, `oppAccuracy`.
 
-## 11. Werkzeuge
+## 12. Werkzeuge
 
 | Befehl | Zweck |
 |---|---|
