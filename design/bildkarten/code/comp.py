@@ -27,6 +27,13 @@ def emphasize(L,mode):
         for (x,y) in src:
             if not occ(x,y+1) or not occ(x+1,y): L.put(x,y,col)
     return L
+def _shift(L,dx):
+    n=Layer(); n.im.paste(L.im,(dx,0)); n.p=n.im.load(); return n
+def _clip_body(L,xmin,xmax=23):
+    """Kleidung (Schulter) links ab xmin und rechts ab xmax abschneiden; rechts zusätzlich 1 Pixel Lücke zum Buchstaben unten rechts (Spalte >=23, Zeile 33 bis 41)."""
+    for y in range(H):
+        for x in range(W):
+            if x<xmin or x>xmax or (x>=23 and 33<=y<=41): L.p[x,y]=(0,0,0,0)
 def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
@@ -75,7 +82,7 @@ def compose(suit,spec,emph='ohne'):
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
-    lift=spec.get('lift',0)
+    lift=spec.get('lift',0); dx=spec.get('dx',0)
     F=Layer() if lift else L          # Person (Kopf, Hut, Haare ...) getrennt vom Körper, damit sie angehoben werden kann
     ov={}; td=spec.get('tiefe','B')
     if td and td!='aus':
@@ -90,11 +97,17 @@ def compose(suit,spec,emph='ohne'):
         sh=Layer(); sh.im.paste(F.im,(0,-lift)); sh.p=sh.im.load()
         if td and td!='aus':
             import tiefe; tiefe.body(L,lambda x,y: 0<=x<W and 0<=y<H and sh.p[x,y][3]>0,spec['dyn'].get('xmin',8))
+        if dx:                                  # Layout v3: Person um dx Pixel verschieben; nur die Kleidung wird links/rechts neu abgeschnitten
+            L=_shift(L,dx); _clip_body(L,8+dx); sh=_shift(sh,dx)
+            for y in range(H):                  # 1 Pixel Abstand der Person zu den Index-Symbolen (links oben Spalte 3-9, unten rechts sichtbar ab Spalte 25)
+                for x in range(W):
+                    if (x<=10 and 10<=y<=18) or (x>=24 and y>=25): sh.p[x,y]=(0,0,0,0)
         L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):
         if lift:
             sp2=Layer(); sp2.im.paste(PX.im,(0,-lift)); sp2.p=sp2.im.load(); PX=sp2
+        if dx: PX=_shift(PX,dx)
         out.over(PX)
     return out
 import colorsys
@@ -157,7 +170,9 @@ def card(suit,rank,spec,emph='ohne',sym='ref'):
     spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
-    if sym in ('cut1','symmA','symm','symm0'): x1=24 if sym!='symm0' else 23
+    if sym in ('cut1','symmA','symm','symm0','v3'): x1=24 if sym!='symm0' else 23
+    if sym=='v3':                                                           # Layout v3: Index links oben ganz sichtbar (Symbol 7 breit, Spalte 3 bis 9) -> Fenster beginnt erst ab Spalte 10
+        x0=10; spec=dict(spec,dx=2,dyn=dict(spec['dyn'],notch_left=False))   # Person 2 Pixel verschoben, kein Symbol unten links
     if sym in ('symm','symm0'):
         sl=Layer(); sl.mask(rot(SH[suit]),3,26,inkOf(suit)); c.over(sl)   # Symbol unten links, spiegelbildlich zum Symbol unten rechts
     win=Layer(); win.rect(x0,y0,x1,y1,C['cream'])
