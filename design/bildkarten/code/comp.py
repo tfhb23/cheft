@@ -51,9 +51,9 @@ def compose(suit,spec,emph='ohne'):
     L=bust.dyn_body(suit,spec['dyn']) if spec.get('dyn') else Layer()
     lift=spec.get('lift',0)
     F=Layer() if lift else L          # Person (Kopf, Hut, Haare ...) getrennt vom Körper, damit sie angehoben werden kann
-    ov={}
-    if spec.get('tiefe'):
-        import tiefe; ov=tiefe.apply(grid,cm,spec['tiefe'])
+    ov={}; td=spec.get('tiefe','B')
+    if td and td!='aus':
+        import tiefe; ov=tiefe.apply(grid,cm,td)
     for y,row in grid.items():
         for x,ch in enumerate(row):
             if ch!='.' and ch in cm: F.put(8+x,y,ov.get((x,y),cm[ch]))
@@ -61,13 +61,33 @@ def compose(suit,spec,emph='ohne'):
     for (px_,py_,ch_) in spec.get('px',[]):
         if ch_ in cm: (PX if spec.get('px_after') else F).put(px_,py_,cm[ch_])
     if lift:
-        sh=Layer(); sh.im.paste(F.im,(0,-lift)); sh.p=sh.im.load(); L.over(sh)
+        sh=Layer(); sh.im.paste(F.im,(0,-lift)); sh.p=sh.im.load()
+        if td and td!='aus':
+            import tiefe; tiefe.body(L,lambda x,y: 0<=x<W and 0<=y<H and sh.p[x,y][3]>0,spec['dyn'].get('xmin',8))
+        L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):
         if lift:
             sp2=Layer(); sp2.im.paste(PX.im,(0,-lift)); sp2.p=sp2.im.load(); PX=sp2
         out.over(PX)
     return out
+import colorsys
+def _cream_shadow():
+    r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
+    r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
+def outer_shadow(c,fig):
+    """Dezenter Schlagschatten außen (rechts/unten), in abgedunkeltem Kartencreme statt Grau; berührt keine Buchstaben/Symbole."""
+    col=_cream_shadow(); occ=lambda x,y: 0<=x<W and 0<=y<H and fig.p[x,y][3]>0
+    cream=lambda x,y: 0<=x<W and 0<=y<H and c.p[x,y][:3]==C['cream'] and c.p[x,y][3]>0
+    sh=Layer()
+    for y in range(H):
+        for x in range(W):
+            if not occ(x,y): continue
+            for dx,dy in ((1,0),(0,1),(1,1)):
+                u,v=x+dx,y+dy
+                if occ(u,v) or not cream(u,v) or not 8<=u<=23: continue
+                if all(occ(a,b) or cream(a,b) for a in (u-1,u,u+1) for b in (v-1,v,v+1)): sh.put(u,v,col)
+    c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
@@ -77,7 +97,8 @@ def card(suit,rank,spec,emph='ohne',sym='ref'):
     win=Layer(); win.rect(x0,y0,x1,y1,C['cream'])
     if sym=='symm': win.rect(7,24,8,32,C['cream'])                          # links unten ebenfalls 1 Pixel Lücke (wie rechts), oben links bleibt unverändert
     c.over(win)
-    fig=compose(suit,spec,emph)
+    fig=compose(suit,spec,'ohne' if emph!='alt' else 'schlagschatten')
+    if emph!='alt': outer_shadow(c,fig)
     if sym=='schulter':
         for yy in range(H): fig.p[23,yy]=(0,0,0,0)
     c.over(fig); return c.im

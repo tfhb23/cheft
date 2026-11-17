@@ -8,7 +8,7 @@ def spec_of(k):
     return PERSONEN[k]
 def rend(k,v):
     s,r,sp=spec_of(k); sp=copy.deepcopy(sp)
-    if v: sp['tiefe']=v
+    sp['tiefe']=v or 'aus'
     return render(s,r,sp)
 def main(out):
     os.makedirs(out,exist_ok=True)
