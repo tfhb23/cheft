@@ -30,7 +30,7 @@ def emphasize(L,mode):
 def compose(suit,spec,emph='ohne'):
     """spec: dict(body,back,hair,beard,hat,extra,acc,pal) -> Layer (nur Figur, kartenabsolut)"""
     pal=spec.get('pal',{}); cm=letters(suit,pal)
-    import tiefe as _t; cm['t']=_t.lo(cm['S'])      # Nase per Formel aus der Hautfarbe
+    import tiefe as _t; cm['t']=_t.nase(cm['S'])      # Nase per Formel aus der Hautfarbe
     cm['k']=_t.glanz(cm['K'])                       # Zylinder-Glanz per Formel (früher Handfarbe 5a4d44)
     la=spec.get('lip',LIPS[0])                       # Lippen: Rot (1.14) mit Deckkraft über dem Hautton (Frauen intensiver)
     cm['M']=tuple(round(cm['S'][i]*(1-la)+C['red'][i]*la) for i in range(3))

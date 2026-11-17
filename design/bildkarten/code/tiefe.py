@@ -83,3 +83,7 @@ def fold(c):
 def glanz(c):
     """Ersatz für den Zylinder-Glanzstreifen: hellere Stufe von Schwarz per Formel."""
     return hsl_shift(c,+0.17,0.90)
+
+def nase(skin):
+    """Nase: dunklere Stufe des Hauttons (immer aus dem Hautton darunter)."""
+    return hsl_shift(skin,-0.18,1.00)
