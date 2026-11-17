@@ -119,10 +119,10 @@ def dyn_body(suit,p):
         dcol={'g3':GOLD2,'g6':C['inkL'],'g7':C['red'],'g5u':p.get('upper',C['inkL'])}.get(p.get('gold','g1'),GOLD2)
         for (x,y) in clipped(dark,xm,nl): L.put(x,y,dcol)
         if SHADE_PX:   # Schattenlinien: bei dunkler Kleidung aufgehellt, bei heller abgedunkelt (Formel)
-            from tiefe import hsl_shift
+            from tiefe import hsl_shift, glanz
             import colorsys
             lum=colorsys.rgb_to_hls(*[v/255 for v in robe[:3]])[1]
-            sc=hsl_shift(robe,+0.14,0.9) if lum<0.3 else hsl_shift(robe,-0.13,1.10)
+            sc=glanz(robe) if lum<0.3 else hsl_shift(robe,-0.13,1.10)
             for (x,y) in clipped(set(SHADE_PX),xm,nl): L.put(x,y,sc)
         for (x,y) in clipped(gold,xm,nl): L.put(x,y,C['gold'])
         return L

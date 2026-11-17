@@ -19,10 +19,10 @@ D={ # Familie: [(hex, Element, Personen, formel?)]
 'Kreuz':[('23201f','Schwarz: Kleidung, Augen, Federkappe','alle',0),('f2b53a','Gold: Saumlinien, Krone, Diadem, Falkenzeichnung','alle',0),
  ('d2362a','Rot: Edelsteine, Mund der Damen','Dame A, Dame B, König',0),('ffffff','Weiß: Hermelin, Perlen','Bube B, Dame A',0),
  ('5a3a24','Braunes Haar, Brauen und Schnurrbart (ein Braun)','alle',0),('%s'%h6(tiefe.lo(BR)),'Braun −0,13: Strähnen der Zopfkrone','Dame B',1),('%s'%h6(tiefe.hi(BR)),'Braun +0,12: Falke Körper','Bube A',1),('efe2c6','Falke: Brust (Guide 1.06 Sand)','Bube A',0),('f3cfae','Haut','alle',0),('d05a4a','Lippen','Bube A, Bube B, König',0),('%s'%h6(tiefe.lo(SKIN)),'Haut −0,13: Nase (aus dem Hautton)','König, Bube A',1),
- ('484341','Schwarz +0,14: Saumschattenlinien','Bube A, Bube B, Dame A, Dame B',1)],
+ ('514a48','Schwarz +0,17: Saumlinien und Zylinderglanz (eine Formel)','Bube A, Bube B, Dame A, Dame B',1)],
 'Pik':[('23201f','Schwarz: Kleidung, Zylinder, Melone, Brillen, Augen, Schnurrbart','alle',0),('ffffff','Weiß: Haare','Bube, Dame, König',0),
  ('f2b53a','Gold: Saumlinien, Monokelrand, Zylinderschnalle','alle',0),('d2362a','Rot: Hutbänder, Mund der Dame','Dame, König, König Zwilling',0),
- ('f6dfca','Haut (blass)','alle',0),('d05a4a','Lippen','Bube, König, König Zwilling',0),('%s'%h6(tiefe.lo(SKINP)),'Haut −0,13: Nase','König Zwilling',1), ('484341','Schwarz +0,14: Saumschattenlinien','Bube, Dame',1),('514a48','Schwarz +0,17: Zylinderglanz','Dame, König, König Zwilling',1)],
+ ('f6dfca','Haut (blass)','alle',0),('d05a4a','Lippen','Bube, König, König Zwilling',0),('%s'%h6(tiefe.lo(SKINP)),'Haut −0,13: Nase','König Zwilling',1), ('514a48','Schwarz +0,17: Saumlinien und Zylinderglanz (eine Formel)','Bube, Dame, König, König Zwilling',1)],
 }
 def main(path):
     rh=26; hh=34; gap=12; W_=980
