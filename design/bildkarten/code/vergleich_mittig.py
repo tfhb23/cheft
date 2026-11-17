@@ -4,8 +4,9 @@ import os,sys
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image, ImageDraw
 from final_layout import *
-def render_mid(k):
-    s,r,sp=final_spec(k); return card(s,r,sp,'schlagschatten','v6a')
+def render_mid(k): return render_final(k,'v6a')
+import colorsys
+def hell(p): return colorsys.rgb_to_hls(*[v/255 for v in p[:3]])[1]>0.8      # Weiß/sehr Helles darf anstoßen
 def contacts(k):
     s,r,sp=final_spec(k); im=render_mid(k).convert('RGBA'); px=im.load(); ink=inkOf(s)
     bare=base(); idx=index_layer(s,r); bare.over(idx); bare.over(idx.rot())
@@ -14,17 +15,17 @@ def contacts(k):
     t=[]
     for y in range(H):
         for x in range(W):
-            if px[x,y]!=bp[x,y] and (x,y) not in vis:
+            if px[x,y]!=bp[x,y] and (x,y) not in vis and not hell(px[x,y]):
                 if any((dx or dy) and (x+dx,y+dy) in vis for dy in (-1,0,1) for dx in (-1,0,1)): t.append((x,y))
     overlap=[(x,y) for (x,y) in vis if px[x,y][:3]!=ink]    # Symbol wird verdeckt
     return t,overlap
 def main(out):
     os.makedirs(out,exist_ok=True); keys=personen(); S=5; cw,ch=W*S,H*S; pad=12; cols=4; rows=(len(keys)+cols-1)//cols; gw=2*cw+8
     im=Image.new('RGB',(pad+cols*(gw+pad),40+rows*(ch+22+pad)),BG); d=ImageDraw.Draw(im)
-    d.text((pad,8),'links: Person 2 px rechts (bisher) | rechts: wieder mittig. Rot = berührt das Symbol links oben',fill=INK,font=FONTB)
+    d.text((pad,8),'links: Person 2 px rechts (bisher) | rechts: wieder mittig. Blau = berührt (nur Dunkles zählt) das Symbol links oben',fill=INK,font=FONTB)
     for i,k in enumerate(keys):
         t,ov=contacts(k); x=pad+(i%cols)*(gw+pad); y=40+(i//cols)*(ch+22+pad)
-        for j,m in enumerate((render_final(k),render_mid(k))):
+        for j,m in enumerate((render_final(k,'v5a'),render_mid(k))):
             b=m.resize((cw,ch),Image.NEAREST); im.paste(b,(x+j*(cw+8),y),b)
         x2=x+cw+8
         for (px_,py_) in t+ov: d.rectangle([x2+px_*S,y+py_*S,x2+px_*S+S-1,y+py_*S+S-1],outline=(0,120,255))

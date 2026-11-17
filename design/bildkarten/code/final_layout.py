@@ -14,11 +14,15 @@ SHRINK={
  'karo_bube':[('down',[8,10]),('sq',5,13,[3]),('del',13,17,[5])],    # Fez-Unterkante gleich breit wie der Fez, Haar nicht breiter als das Gesicht
  'pik_dame':[('sq',12,27,[6]),('up',[25,26])],
  'herz_dame_a':[('sq',6,31,[7]),('up',[28,29])],
+ 'kreuz_bube_a':[('del',13,13,[6])],                                  # Hutkrempe links/rechts 1 px kürzer (stößt sonst ans Symbol)
+ 'kreuz_dame_b':[('del',11,13,[6]),('del',15,17,[6])],                # Zopfkrone/Haarkante links/rechts 1 px kürzer
 }
+SHRINK['pik_koenig_zwilling']=SHRINK['pik_koenig_zwilling']+[('del',13,13,[6])]   # Zylinderkrempe 1 px kürzer
+MODE='v6a'      # Person mittig (v5a = 2 px nach rechts)
 def final_spec(k):
     s,r,sp=spec_of(k); return s,r,dict(sp,shrink=SHRINK.get(k,[]),chin=True)
-def render_final(k):
-    s,r,sp=final_spec(k); return card(s,r,sp,'schlagschatten','v5a')
+def render_final(k,mode=None):
+    s,r,sp=final_spec(k); return card(s,r,sp,'schlagschatten',mode or MODE)
 def blank_card(s,r):
     c=base(); idx=index_layer(s,r); c.over(idx); c.over(idx.rot()); return c.im
 def main(out):
