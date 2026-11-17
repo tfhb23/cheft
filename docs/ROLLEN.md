@@ -1,5 +1,7 @@
 # Bot-Rollen: Befund, Vorschlag und Messungen
 
+> Weiterentwicklung (beschlossene 5 Spielweisen + Wildcard, Vorlieben, Gegner-Gedächtnis): [ROLLEN_V3.md](ROLLEN_V3.md).
+
 Stand: Ergebnis der Rollen-Untersuchung (Branch `ccr-a08d65f5-lqevpy`). Alles Folgende ist **Entwurf**: In der App ist nichts umgestellt,
 das bisherige Verhalten der Bots ist bitgleich erhalten (geprüft mit 120 Spielen vor und nach dem Umbau, siehe `scripts/regress.ts`).
 
