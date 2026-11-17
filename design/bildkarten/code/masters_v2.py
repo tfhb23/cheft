@@ -20,7 +20,7 @@ MASTERS_V2={n:spec_v2(n) for n in _M}
 
 # ---- Ergänzung: KK4 (Karo König Kalif) und KD4 (Karo Dame Juwelenkönigin), mit denselben v2-Anpassungen
 from masters import KING_DYN, DAME_DYN, mk
-GOLD2=hx('c8902a'); DIAM=hx('e4f2ff')
+GOLD2=hx('c8902a'); DIAM=__import__('tiefe').hsl_shift(C['white'],-0.06,1.0)   # Diamantweiß = Weiß 1.24 per Formel (L -0,06)
 _extra={
  'karo_koenig':('D',13,'schlagschatten',mk('turban_zweistufig','lang','kurz',('brauen',),KING_DYN,A=C['gold'],a=GOLD2,J=DIAM)),
  'karo_dame':  ('D',12,'schlagschatten',mk(['diadem_gross','ohrringe'],'keiner','hochsteck',(),DAME_DYN,J=DIAM,M=C['red'])),

@@ -14,7 +14,7 @@ D={ # Familie: [(hex, Element, Personen, formel?)]
  ('a12219','Rot −0,13: Saumschattenlinien','Bube A, Bube B, Dame A, Dame B',1),('cccccc','Weiß −0,20: Turban- und Schleierfalten','Bube B, Dame A, König',1)],
 'Karo':[('d2362a','Rot: Kleidung, Fez, Mund der Dame','alle',0),('23201f','Schwarz: Augen, Brauen','alle',0),('f2b53a','Gold: Saumlinien, Turban, Diadem, Fezquaste, Ohrringe','alle',0),
  ('d7ad54','Haar, Bart und Brauen (Sandblond)','Bube, Dame, König',0),('%s'%h6(tiefe.lo(SKIN)),'Haut −0,13: Nase','König',1),('f3cfae','Haut','alle',0),('d05a4a','Lippen','Bube, König',0),
- ('e4f2ff','Diamantweiß: Juwelen im Diadem und Turban','Dame, König',0),
+ ('f0f0f0','Weiß 1.24 −0,06: Juwelen im Diadem und Turban','Dame, König',1),
  ('a12219','Rot −0,13: Fezfalte, Saumschattenlinien','Bube, Dame',1),('e59b04','Gold −0,13: Turbanfalten','König',1)],
 'Kreuz':[('23201f','Schwarz: Kleidung, Augen, Federkappe','alle',0),('f2b53a','Gold: Saumlinien, Krone, Diadem, Falkenzeichnung','alle',0),
  ('f06a2d','Cheft-Orange 1.10: Edelsteine','Dame A, König',0),('ffffff','Weiß: Hermelin, Perlen','Bube B, Dame A',0),

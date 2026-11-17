@@ -49,6 +49,22 @@ def compose(suit,spec,emph='ohne'):
     for e in spec.get('extra',[]): layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
     for a in spec.get('acc',[]): layers.append(P.ACC[a])
     grid=P.merge(*layers)
+    st=spec.get('eye',EYE)
+    if st and 16 in grid:                       # Augenfarbe (Varianten S1 bis S4, siehe EYE)
+        import tiefe as _te
+        r=list(grid[16]); eyes=[i for i,chh in enumerate(r) if chh=='E']
+        ic=(_te.hsl_shift(HAIR[suit],-0.25,1.0) if suit!='S' else C['ink']) if st=='S1' else EYE_COL[suit]
+        cm['#']=ic; cm['!']=C['white']; cm['~']=_te.lo(cm['S'])
+        for i in eyes: r[i]='#'
+        if st=='S3':
+            for i in eyes:
+                if r[i-1]=='S': r[i-1]='!'
+        grid[16]=''.join(r)
+        if st=='S4' and 15 in grid:
+            r5=list(grid[15])
+            for i in eyes:
+                if r5[i]=='S': r5[i]='~'
+            grid[15]=''.join(r5)
     if spec.get('mouth2') and 20 in grid:      # Lippen nur 2 px breit (Mitte, Spalten 7 und 8)
         r=list(grid[20]); idx=[i for i,ch in enumerate(r) if ch=='M']
         if idx:
@@ -86,6 +102,8 @@ def _cream_shadow():
     r,g,b=[v/255 for v in C['cream']]; h,l,s=colorsys.rgb_to_hls(r,g,b)
     r,g,b=colorsys.hls_to_rgb(h,l-0.075,s); return (round(r*255),round(g*255),round(b*255))
 LIPS=(0.50,0.90)   # (Männer, Frauen): Deckkraft von Rot auf dem Hautton
+EYE=None   # Augen: None = Tinte | S1 1 px aus Haarfarbe dunkler | S2 1 px Familienfarbe | S3 2 px Weiß+Iris | S4 1 px Familienfarbe + Lidschatten
+EYE_COL=dict(H=hx('4b2e18'),D=hx('3f5a3a'),C=hx('2f4a6b'),S=hx('4a5a6e'))
 WHITE='W2'    # Weiß hervorheben: W1 nur Formel | W2 Innenkante rechts/unten | W3 dünne Außenkontur (4 Seiten) | W4 W2+W3
 def white_edge(c,fig):
     if WHITE=='W1': return
