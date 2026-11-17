@@ -116,7 +116,7 @@ def dyn_body(suit,p):
     if str(p.get('shape','')).startswith('sy_'):
         body,gold,dark=full_shape(p); L=Layer(); robe=inkOf(suit); xm=p.get('xmin',4); nl=p.get('notch_left',False)
         for (x,y) in clipped(body,xm,nl): L.put(x,y,robe)
-        dcol={'g3':GOLD2,'g6':hx('b9b3ad'),'g7':hx('d2362a'),'g5u':p.get('upper',hx('b9b3ad'))}.get(p.get('gold','g1'),GOLD2)
+        dcol={'g3':GOLD2,'g6':C['inkL'],'g7':C['red'],'g5u':p.get('upper',C['inkL'])}.get(p.get('gold','g1'),GOLD2)
         for (x,y) in clipped(dark,xm,nl): L.put(x,y,dcol)
         if SHADE_PX:   # Schattenlinien: bei dunkler Kleidung aufgehellt, bei heller abgedunkelt (Formel)
             from tiefe import hsl_shift

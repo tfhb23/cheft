@@ -2,10 +2,16 @@ import re
 from PIL import Image, ImageDraw, ImageFont
 W,H=32,44
 def hx(s): s=s.lstrip('#'); return tuple(int(s[i:i+2],16) for i in (0,2,4))
-C=dict(ink=hx('23201f'),cream=hx('fbf6ea'),red=hx('d2362a'),redL=hx('f2b9ad'),inkL=hx('b9b3ad'),
- skin=hx('f3cfae'),mouth=hx('d05a4a'),white=hx('ffffff'),gold=hx('f2b53a'),orange=hx('f06a2d'),orangeD=hx('b94718'))
-HAIR=dict(H=hx('6b3f22'),D=hx('e8b23a'),C=hx('2b2b2b'),S=hx('8a4a2a'))
-BEARD=dict(H=hx('4e2c16'),D=hx('b3832a'),C=hx('1a1a1a'),S=hx('6a3620'))
+import os as _os
+# Farben kommen aus dem Design Guide der App (src/ui/tokens.ts, Palette 1.xx). Ändert sich dort ein Wert, ändern sich die Figuren mit.
+_TOK=_os.path.join(_os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),'..','..','..')),'src','ui','tokens.ts')
+if not _os.path.exists(_TOK): _TOK='/home/user/cheft/src/ui/tokens.ts'
+_PAL=dict(re.findall(r"\{ id: '(1\.\d\d)', css: '[^']+', name: '[^']+', value: '(#[0-9a-fA-F]{6})'",open(_TOK).read()))
+def T(i): return hx(_PAL[i])
+GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',gold='1.13',red='1.14',inkL='1.20',redL='1.21',skin='1.22',mouth='1.23',white='1.24')
+C={k:T(v) for k,v in GUIDE_IDS.items()}
+HAIR=dict(H=T('1.26'),D=T('1.27'),C=T('1.28'),S=T('1.29'))
+BEARD=dict(H=T('1.30'),D=T('1.31'),C=T('1.32'),S=T('1.33'))
 
 import os
 _ROOT=os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..'))
