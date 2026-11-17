@@ -7,7 +7,7 @@ import { Action, applyAction } from '../src/engine/actions';
 import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '../src/engine/game';
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
-import { BotChoice, resolveBots } from '../src/bot/names';
+import { BotChoice, resolveBots, sanitizeChoice } from '../src/bot/names';
 import { FORGOTTEN_NAMES } from '../src/ui/names';
 
 export type Speed = 'normal' | 'fast';
@@ -155,7 +155,7 @@ export class Room {
     if (this.started) return fail('net.alreadyStarted');
     if (this.seats.length >= MAX_PLAYERS) return fail('net.full');
     const pid = this.seats.length;
-    this.seats.push({ pid, name: `Bot ${pid}`, isBot: true, botChoice: choice, connected: true });
+    this.seats.push({ pid, name: `Bot ${pid}`, isBot: true, botChoice: sanitizeChoice(choice), connected: true });
     this.touch();
     return ok;
   }
@@ -164,7 +164,7 @@ export class Room {
     if (this.started) return fail('net.alreadyStarted');
     const seat = this.seats[pid];
     if (!seat || !seat.isBot) return fail('net.noSuchSeat');
-    seat.botChoice = choice;
+    seat.botChoice = sanitizeChoice(choice);
     this.touch();
     return ok;
   }

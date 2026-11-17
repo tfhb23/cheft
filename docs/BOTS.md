@@ -129,26 +129,20 @@ Neustart aus JSON, Erinnerung (Mastermind gleich Referenzrechnung), Teppichkarte
 | `npm run sensitivity -- 640 7` | ein veränderter Testbot gegen drei perfekte: Wie stark schadet ein Regler? |
 | `npm run soak -- 5000 [Start]` | Dauertest mit zufälligen Einstellungen (2 bis 4 Spieler, 1 bis 9 Runden, Erstzug gesperrt/erlaubt, alle Stufen und Rollen); prüft Regeln, Kartenzahl, Reinheit, Determinismus, „kein Mogeln“, Neustart aus JSON, Erinnerung, Teppichkarte, Rechenzeit |
 
-## 7. Offen: für die Rollen (nächster Chat)
+## 7. Rollen: erledigt, und was später ansteht
 
-> **Bearbeitet:** Befund, Messungen und Vorschlag für 6 Rollen stehen in [ROLLEN.md](ROLLEN.md). Die Liste unten ist der Stand davor.
+**Erledigt** (Details in [ROLLEN_V3.md](ROLLEN_V3.md)): Die alten acht Spielweisen sind durch fünf Spielweisen und die Wildcard ersetzt (Ausgewogen, Frühvogel, Gerissener, Pärchenkönig, Glücksritter, Wildcard), mit Rollentreue-Würze, Vorlieben, Gegner-Gedächtnis pro Spiel,
+Namenstabelle (188 Namen) und Aufdecken am Spielende. Beide Schwächen der Grundstrategie sind behoben (Gefahrenmodus nur für Spieler draußen, kein Abwerfen von Hochkarten vor der Erstmeldung). Alte Spielstände und Einstellungen mit den alten Spielweisen werden abgebildet
+(Sprinter → Frühvogel, Cheft-Fan → Pärchenkönig, Jokerjäger → Gerissener, übrige → Ausgewogen).
 
-1. **Spielweisen kritisch hinterfragen** (so war es vereinbart, sobald die Stufen klar sind). Bekannte Befunde:
-   - **`blocker` und `counter` haben derzeit keine Wirkung auf den Abwurf.** Sie wirken nur im alten Abwurfzweig (`chooseDiscard`, Zeilen
-     nach `if (k.counting) return ...`), der seit der Umstellung nie mehr erreicht wird, weil alle Stufen über das Gedächtnis abwerfen. Das
-     Blocken übernimmt jetzt für alle das Gegner-Gedächtnis. Der Zweig kann gelöscht oder die Rollen können neu belebt werden.
-   - `sprinter` setzt nur Werte, die ab Normal ohnehin Standard sind (ist praktisch identisch mit Ausgewogen).
-   - Wirksam sind `cheft` (cheftEagerPairs, pairTakeAt), `hand` (handHunter), `joker` (jokerHunter, burn, steal) und `gambler`
-     (Zufall bei Cheft-Entscheidungen), außerdem `openMargin`, `takeDiscardToOpen`, `layAll`, `steal`, `master` (Erstmeldung ohne Joker),
-     `patient` (auf die Teppichkarte warten), `ambition`, `bold`, `weighOpening`, `tuning`.
-2. **Wildcard**: eine Rolle, die in jeder Runde komplett andere Werte hat (unberechenbar). Passt zu `ambition`, `tuning` und den
-   Gedächtnis-Überschreibungen (`opts.memory`), die pro Runde gewürfelt werden könnten.
-3. **Rollenabhängige Unschärfe** („nie zu 100 % die Rolle“): z. B. ein Sprinter kommt nicht bei jedem Mal an der Hürde raus, sondern
-   sammelt früh auch mal mehr oder spielt (selten) auf Hand oder Cheft, je nach Handkarten.
-4. **Mastermind-Extras über Rollen**: Joker schonen bei der Erstmeldung (`master`), auf die Teppichkarte warten (`patient`) und das
-   Spielende vorausahnen (läuft jetzt für alle über den Abwurf). Sie hingen früher an der Stufe und sind jetzt Knobs, standardmäßig aus.
-5. **Warten mit der Erstmeldung als Charakterzug** (`boldHold`, `tuning`): kostet Siege, taugt aber für „Taktiker“ oder „Zocker“.
-6. Neue Rollenwerte immer mit `duel`/`calibrate` gegen Ausgewogen messen (gleicher Startindex) und Stärke so halten, dass die vier
-   Stufen weiter in etwa 17 / 23 / 28 / 32 % landen.
-7. Nicht bedacht oder bewusst offen: echte menschliche Spieler als Maßstab (alle Messungen sind Bot gegen Bot), Hinweise auf den
-   Spielstil der Mitspieler über Runden hinweg (das Gegner-Gedächtnis gilt nur innerhalb der Runde).
+**Später (Notiz): langer Durchlauf zum Feinschliff.** Nicht in einem Chat nebenbei, sondern als eigener Lauf aller Bot-Varianten mit möglichst vielen, auch extremen Situationen:
+
+- Alle Rollen × alle vier Gedächtnisse × Tischgrößen 2, 3 und 4 × 3/5/7/9 Runden × Erstzug erlaubt und gesperrt, je Zelle deutlich mehr Spiele als bisher (mindestens 2000, dann etwa ±1 Prozentpunkt Messtoleranz statt ±3).
+- Extremlagen: hoher Rückstand und Vorsprung von Anfang an, Tische nur mit einer Rolle, nur Wildcards, Mastermind gegen Vergesslich, Spiele mit abwesendem Spieler (Ersatzbot), absurde Reglerwerte (Dauertest `SOAK_EXTREME=1`), Neustart mitten im Spiel.
+- Werte zum Feinschliff: Rollen-Regler (`STYLE_KNOBS` in `src/bot/roles.ts`), Würze `SPICE` (Treue 0,85, Launen 0,2, Stimmung 0,5), Vorlieben (Skala 2, Band 8, Schutz 14, Kostenfaktoren je Richtung), Gegner-Gedächtnis (`oppObserve`, `oppDetail`, `oppSpan`, `oppAccuracy`), Glücksritter (früh Cheft ab 3 Paaren, sobald er nicht führt), Gerissener (`holdAt0` 0,2; mit 0,3 etwa 3 statt 4,5 Punkte schwächer, aber kaum noch erkennbar).
+- Stufen mit dem neuen System neu kalibrieren (`npm run calibrate`, Ziel etwa 17 / 23 / 28 / 32 %); die Messungen bisher: Der neue Ausgewogene liegt auf jeder Stufe gleichauf mit den früheren Bots (Vergesslich 24,6 %, Normal 25,8 %, Scharfsinnig 25,3 %, Mastermind 25,3 % gegen drei frühere Bots derselben Stufe).
+- Stand der Messung der Rollen-Eigenschaften (`scripts/lab14.ts`, abgebrochen): Der „Eile“-Hebel beim Frühvogel (mehr Entscheidungsfehler) kostet nur Stärke (27,9 → 24,7 → 20,4 → 17,8 %), ohne den Stil sichtbarer zu machen: nicht übernommen. Die Varianten für Gerissener (längeres Warten), Pärchenkönig (mehr Paarliebe) und Glücksritter (immer ab 3 Paaren) sind noch nicht ausgewertet.
+- Erkennbarkeit der Rollen (`scripts/lab_recog.ts`) und Sichtbarkeit der Vorlieben (`scripts/lab6.ts`) nach Änderungen wiederholen; Namen überarbeiten (`rolenames.ts`, Geschlechterverhältnis wird im Test geprüft).
+- Offene Fragen: Hand und Joker-Verbrennen kommen fast nie vor (0,1 % / 0,4 % der Runden), mit Bot-Reglern nicht zu ändern; haushohe Siege des Glücksritters sind nicht häufiger als bei den anderen Rollen.
+
+**Beobachtung außerhalb der Bots:** Die Spieler-Sicht (`engine/view.ts`) schickt `seed` mit. Wer den Mischalgorithmus kennt, könnte im Mehrspielermodus daraus verdeckte Karten ableiten. Das ist unabhängig von den Bots und sollte separat geprüft werden (z. B. Seed aus der Sicht entfernen, die Vorlieben-Anzeige am Spielende bräuchte ihn dann aus einer anderen Quelle).

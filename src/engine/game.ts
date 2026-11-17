@@ -36,7 +36,8 @@ export interface Settings {
 }
 
 export type BotLevel = 'easy' | 'normal' | 'hard' | 'master';
-export type BotStyle = 'balanced' | 'sprinter' | 'cheft' | 'hand' | 'blocker' | 'counter' | 'joker' | 'gambler';
+/** Rollen der Bots (siehe bot/roles.ts): fünf Spielweisen und die Wildcard. Ältere Spielstände können noch die alten Namen tragen (roleOfStyle bildet sie ab). */
+export type BotStyle = 'balanced' | 'early' | 'cunning' | 'pairs' | 'gambler' | 'wildcard';
 
 export interface BotProfile {
   level: BotLevel;

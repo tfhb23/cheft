@@ -29,6 +29,13 @@ export const ROLE_LABEL: Record<RoleId, string> = {
 
 export const STYLE_IDS: StyleId[] = ['balanced', 'early', 'cunning', 'pairs', 'gambler'];
 
+/** Alte Spielweisen (ältere Spielstände und Einstellungen) auf die neuen Rollen abbilden; Unbekanntes wird zur Wildcard. */
+const LEGACY_STYLE: Record<string, RoleId> = { sprinter: 'early', cheft: 'pairs', hand: 'balanced', blocker: 'balanced', counter: 'balanced', joker: 'cunning' };
+export function roleOfStyle(style: string | undefined): RoleId {
+  if (style && style in ROLE_LABEL) return style as RoleId;
+  return (style && LEGACY_STYLE[style]) || 'wildcard';
+}
+
 /** Reglermengen der Spielweisen (ohne Zutaten). */
 export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   balanced: {},

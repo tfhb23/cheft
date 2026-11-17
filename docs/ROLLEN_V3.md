@@ -1,7 +1,7 @@
 # Rollen-System V3: 5 Spielweisen, Wildcard, Vorlieben, Gegner-Gedächtnis
 
-Stand: Entwurf, vollständig in der Bot-Schicht gebaut und getestet (Branch `ccr-a08d65f5-lqevpy`). **Die App, die Oberfläche und die Namenslisten sind noch nicht umgestellt**,
-das bisherige Verhalten der Bots ist bitgleich erhalten (Prüfsumme über 120 Spiele vor und nach dem Umbau gleich, `scripts/regress.ts`). Grundlage und frühere Messungen: [ROLLEN.md](ROLLEN.md).
+Stand: in die App übernommen. Die Rollen, Vorlieben, das Gegner-Gedächtnis, die Namen und die Endauswertung sind live; Auswahl, Server und Einstellungen verarbeiten auch alte Spielweisen (Abbildung siehe `docs/BOTS.md`, Abschnitt 7).
+Das Folgende ist die Entstehungsgeschichte mit Messungen; Werte für den Feinschliff stehen in `docs/BOTS.md`. Grundlage und frühere Messungen: [ROLLEN.md](ROLLEN.md).
 
 ## 1. Beschlossen
 

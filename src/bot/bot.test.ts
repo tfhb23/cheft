@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { applyAction } from '../engine/actions';
 import { BotLevel, BotStyle, startNextRound } from '../engine/game';
+import { rolePersona } from './roles';
 import { decideAction, nextPlayerRisk, perceivedGroups, similarity } from './bot';
 import { testGame, CardPool, setHand } from '../engine/testutil';
 import { isJoker, makeDeck, makeRng } from '../engine/cards';
@@ -8,6 +9,15 @@ import { MEMORY, memoryFor, perceive } from './memory';
 import { interpretMeld } from '../engine/melds';
 import { checkLay } from '../engine/game';
 import { simulate } from './simulate';
+
+/**
+ * Entscheidungs-Tests über Gedächtnis und Gegner-Gedächtnis prüfen die Wirkung einer Einzelheit und sollen nicht von der Rolle
+ * (Wildcard wechselt jede Runde), den Vorlieben oder den neuen Standardwerten abhängen: reine Ausgewogene mit dem früheren Abwurfdruck.
+ */
+const PURE_PERSONA = rolePersona('balanced', { tastes: false, oppUse: 0, loyalty: 1, jitter: 0, tilt: 0 });
+const LEGACY_KNOBS = { shedPre: 0.12, dangerOpenedOnly: false };
+const decideLegacy = (g: Parameters<typeof decideAction>[0], pid: number, o: Parameters<typeof decideAction>[2] = {}) =>
+  decideAction(g, pid, { persona: PURE_PERSONA, ...o, knobs: { ...LEGACY_KNOBS, ...o.knobs } });
 
 describe('Bots spielen komplette Spiele regelkonform', () => {
   it('spielt 4 Spiele mit 3-4 Bots zu Ende', () => {
@@ -77,12 +87,13 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
     }
   }, 60000);
   it('Namen sind eindeutig und Zufall löst auf', async () => {
-    const { resolveBots, NAMES } = await import('./names');
-    const all = Object.values(NAMES).flatMap((byStyle) => Object.values(byStyle).flat());
-    expect(all.length).toBe(128); // 4 Stufen × 8 Spielweisen × 4 Namen
-    expect(new Set(all).size).toBe(128);
+    const { resolveBots } = await import('./names');
+    const { ROLE_NAMES } = await import('./rolenames');
+    const all = Object.values(ROLE_NAMES).flatMap((byRole) => Object.values(byRole).flat().map((x) => x.name));
+    expect(all.length).toBeGreaterThanOrEqual(24 * 5); // 4 Gedächtnisse × 6 Rollen, je mindestens fünf Namen
+    expect(new Set(all).size).toBe(all.length);
     const { makeRng } = await import('../engine/cards');
-    const bots = resolveBots([{ level: 'random', style: 'random' }, { level: 'easy', style: 'cheft' }, { level: 'easy', style: 'cheft' }], makeRng(3));
+    const bots = resolveBots([{ level: 'random', style: 'random' }, { level: 'easy', style: 'pairs' }, { level: 'easy', style: 'pairs' }], makeRng(3));
     expect(new Set(bots.map((b) => b.name)).size).toBe(3);
   });
   it('Zufall wählt nie den Mastermind, der muss bewusst gewählt werden', async () => {
@@ -91,7 +102,7 @@ describe('Alle Bot-Rollen spielen regelkonform', () => {
     const rng = makeRng(9);
     const levels = new Set(Array.from({ length: 60 }, () => resolveBots([{ level: 'random', style: 'random' }], rng)[0].level));
     expect(levels.has('master')).toBe(false);
-    expect(resolveBots([{ level: 'master', style: 'joker' }], rng)[0].level).toBe('master');
+    expect(resolveBots([{ level: 'master', style: 'cunning' }], rng)[0].level).toBe('master');
   });
 });
 
@@ -190,8 +201,8 @@ describe('Das Gedächtnis ändert Entscheidungen', () => {
 
   it('wer sich erinnert, wirft die tote Lücke ab; wer vergessen hat, behält sie', () => {
     const { g, me, hand } = scenario(PILE_IDS);
-    const remembers = decideAction(g, me, { memory: PERFECT });
-    const forgot = decideAction(g, me, { memory: FORGETFUL });
+    const remembers = decideLegacy(g, me, { memory: PERFECT });
+    const forgot = decideLegacy(g, me, { memory: FORGETFUL });
     expect(remembers).toEqual({ kind: 'discard', cardId: H7 });
     expect(forgot.kind).toBe('discard');
     if (forgot.kind !== 'discard') return;
@@ -202,7 +213,7 @@ describe('Das Gedächtnis ändert Entscheidungen', () => {
   });
   it('Gegenprobe: liegen die Herz 6 nicht im Ablagestapel, behält auch der Mastermind die Lücke', () => {
     const { g, me } = scenario(PILE_IDS.filter((id) => id !== 5 && id !== 57));
-    const a = decideAction(g, me, { memory: PERFECT });
+    const a = decideLegacy(g, me, { memory: PERFECT });
     expect(a.kind).toBe('discard');
     if (a.kind === 'discard') expect(a.cardId).not.toBe(H7);
   });
@@ -210,10 +221,10 @@ describe('Das Gedächtnis ändert Entscheidungen', () => {
     const { g, me } = scenario(PILE_IDS);
     // Der Stapel ist 31 und 32 Züge alt (4 Spieler: ~8 Runden), weit jenseits der Spanne von Vergesslich und Normal
     g.players[me].bot = { level: 'master', style: 'balanced' };
-    expect(decideAction(g, me)).toEqual({ kind: 'discard', cardId: H7 });
+    expect(decideLegacy(g, me)).toEqual({ kind: 'discard', cardId: H7 });
     for (const level of ['easy', 'normal'] as const) {
       g.players[me].bot = { level, style: 'balanced' };
-      const a = decideAction(g, me, { memory: { handMiss: 0, tableMiss: 0 } });
+      const a = decideLegacy(g, me, { memory: { handMiss: 0, tableMiss: 0 } });
       expect(a.kind).toBe('discard');
       if (a.kind === 'discard') expect(a.cardId).not.toBe(H7);
     }
@@ -231,8 +242,8 @@ describe('Wahrnehmung: reine Funktion des Zustands', () => {
         visit: (g, pid) => {
           if ((g.round.plies ?? 0) % 3 !== 0) return;
           const before = JSON.stringify(g);
-          const a1 = decideAction(g, pid);
-          const a2 = decideAction(g, pid);
+          const a1 = decideLegacy(g, pid);
+          const a2 = decideLegacy(g, pid);
           expect(a2).toEqual(a1);
           expect(JSON.stringify(g)).toBe(before);
           checked++;
@@ -253,7 +264,7 @@ describe('Wahrnehmung: reine Funktion des Zustands', () => {
           delete old.round.plies;
           old.round.taken.forEach((x) => delete x.at);
           old.round.discardLog = undefined;
-          const a = decideAction(old, pid);
+          const a = decideLegacy(old, pid);
           expect(applyAction(old, pid, a).ok).toBe(true);
         },
       });
@@ -271,7 +282,7 @@ describe('Wahrnehmung: reine Funktion des Zustands', () => {
           visit: (g, pid) => {
             states++;
             const full = { span: Infinity, spread: [1, 1] as [number, number], accuracy: 1, form: 0, tableMiss: 0, missExtra: 0, observe: 1, handMiss: 0 };
-            if (JSON.stringify(decideAction(g, pid)) !== JSON.stringify(decideAction(g, pid, { memory: full }))) diffs++;
+            if (JSON.stringify(decideLegacy(g, pid)) !== JSON.stringify(decideLegacy(g, pid, { memory: full }))) diffs++;
           },
         });
       }
@@ -288,7 +299,7 @@ describe('Wahrnehmung: reine Funktion des Zustands', () => {
 
 describe('Alle Stufen und Spielweisen in gemischten Runden', () => {
   const allLevels: BotLevel[] = ['easy', 'normal', 'hard', 'master'];
-  const allStyles: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
+  const allStyles: BotStyle[] = ['balanced', 'early', 'cunning', 'pairs', 'gambler', 'wildcard'];
 
   it('24 gemischte Spiele mit 3 bis 4 Bots bleiben regelkonform und enden (simulate wirft bei jeder ungültigen Aktion)', () => {
     for (let i = 0; i < 24; i++) {
@@ -456,52 +467,52 @@ describe('Wer hinten liegt, spielt mutiger (Hand, früher Cheft)', () => {
 
   it('mit vier Paaren sagt ein Zurückliegender Cheft an, ein Gleichauf-Bot nicht', () => {
     const behind = scene(PAIRS, 120);
-    expect(decideAction(behind.g, behind.me, { memory: PERFECT })).toEqual({ kind: 'declareCheft' });
+    expect(decideLegacy(behind.g, behind.me, { memory: PERFECT })).toEqual({ kind: 'declareCheft' });
     const even = scene(PAIRS, 0);
-    expect(decideAction(even.g, even.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
+    expect(decideLegacy(even.g, even.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
   });
   it('der mutige Modus lässt sich abschalten (Gegenprobe)', () => {
     const behind = scene(PAIRS, 120);
-    expect(decideAction(behind.g, behind.me, { memory: PERFECT, knobs: { bold: false } }).kind).not.toBe('declareCheft');
+    expect(decideLegacy(behind.g, behind.me, { memory: PERFECT, knobs: { bold: false } }).kind).not.toBe('declareCheft');
   });
   it('auch der Mastermind wagt das: Der mutige Modus hängt am Tabellenstand, nicht am Gedächtnis', () => {
     for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
       const s = scene(PAIRS, 120, level);
-      expect(decideAction(s.g, s.me, { memory: PERFECT }).kind).toBe('declareCheft');
+      expect(decideLegacy(s.g, s.me, { memory: PERFECT }).kind).toBe('declareCheft');
     }
   });
   it('nur vier Paare reichen nicht zu Cheft für einen, der vorn liegt, und drei Paare auch nicht für den Zurückliegenden', () => {
     const three = scene(['HK', 'HK', 'S9', 'S9', 'D5', 'D5', 'C3', 'H2', 'D8', 'S4', 'C10', 'H6', 'D12', 'S1', 'C7'], 120);
-    expect(decideAction(three.g, three.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
+    expect(decideLegacy(three.g, three.me, { memory: PERFECT }).kind).not.toBe('declareCheft');
   });
   it('wer hinten liegt und fast eine Hand hat, wartet auf die Hand, statt mit 12 von 15 Karten rauszukommen', () => {
     // Ohne die Hand-Chance der Abwägung (wHand 0), damit nur die Hand-Jagd des mutigen Modus den Unterschied macht
     const isolate = { tuning: { wHand: 0 } };
     const behind = scene(NEAR_HAND, 120);
-    expect(decideAction(behind.g, behind.me, { memory: PERFECT, knobs: isolate }).kind).toBe('discard');
+    expect(decideLegacy(behind.g, behind.me, { memory: PERFECT, knobs: isolate }).kind).toBe('discard');
     // Gegenprobe: gleichauf legt er die Erstmeldung sofort (93 Augen)
     const even = scene(NEAR_HAND, 0, 'master', 1);
-    expect(decideAction(even.g, even.me, { memory: PERFECT, knobs: isolate }).kind).toBe('lay');
+    expect(decideLegacy(even.g, even.me, { memory: PERFECT, knobs: isolate }).kind).toBe('lay');
     // und ohne mutigen Modus legt auch der Zurückliegende
     const off = scene(NEAR_HAND, 120);
-    expect(decideAction(off.g, off.me, { memory: PERFECT, knobs: { ...isolate, bold: false } }).kind).toBe('lay');
+    expect(decideLegacy(off.g, off.me, { memory: PERFECT, knobs: { ...isolate, bold: false } }).kind).toBe('lay');
   });
   it('auch gleichauf wartet ein Bot kurz, wenn die Chance auf eine Hand den Zeitdruck überwiegt (Abwägung); ohne Gewicht auf die Hand legt er', () => {
     // Restkarten: Kreuz 2 und das verbundene Paar Herz 9, Herz 10. Mit Herz 8 oder Herz Bube wäre alles bis auf eine Karte in Kombinationen.
     const CONNECTED = ['SK', 'HK', 'DK', 'SD', 'HD', 'DD', 'S7', 'H7', 'D7', 'H3', 'H4', 'H5', 'C2', 'H9', 'H10'];
     const wait = scene(CONNECTED, 0, 'master', 1);
-    expect(decideAction(wait.g, wait.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('discard');
+    expect(decideLegacy(wait.g, wait.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('discard');
     const go = scene(CONNECTED, 0, 'master', 1);
-    expect(decideAction(go.g, go.me, { memory: PERFECT, knobs: { tuning: { wHand: 0 } } }).kind).toBe('lay');
+    expect(decideLegacy(go.g, go.me, { memory: PERFECT, knobs: { tuning: { wHand: 0 } } }).kind).toBe('lay');
     // Ohne verbundenes Paar unter den Restkarten gibt es keine Hand-Chance: Auch mit großem Gewicht wird gelegt
     const none = scene(NEAR_HAND, 0, 'master', 1);
-    expect(decideAction(none.g, none.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('lay');
+    expect(decideLegacy(none.g, none.me, { memory: PERFECT, knobs: { tuning: { wHand: 6 } } }).kind).toBe('lay');
   });
   it('hat ein Gegner schon die Erstmeldung gelegt, wartet auch der Mutige nicht auf die Hand', () => {
     const s = scene(NEAR_HAND, 120);
     s.g.round.players[(s.me + 1) % 4].opened = true;
     s.g.round.lastRommeOpening = 55;
-    expect(decideAction(s.g, s.me, { memory: PERFECT }).kind).toBe('lay');
+    expect(decideLegacy(s.g, s.me, { memory: PERFECT }).kind).toBe('lay');
   });
   it('alle Rollen spielen mit dem mutigen Modus regelkonform durch (große Rückstände von Anfang an)', () => {
     for (let i = 0; i < 8; i++) {
@@ -546,14 +557,14 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
 
   it('mit einem Joker, aber ohne die zweite Herz Dame, zieht der Bot die Teppichkarte nicht (er zieht vom Stapel)', () => {
     const { g, me } = drawScene(NO_TWIN);
-    expect(decideAction(g, me, { memory: PERFECT })).toEqual({ kind: 'draw', source: 'stock' });
+    expect(decideLegacy(g, me, { memory: PERFECT })).toEqual({ kind: 'draw', source: 'stock' });
   });
   it('mit der zweiten Herz Dame und vier weiteren Paaren nimmt er sie und legt sie mit genau dieser Karte', () => {
     const { g, me } = drawScene(WITH_TWIN);
-    const draw = decideAction(g, me, { memory: PERFECT });
+    const draw = decideLegacy(g, me, { memory: PERFECT });
     expect(draw).toEqual({ kind: 'draw', source: 'carpet' });
     expect(applyAction(g, me, draw).ok).toBe(true);
-    const lay = decideAction(g, me, { memory: PERFECT });
+    const lay = decideLegacy(g, me, { memory: PERFECT });
     expect(lay.kind).toBe('lay');
     if (lay.kind !== 'lay') return;
     const hand = g.round.players[me].hand;
@@ -567,13 +578,13 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
   });
   it('das gilt für jede Stufe, Spielweise und auch in einem Pflichtzug (mit Joker auf der Hand)', () => {
     for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
-      for (const style of ['balanced', 'cheft', 'gambler', 'joker'] as const) {
+      for (const style of ['balanced', 'pairs', 'gambler', 'cunning'] as const) {
         const { g, me } = drawScene(WITH_TWIN);
         g.players[me].bot = { level, style };
-        const draw = decideAction(g, me);
+        const draw = decideLegacy(g, me);
         if (draw.kind !== 'draw' || draw.source !== 'carpet') continue; // ein Bot darf auch vom Stapel ziehen
         expect(applyAction(g, me, draw).ok).toBe(true);
-        const lay = decideAction(g, me);
+        const lay = decideLegacy(g, me);
         expect(lay.kind).toBe('lay');
         expect(applyAction(g, me, lay).ok).toBe(true);
         const pair = g.round.melds.find((m) => m.type === 'pair' && m.cards.some((c) => c.id === g.round.turn.mustPairWithId));
@@ -588,7 +599,7 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
     for (let i = 0; i < 40; i++) {
       const seats = Array.from({ length: 4 }, (_, k) => ({
         level: (['easy', 'normal', 'hard', 'master'] as const)[(i + k) % 4],
-        style: (['cheft', 'gambler', 'joker', 'balanced'] as const)[(i + 2 * k) % 4] as BotStyle,
+        style: (['pairs', 'gambler', 'cunning', 'balanced'] as const)[(i + 2 * k) % 4] as BotStyle,
       }));
       const carpetIds = new Set<number>();
       const check = (g: Parameters<typeof decideAction>[0]) => {
@@ -660,7 +671,7 @@ describe('Kein Mogeln: Die Bots kennen nur, was ein Spieler am Tisch sehen kann'
   }, 180000);
 
   it('auch alle Spielweisen und der mutige Modus (großer Rückstand) schauen nicht in verdeckte Karten', () => {
-    const styles: BotStyle[] = ['balanced', 'sprinter', 'cheft', 'hand', 'blocker', 'counter', 'joker', 'gambler'];
+    const styles: BotStyle[] = ['balanced', 'early', 'cunning', 'pairs', 'gambler', 'wildcard'];
     let checked = 0;
     for (const style of styles) {
       const rng = makeRng(style.length * 37);
@@ -801,7 +812,7 @@ describe('Gegner-Gedächtnis: Was wirft man dem nächsten Spieler hin?', () => {
     return { g, me, next };
   }
   const discardOf = (g: ReturnType<typeof testGame>, me: number, knobs: object = {}) => {
-    const a = decideAction(g, me, { memory: PERFECT, knobs });
+    const a = decideLegacy(g, me, { memory: PERFECT, knobs });
     expect(a.kind).toBe('discard');
     return a.kind === 'discard' ? a.cardId : -1;
   };

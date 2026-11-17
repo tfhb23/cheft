@@ -23,6 +23,7 @@ import {
 import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
 import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
 import { Persona, resolvePersona } from './personas';
+import { RoleId, rolePersona, roleOfStyle } from './roles';
 import { OppModel, likes, opponentModel, tempoShift } from './opponents';
 import { TasteSet, tasteScore, tastesFor } from './tastes';
 import { Cand, MemoryParams, Signal, Perception, STEAL_DIFFICULTY, Unseen, comboDifficulty, layOffDifficulty, memoryFor, overlooksAt, perceive, perceivedState, pickByScore, recall } from './memory';
@@ -114,13 +115,27 @@ export interface Knobs {
 export interface DecideOptions {
   knobs?: Partial<Knobs>;
   memory?: Partial<MemoryParams>;
-  /** Rolle mit Rollentreue, Launen, Stimmung und Tagesform je Runde (siehe personas.ts); Knobs und Memory oben überschreiben sie. */
+  /** Rolle mit Rollentreue, Launen, Stimmung und Tagesform je Runde (siehe personas.ts); ohne Angabe gilt die Rolle des Bots (profile.style). Knobs und Memory oben überschreiben sie. */
   persona?: Persona;
 }
 
-const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'balanced' };
+/** Ersatz für einen abwesenden Mitspieler: Wildcard mit normalem Gedächtnis. */
+const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'wildcard' };
 
-export function knobsFor(profile: BotProfile): Knobs {
+const ROLE_PERSONAS = new Map<RoleId, Persona>();
+/** Die Persona der Rolle des Bots (zwischengespeichert; reine Funktion der Rolle). */
+function personaOf(profile: BotProfile): Persona {
+  const id = roleOfStyle(profile.style);
+  let p = ROLE_PERSONAS.get(id);
+  if (!p) {
+    p = rolePersona(id);
+    ROLE_PERSONAS.set(id, p);
+  }
+  return p;
+}
+
+/** Grundwerte aller Bots; Rolle und Vorlieben kommen über die Persona (roles.ts) dazu. */
+export function knobsFor(_profile: BotProfile): Knobs {
   const k: Knobs = {
     openMargin: 0,
     layAll: true,
@@ -159,37 +174,7 @@ export function knobsFor(profile: BotProfile): Knobs {
     oppUse: 0,
     oppTempo: 1,
   };
-  // Die Stufe (profile.level) setzt hier bewusst nichts: Sie wirkt nur über das Gedächtnis (memory.ts).
-  switch (profile.style) {
-    case 'sprinter':
-      k.openMargin = Math.min(k.openMargin, 0);
-      k.layAll = true;
-      k.takeDiscardToOpen = true;
-      break;
-    case 'cheft':
-      k.cheftEagerPairs = 4;
-      k.pairTakeAt = 3;
-      break;
-    case 'hand':
-      k.handHunter = true;
-      break;
-    case 'blocker':
-      k.blocker = true;
-      break;
-    case 'counter':
-      k.counter = true;
-      break;
-    case 'joker':
-      k.jokerHunter = true;
-      k.steal = true;
-      k.burn = true;
-      break;
-    case 'gambler':
-      k.cheftEagerPairs = 3;
-      k.pairTakeAt = 2;
-      k.gamble = 0.5;
-      break;
-  }
+  // Stufe und Rolle setzen hier nichts: Die Stufe wirkt über das Gedächtnis (memory.ts), die Rolle über die Persona (roles.ts).
   return k;
 }
 
@@ -198,8 +183,8 @@ function profileOf(state: GameState, pid: number): BotProfile {
 }
 
 function knobs(state: GameState, pid: number, opts: DecideOptions = {}): Knobs {
-  const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
-  return { ...knobsFor(profileOf(state, pid)), ...eff?.knobs, ...opts.knobs };
+  const eff = resolvePersona(opts.persona ?? personaOf(profileOf(state, pid)), state, pid);
+  return { ...knobsFor(profileOf(state, pid)), ...eff.knobs, ...opts.knobs };
 }
 
 /** Deterministischer Zufall je Zug (für Zocker). Der Zugzähler `plies` macht jeden Zug zu einem neuen Wurf. */
@@ -229,7 +214,7 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   const hand = p.hand;
   const k0 = knobs(state, pid, opts);
   // Wahrnehmung: Was übersieht der Bot in diesem Zug? Der Spielzustand selbst bleibt unverändert.
-  const eff = opts.persona ? resolvePersona(opts.persona, state, pid) : null;
+  const eff = resolvePersona(opts.persona ?? personaOf(profileOf(state, pid)), state, pid);
   let mem = memoryFor(eff?.level ?? profileOf(state, pid).level, { ...eff?.memory, ...opts.memory });
   if (eff?.carelessness) mem = { ...mem, noise: mem.noise * (eff.carelessness.noise ?? 1), handMiss: Math.min(1, mem.handMiss * (eff.carelessness.handMiss ?? 1)) };
   const per = perceive(state, pid, mem, isForced(state));

@@ -41,13 +41,14 @@ describe('Namen der Rollen', () => {
         }
   });
 
-  it('die gewünschten Gäste sind dabei: Q (Mastermind-Wildcard), Data (Mastermind-Ausgewogen), Picard (Mastermind-Gerissener), Mulan, Nasrudin', () => {
+  it('die gewünschten Gäste sind dabei: Q (Mastermind-Wildcard), Data (Mastermind-Ausgewogen), Picard (Mastermind-Ausgewogen), Mulan, Nasrudin', () => {
     expect(roleNames('master', 'wildcard')).toContain('Q');
     expect(roleNames('master', 'balanced')).toContain('Data');
-    expect(roleNames('master', 'cunning')).toContain('Picard');
+    expect(roleNames('master', 'balanced')).toContain('Picard');
     const all = LEVELS.flatMap((l) => ROLES.flatMap((r) => roleNames(l, r)));
     expect(all).toContain('Mulan');
-    expect(all).toContain('Nasrudin');
+    expect(all).toContain('Mulla Nasrudin');
+    expect(all).not.toContain('Nasreddin'); // dieselbe Figur wie Mulla Nasrudin
   });
 
   it('die Namenswahl vergibt am Tisch keinen Namen doppelt, solange noch freie da sind, und hält sich an die Kombination', () => {

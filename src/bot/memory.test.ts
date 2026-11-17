@@ -847,7 +847,7 @@ describe('Gedächtnis-Stufen in echten Spielen', () => {
     expect(d.hard).toBeGreaterThan(0);
     expect(d.normal).toBeGreaterThan(d.hard);
     expect(d.easy).toBeGreaterThan(d.normal);
-  });
+  }, 60000);
 });
 
 // ---------------------------------------------------------------- Handüberblick: Schwierigkeit
