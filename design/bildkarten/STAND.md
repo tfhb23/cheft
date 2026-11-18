@@ -117,3 +117,7 @@ Zum Zeitpunkt der Übergabe: `npx tsc --noEmit` ohne Fehler, `npx vitest run` 30
 - Freigegeben und eingebaut: Kreuz Dame A Krone (markierte Pixel 1 tiefer), Kreuz Dame B Ohrringe 2×2, Pik König Zwilling rechte Braue unten, Federn Herz in Gold, Turbanfalte 35 % (`a_mix`), Karo Bube Frisur (Fransen rechts, Haar außen), Herz Dame A Tuch D3 (`tuch_d3`), Pik Bube Tolle a.
 - Neue Spec-Hilfen in `comp.py`: `hair_px`, `grid_fn`, `trim`, `flat`, `flat_cut`, `a_mix`, `a_dither`, `v_mix`.
 - Ausgabe: `python3 design/bildkarten/code/export_ts.py` schreibt `src/ui/face-art.ts`.
+
+## 11. Entwürfe für die 7 offenen zweiten Personen
+
+Siehe `ENTWUERFE_PAARE.md` und `images/entw/`. Noch nicht ausgewählt, nichts live.
