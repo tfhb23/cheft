@@ -114,3 +114,117 @@ Schwarz, Weiß, blasse Haut, oranger Akzent wie beim Hutband der ersten Dame. Br
 - 9 Große Schleife + Bob
 - 10 Fedora schräg + kurzes Haar
 - 11 Zöpfe mit Schleifen
+
+# Runde 2 (nach Rückmeldung)
+
+Bilder in `images/entw/<name>.png` und `<name>_detail.png`. Skripte: `entw2.py`, `entw3.py`, `entw4.py`. Keine neuen Farben: schwarzes Haar beim Pik Buben ist das Familien-Schwarz (1.01), das braune Stirnband beim Herz König das Herz-Haarbraun (1.26), Gold/Rot/Weiß wie zuvor.
+
+Zusätzlich: Pik Dame (erste Person), Hutkrempe an der Saumkante links und rechts je 1 Pixel breiter, Vergleich in `images/entw/pik_dame_hut_breiter.png` (in `masters_v2.py` eingetragen, noch nicht live).
+
+## Karo König: Nemes-Varianten (Haar und Bart wie Nemes 2, keine Streifen) (`karo_koenig_nemes`)
+
+- 1 Nemes glatt
+- 2 Nemes + dunkle Stirnlinie
+- 3 Nemes kurz, rund
+- 4 Nemes + Stirnjuwel
+- 5 Reifkrone, Haar frei
+- 6 Goldhaube mit Ohrklappen
+- 7 Weiße Hedjet-Krone
+- 8 Federkrone, zwei Federn
+- 9 Spitzkuppel (Kalif)
+- 10 Turban + Tuchende rechts
+- 11 Stirnreif + Haarflut
+- 12 Sonnenscheibe
+- 13 Doppelhaube: Gold unten, Weiß oben
+
+## Herz König: ohne Vollbart, Rose, Variante 6 mit Stirnband (`herz_koenig_2`)
+
+- 6A wie 6, Goldband
+- 6B wie 6, braunes Band
+- 6C wie 6, schwarzes Band
+- 6D wie 6, Gold + brauner Rand
+- 6E Goldband, Schnurr + Kinn
+- 6F braunes Band, Backenbart
+- 6G schwarzes Band, Ziegenbart
+- R1 Turban, Rose als Brosche
+- R2 Turban, Rose seitlich am Band
+- R3 Haar mit Rose überm Ohr
+- R4 Rosenkranz im Goldband
+- R5 Rose oben auf dem Turban
+- R6 Zwei Rosen am Turbanband
+- R7 Langes Haar, braunes Band, Rose am Ohr
+- R8 Hoher Turban, Rose oben links
+- R9 Roter Turban, weiße Rose
+- R10 Glatze, Goldband, Rose am Ohr
+
+## Karo Dame: deutlich anders als die Vorlage (`karo_dame_2`)
+
+- 1 Yashmak weiß + Goldtuch
+- 2 Yashmak gold + Haarflut
+- 3 Lange Zöpfe vorn + Goldmütze
+- 4 Seitendutt rechts, rotes Band
+- 5 Tantur mit Schleier
+- 6 Haarnetz mit Goldfäden
+- 7 Pagen asymmetrisch + Rubin
+- 8 Münzkrone + Seitenscheitel
+- 9 Federdiadem
+- 10 Goldtuch, Knoten rechts
+- 11 Sonnenscheibe + Haar offen
+- 12 Reifohrringe + Kurzhaar
+
+## Karo Bube 10: mehr Locken und Schwung (`karo_bube_locken`)
+
+- 1 wie 10 (Referenz)
+- 2 Ringellocken, 2 Spalten
+- 3 Zickzack-Locken
+- 4 Schwung links lang, rechts kurz
+- 5 Stirnlocken + Seiten
+- 6 Buschig, 3 breit
+- 7 Schwung rechts mit Spirale
+- 8 Locken + Goldringe
+- 9 Locken quellen unter der Takke
+- 10 Locken + Quaste
+
+## Pik Bube: ohne Brille, teils schwarzes Haar (`pik_bube_2`)
+
+- 1 Schwarzer Scheitel, Koteletten
+- 2 Schwarzer Igel
+- 3 Augenklappe + schwarze Tolle
+- 4 Narbe + weißer Pilz
+- 5 Domino + Mini-Zylinder
+- 6 Schwarze Kapuze
+- 7 Schwarz mit weißer Strähne
+- 8 Schiebermütze, Schwarzhaar
+- 9 Vampir: Fangs + Tolle
+- 10 Weißes Haar kurz, böse Brauen
+- 11 Weiß + Narbe + Augenklappe
+- 12 Schwarz lang, Mittelscheitel
+
+## Pik Dame mit Baskenmütze: andere oder keine Brille, Brauen (`pik_dame_2`)
+
+- 1 Beret, keine Brille, schwarze Brauen
+- 2 Beret, weiße Brauen
+- 3 Beret, böse Brauen
+- 4 Beret, kleine Brille
+- 5 Beret, Monokel
+- 6 Beret, Domino-Maske
+- 7 Beret + roter Stiel, Brauen
+- 8 Beret schief links, lange Haare
+- 9 Beret + Zopf rechts, Brauen
+- 10 Beret + Schönheitspunkt
+- 11 Beret, runde Brille + Brauen
+
+## Kreuz König 3: ohne Lorbeer, längere Bärte (`kreuz_koenig_bart`)
+
+- 1 wie 3, Vollbart kurz (Referenz)
+- 2 Vollbart lang
+- 3 Vollbart extra lang
+- 4 Gabelbart lang
+- 5 Spitzbart sehr lang
+- 6 Kinnbart lang + Schnurr
+- 7 Geflochten (Zopfbart)
+- 8 Zwei Zöpfe
+- 9 Backen + langer Kinnbart
+- 10 Welliger Vollbart lang
+- 11 Lang mit weißen Strähnen
+- 12 Sehr schmal und lang

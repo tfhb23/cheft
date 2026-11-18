@@ -114,3 +114,24 @@ def sheet(name,variants,out,cols=5,S=6,title=None):
         for li,tl in enumerate(textwrap.wrap(lb,19)[:2]): d2.text((x,y+li*14),tl,fill=INK,font=FONT)
         dt.paste(im.crop((9,6,25,32)).resize((16*Z,26*Z),Image.NEAREST),(x,y+30))
     dt.save(out.replace('.png','_detail.png')); return sh
+
+# ---------- weitere Bart-Bausteine (ohne Vollbart) und Kleinteile
+def beard2(kind,ch='B'):
+    if kind=='keiner': return {}
+    if kind=='schnurr': return line(20,5,11,ch)
+    if kind=='schnurr_lang': return merge(line(20,5,11,ch),pix([(4,20),(4,21),(4,22),(12,20),(12,21),(12,22)],ch))
+    if kind=='kinn': return merge(line(22,6,10,ch),line(23,7,9,ch),line(24,8,8,ch))
+    if kind=='schnurr_kinn': return merge(line(20,5,11,ch),line(22,7,9,ch),line(23,7,9,ch),line(24,8,8,ch))
+    if kind=='ziege': return merge(line(20,6,10,ch),line(22,7,9,ch),line(23,7,9,ch),line(24,8,8,ch),line(25,8,8,ch))
+    if kind=='backen': return merge(line(20,5,11,ch),pix([(4,y) for y in range(18,23)]+[(12,y) for y in range(18,23)],ch))
+    if kind=='backen_kinn': return merge(line(20,5,11,ch),pix([(4,y) for y in range(18,23)]+[(12,y) for y in range(18,23)],ch),line(23,7,9,ch),line(24,8,8,ch))
+    raise ValueError(kind)
+def rose(x,y,c='R',l='L'):
+    return merge(pix([(x,y-1),(x-1,y),(x+1,y),(x,y+1)],c),pix([(x,y)],l))
+def sidecols(ys,xs,ch): return pix([(x,y) for y in ys for x in xs],ch)
+def wave(y0,y1,x0,x1,ch='H',alt='h',step=2):
+    d={}
+    for y in range(y0,y1+1):
+        c=ch if ((y-y0)//step)%2==0 else alt
+        for x in range(x0,x1+1): d=merge(d,pix([(x,y)],c))
+    return d

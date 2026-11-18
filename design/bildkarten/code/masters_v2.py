@@ -3,6 +3,9 @@ Person komplett 1 Pixel höher (Augen jetzt auf y=15), untere Torso-Kante unver�
 import copy
 from masters import MASTERS as _M
 from comp import *
+def _dame_brim(g):
+    """Pik Dame: Hutkrempe (Saumkante, Zeile 12) links und rechts je 1 Pixel breiter"""
+    g=dict(g); r=list(g[12]); r[3]='K'; r[13]='K'; g[12]=''.join(r); return g
 def spec_v2(name):
     suit,rank,em,spec=_M[name]; sp=copy.deepcopy(spec)
     sp['dyn']['xmin']=8; sp['dyn']['notch_left']=True; sp['dyn']['lift']=1; sp['lift']=1
@@ -10,7 +13,7 @@ def spec_v2(name):
     if name=='karo_bube': sp['hair_px']=[(x,y,'H') for y in (18,19) for x in (4,12)]+[(9,16,'H'),(10,16,'H'),(11,16,'H')]+[(x,y,'H') for y in (15,16,17) for x in (3,13)]   # Frisur 2 (Koteletten länger, Fransen rechts) + Variante A (Haar außen), freigegeben
     if name=='pik_bube': sp['hair_px']=[(x,11,'H') for x in range(6,12)]+[(x,10,'H') for x in range(8,12)]   # Tolle rechts, breit in 2 Stufen (freigegeben)
     if name=='pik_koenig': sp['hat']=['z_a10']
-    if name=='pik_dame': sp['hair']='bob_r2_l3'          # Haare +3 Pixel
+    if name=='pik_dame': sp['hair']='bob_r2_l3'; sp['grid_fn']=_dame_brim          # Haare +3 Pixel, Krempe je 1 px breiter
     if name=='kreuz_koenig': sp['hat']=['krone_ck_final']   # Krone Variante D, Steine weiter außen und eine Zeile tiefer
     if name in ('karo_dame','herz_koenig','karo_koenig','pik_koenig_zwilling'): sp['mouth2']=True   # Lippen 2 px
     if name in ('karo_koenig','pik_koenig_zwilling'): sp['extra']=list(sp['extra'])+['nase_n3']   # Nase (Formel aus Hautfarbe)
