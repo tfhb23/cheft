@@ -162,6 +162,24 @@ gemischte Stufen wie vorgesehen (Frühvogel Mastermind 31 bis 37 %, Pärchenkön
 
 Noch offen: Rollen-Varianten (`lab14.ts`) und Vorlieben/Erkennbarkeit nach künftigen Änderungen erneut messen.
 
+## 5d. Wirken Vorlieben und „menschliche Faktoren“ wirklich? (18.11.2026)
+
+Messung mit `lab6`, `lab_recog`, `lab5 tastes` und einer Entscheidungsprobe (60 Spiele zu 5 Runden, Mastermind-Tisch; je Entscheidung wird dieselbe Lage mit und ohne den Faktor entschieden und verglichen):
+
+| Faktor | Abwürfe anders | alle Entscheidungen anders |
+|---|---|---|
+| Vorlieben (auto, Skala 2) | 23,0 % | 10,2 % |
+| Gegner-Gedächtnis (oppUse 1) | 4,8 % | 2,2 % |
+| Launen (jitter 0,2) | 11,8 % | 5,3 % |
+| Rollentreue 0,85 (Ausweichen in 15 % der Runden) | 0,6 % | 0,4 % |
+| **Stimmung (tilt 0,5)** | **0,0 %** | **0,0 %** (Stimmung ±4: 0,3 %) |
+| alles zusammen (App-Standard) | 29,8 % | 13,4 % |
+| Rollen pur gegen Ausgewogen: Pärchenkönig / Glücksritter / Gerissener / Frühvogel | 7,9 / 9,2 / 1,2 / 0,1 % | 3,9 / 5,3 / 1,7 / 0,5 % |
+
+- **Vorlieben wirken deutlich und kosten nichts:** Der Anteil passender Abwürfe sinkt um etwa 30 % (Herz 24,7 → 17,1 %, Bildkarten 22,0 → 14,6 %, Sieben und Buben 13,9 → 9,4 %), die Strafpunkte bleiben gleich oder besser. Sweeps über Skala 0,5 bis 8, Schutz 6 bis 1e9 und absurde Werte (Skala 100, −5, Gewicht 1000) ändern die Siegquote nicht über das Rauschen hinaus.
+- **Erkennbarkeit der Rollen mit Würze:** Der Klassifikator trifft 34,1 % bei reinen Rollen, mit Treue 0,85, Launen 0,2 und Stimmung 0,5 noch 30,6 % (90 % Erhalt), 84 % der Runden in der eigenen Rolle, 72 % der Spiele mit mindestens einer Abweichung.
+- **Befund Stimmung:** Sie verschiebt nur den Ehrgeiz, und der entscheidet nur über „Erstmeldung jetzt oder noch warten“ in seltenen Lagen. Selbst eine absurd starke Stimmung ändert weniger als 0,5 % der Entscheidungen; das Ausweichen der Rollentreue ebenfalls kaum (0,4 %), weil die Nachbarrollen der Ausgewogenen ähnlich spielen. Die Stimmung ist damit praktisch unsichtbar. Möglicher Ausbau (nicht umgesetzt): nach einer Pleite zusätzlich Cheft früher ansagen oder den Abwurfdruck erhöhen, danach Stärke und Erkennbarkeit neu messen.
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
