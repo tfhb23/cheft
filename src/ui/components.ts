@@ -152,6 +152,7 @@ export function roundsTable(names: string[], played: RoundsRow[], totalRounds: n
  * 4.22: Auswahl der Kartenrückseite. Keine Buttons: Jede Rückseite ist eine Karte in Spielgröße. Die gewählte steht
  * orange und leuchtet (Karte leuchtet, 5.13), die anderen dunkel und abgeblendet (Karte abgeblendet, 5.15).
  */
+let backScrollKeep: number | null = null;
 export function backChoiceRow(items: { id: string; name: string; orange: string; dark: string }[], selected: string, onPick: (id: string) => void): HTMLElement {
   const strip = h(
     'div',
@@ -162,7 +163,10 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
         class: `card clickable ${on ? 'glow' : 'dim'}`,
         style: { backgroundImage: `url(${on ? d.orange : d.dark})`, backgroundSize: '100% 100%', backgroundPosition: '0 0' },
         title: d.name,
-        onclick: () => onPick(d.id),
+        onclick: () => {
+          backScrollKeep = strip.scrollLeft;
+          onPick(d.id);
+        },
       });
     }),
   );
@@ -170,7 +174,10 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
   // Die gewählte Rückseite beim Aufbau ins Bild holen (nach dem Einfügen ins Dokument, deshalb verzögert)
   requestAnimationFrame(() => {
     const cur = strip.querySelector('.glow') as HTMLElement | null;
-    if (cur) strip.scrollLeft = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
+    if (backScrollKeep !== null) {
+      strip.scrollLeft = backScrollKeep;
+      backScrollKeep = null;
+    } else if (cur) strip.scrollLeft = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
   });
   return h('div', { class: 'back-scroller' }, iconBtn(pixelIcon(ICON_ARROW_L), '‹', step(-1)), strip, iconBtn(pixelIcon(ICON_ARROW_R), '›', step(1)));
 }

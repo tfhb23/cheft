@@ -1409,8 +1409,8 @@ export class App {
     const own = h(
       'div',
       { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
-      seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, hint: playPhase && selectedCards.length >= 2 ? t('drop.lay') : undefined, cls: 'own-label' }),
       h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false)), this.me === r.starter ? openCardEl() : null),
+      seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, hint: playPhase && selectedCards.length >= 2 ? t('drop.lay') : undefined, cls: 'own-label' }),
     );
     table.appendChild(own);
 

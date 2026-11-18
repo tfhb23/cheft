@@ -106,9 +106,12 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Auswahl der Kartenrückseite: Vorschaubild in der Größe der Karten im Spiel (--card-w × --card-h) im Button */
 .thumb { display: block; width: var(--card-w); height: var(--card-h); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
 /* Alle Rückseiten in einer Zeile in Originalgröße; seitlich scrollbar (Wischen oder Pfeile) */
-.back-scroller { display: flex; align-items: center; gap: var(--sp-2); }
-.back-scroller > .btn.icon { flex: none; }
-.option .choices.back-choices { flex: 1; min-width: 0; display: flex; gap: var(--sp-3); padding: var(--sp-3); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.back-scroller { position: relative; width: 100%; }
+.back-scroller > .btn.icon { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; }
+.back-scroller > .btn.icon:first-child { left: var(--sp-2); }
+.back-scroller > .btn.icon:last-child { right: var(--sp-2); }
+/* seitlicher Leerraum = Pfeilbreite, damit erste und letzte Karte am Rand frei vom Pfeil sind */
+.option .choices.back-choices { display: flex; gap: var(--sp-3); padding: var(--sp-3) calc(var(--size-btn-icon) + var(--sp-4)); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .option .choices.back-choices::-webkit-scrollbar { display: none; }
 .option .choices.back-choices .card { flex: none; }
 
@@ -200,7 +203,7 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
 .own.drop { outline: var(--bw-mark) dashed var(--accent); outline-offset: calc(-1 * var(--bw-mark)); background: var(--surface-highlight); }
-.own-label { margin: 0 auto var(--gap-hair); width: fit-content; }
+.own-label { margin: var(--gap-hair) auto 0; width: fit-content; }
 .own .melds { justify-content: center; }
 .seat-inner { transform-origin: top left; display: flex; flex-direction: column; gap: var(--gap-tight); }
 .seat-top .seat-inner { align-items: center; width: 100%; }
