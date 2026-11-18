@@ -25,6 +25,8 @@ export interface PersonaDef {
   carelessness?: { noise?: number; handMiss?: number };
   /** Zustandsabhängige Zusatzregler (z. B. nur mutig, wenn man hinten liegt). Rein aus dem Spielstand. */
   adapt?: (state: GameState, pid: number) => Partial<Knobs>;
+  /** Wie stark die Stimmung (Endspurt-Neigung) bei dieser Rolle wirkt (1 = Standard). */
+  tiltScale?: number;
 }
 
 export interface Persona {
@@ -71,18 +73,19 @@ export function resolvePersona(p: Persona, state: GameState, pid: number): Resol
     const s = standing(state, pid);
     const left = s.roundsLeft + 1;
     const progress = Math.min(1, state.history.length / Math.max(1, state.settings.rounds - 1));
-    const weight = 0.35 + 0.65 * progress;
+    // Nervenstärke: je Bot und Spiel fest (0,5 bis 1,5), dazu eine kleine Schwankung je Runde; Rollen haben einen eigenen Grundwert
+    const nerve = 0.5 + roll({ ...state, round: { ...state.round, no: 0 } } as GameState, pid, SALT + 20);
+    const wobble = 0.85 + 0.3 * roll(state, pid, SALT + 21);
+    const weight = (0.35 + 0.65 * progress) * nerve * wobble * (def.tiltScale ?? 1);
     if (s.behind > 0) {
       const need = Math.min(1.5, s.behind / (45 * left));
       const t = p.tilt * need * weight;
       ambition += 0.5 * t;
-      // Rollen, die ausdrücklich nie Cheft ansagen (Frühvogel: 99), bleiben dabei; sie werden nur ehrgeiziger
+      // Rollen, die sonst nie Cheft ansagen (Frühvogel: 99), tun es nur in großer Not
       const never = knobs.cheftEagerPairs !== undefined && knobs.cheftEagerPairs >= 99;
-      if (!never) {
-        if (t >= 0.35) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 4);
-        if (t >= 0.6) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 3);
-        if (t >= 0.35) knobs.pairTakeAt = Math.min(knobs.pairTakeAt ?? 4, 3);
-      }
+      if (t >= (never ? 0.6 : 0.35)) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 4);
+      if (t >= 0.6 && !never) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 3);
+      if (t >= (never ? 0.6 : 0.35)) knobs.pairTakeAt = Math.min(knobs.pairTakeAt ?? 4, 3);
     } else if (s.lead > 0) {
       const safe = Math.min(1, s.lead / (45 * left));
       ambition -= p.tilt * 0.4 * safe * weight;

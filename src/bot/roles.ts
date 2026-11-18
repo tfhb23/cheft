@@ -46,6 +46,9 @@ export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   gambler: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
 };
 
+/** Grundstärke der Stimmung (Endspurt-Neigung) je Rolle: Der Frühvogel bleibt ruhiger, der Pärchenkönig und der Glücksritter gehen früher aufs Ganze. */
+export const STYLE_TILT: Record<StyleId, number> = { balanced: 1, early: 0.8, cunning: 1, pairs: 1.1, gambler: 1.3 };
+
 /** Rollenabhängige Sorgfalt (Faktoren auf Rauschen und Handüberblick der Stufe). Der Frühvogel hat es eilig und übersieht mehr. */
 export const STYLE_CARELESSNESS: Partial<Record<StyleId, { noise?: number; handMiss?: number }>> = {};
 
@@ -85,7 +88,7 @@ function def(id: StyleId, o: RoleOptions): PersonaDef {
   const knobs: Partial<Knobs> = { ...STYLE_KNOBS[id], oppUse: o.oppUse ?? 1, ...o.knobs };
   if (o.tastes ?? true) knobs.taste = 'auto';
   const adapt = id === 'gambler' ? (st: GameState, pid: number): Partial<Knobs> => (standing(st, pid).behind > 0 ? { cheftEagerPairs: 3 } : {}) : undefined;
-  return { id, label: ROLE_LABEL[id], knobs, adapt, carelessness: o.carelessness ?? STYLE_CARELESSNESS[id] };
+  return { id, label: ROLE_LABEL[id], knobs, adapt, carelessness: o.carelessness ?? STYLE_CARELESSNESS[id], tiltScale: STYLE_TILT[id] };
 }
 
 /** Die Rolle als Persona für `DecideOptions.persona`. Die Wildcard wählt jede Runde gleichverteilt eine Spielweise. */

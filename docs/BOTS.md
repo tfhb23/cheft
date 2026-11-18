@@ -199,6 +199,11 @@ Stärke: Siegquote mit Stimmung 1 gegen drei ohne (je 1000 Spiele): Ausgewogen 2
 
 *Hinweis zu den Messungen:* Bots ohne Persona-Angabe in den Laborskripten spielen automatisch als Ausgewogen mit allen Zutaten (Vorlieben, Gegner-Gedächtnis, Würze), deshalb war „ohne Vorlieben“ im Vorlieben-Sweep identisch mit „Skala 2“ (der Standard).
 
+## 5f. Stimmung mit Nervenstärke, Frühvogel und Cheft (18.11.2026)
+
+- **Nervenstärke:** Die Stärke der Stimmung hängt jetzt von einem festen Zufallswert je Bot und Spiel ab (Faktor 0,5 bis 1,5), dazu einer kleinen Schwankung je Runde (±15 %) und einem Grundwert je Rolle (`STYLE_TILT` in `roles.ts`: Ausgewogen 1, Frühvogel 0,8, Gerissener 1, Pärchenkönig 1,1, Glücksritter 1,3). Gemessen (1000 Spiele je Rolle gegen drei ohne Stimmung): Frühvogel 26,3 % (Vergleich 24,6), Glücksritter 25,9 % (24,7), Ausgewogen 25,2 % (24,9); Cheft-Anteil Frühvogel 5 → 7 %, Ausgewogen 12 → 15 %. Aufholsieg bei ≥100 Punkten Rückstand nach Runde 5 von 7: 2,6 → 3,6 %, Führender gewinnt 70,5 → 67,2 %.
+- **Frühvogel und Cheft:** Der Frühvogel sagt Cheft nicht freiwillig an (`cheftEagerPairs` 99), legt aber mit fünf Paaren Cheft aus (Cheft-Runden 5 bis 7 %). Test eines Rückfallplans (Cheft ansagen mit 4 Paaren, wenn keine Rommé-Erstmeldung möglich ist, 1000 Spiele): 22,5 % statt 25,8 % und 11 % Cheft-Runden; ab 3 Paaren 12,7 % (Cheft in 30 % der Runden, 76 Strafpunkte). Freiwilliges Cheft mit 4 Paaren ist für ihn also schwächer als im Rommé zu bleiben; der Regler wurde nicht übernommen. Dafür sagt er in großer Not (Rückstand hoch, späte Runden) Cheft schon mit 4 Paaren an.
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
