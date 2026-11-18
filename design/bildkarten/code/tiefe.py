@@ -19,6 +19,7 @@ VERT='HAKGWN'     # Haar/Hut: dürfen oben hell / unten dunkel werden (Bart nich
 CAST='HAKGWN'     # wirft Schatten auf die Haut
 # Varianten: A Kanten | B Kanten+oben/unten | C Kanten+Wurfschatten | D alles (B+C+breitere Schattenzone)
 VARS=dict(A=dict(),B=dict(vert=1,skin=1),C=dict(cast=1),D=dict(vert=1,cast=1,wide=1))
+TWO=None   # 2 Pixel breite Flächen: None = flach (bisher) | 'rechts' rechter Pixel dunkel | 'beide' links hell, rechts dunkel
 def apply(grid,cm,variant):
     """grid: {y:row}; cm: Buchstabe->RGB. Rückgabe: {(spaltenindex,y):RGB}"""
     v=VARS[variant]
@@ -39,6 +40,10 @@ def apply(grid,cm,variant):
             x1=x
             while x1+1<16 and row[x1+1]==c: x1+=1
             n=x1-x+1
+            if n==2 and TWO:
+                base=cm[c]
+                if TWO=='beide': out[(x,y)]=hi(base)
+                out[(x1,y)]=lo(base)
             if n>=3:
                 base=cm[c]
                 for xx in range(x,x1+1):
