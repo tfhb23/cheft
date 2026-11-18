@@ -135,3 +135,10 @@ def wave(y0,y1,x0,x1,ch='H',alt='h',step=2):
         c=ch if ((y-y0)//step)%2==0 else alt
         for x in range(x0,x1+1): d=merge(d,pix([(x,y)],c))
     return d
+
+def twin_spec(name,fn,pal=None,extra=None):
+    """Spec einer zweiten Person (wie render_art, aber als (Farbe, Rang, Spec) für final_auswahl.PERSONEN)."""
+    s,r,sp=base_spec(name)
+    if pal: sp['pal'].update(pal)
+    if extra is not None: sp['extra']=list(extra)
+    return s,r,dict(sp,grid_fn=fn)

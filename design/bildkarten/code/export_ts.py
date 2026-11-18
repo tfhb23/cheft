@@ -8,6 +8,7 @@ Aufruf: python3 design/bildkarten/code/export_ts.py
 import os,sys,re
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from final_auswahl import *
+import zwillinge   # freigegebene zweite Personen eintragen
 from final_layout import render_final   # aktueller Layout-Stand (mittig, schmaler Kopf, Kinn kürzer, Schultern schmaler)
 import lib
 OUT=os.path.join(lib._ROOT if os.path.exists(os.path.join(lib._ROOT,'src')) else '/home/user/cheft','src','ui','face-art.ts')
