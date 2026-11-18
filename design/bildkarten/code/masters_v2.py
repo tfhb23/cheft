@@ -35,5 +35,5 @@ _M['kreuz_koenig']=('C',13,'schlagschatten',mk('krone_k','schnurr','kurz',('brau
 MASTERS_V2={n:spec_v2(n) for n in _M}
 
 # ---- Ergänzung: Pik König Zwilling (freigegeben: Z2) – breiter Zylinder W1, Glatze, Schnurrbart 6 breit, Brauen 3 breit eine Zeile höher, kein Monokel
-_M['pik_koenig_zwilling']=('S',13,'schlagschatten',mk('z_w1','ms_6','glatze',('brauen_3',),KING_DYN,S=hx('f6dfca'),B=BLACK,H=BLACK))
+_M['pik_koenig_zwilling']=('S',13,'schlagschatten',mk('z_w1','ms_6','glatze',('brauen_3_li_runter',),KING_DYN,S=hx('f6dfca'),B=BLACK,H=BLACK))
 MASTERS_V2={n:spec_v2(n) for n in _M}

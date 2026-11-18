@@ -44,8 +44,8 @@ PERSONEN={
  'kreuz_bube_a':('C',11,_falke_kopf(13)),
  'kreuz_bube_b':('C',11,m2(11,['krone_klein','hermelin'],'keiner','pony_cj2',**KB)),
  # Kreuz Dame
- 'kreuz_dame_a':('C',12,dict(m2(12,'diadem_gross','keiner','hochsteck',('mund_schmal',),J=RED,**KD),acc=['perlen'])),
- 'kreuz_dame_b':('C',12,m2(12,'ohrringe','keiner','zopfkrone',('mund_schmal',),**KD)),
+ 'kreuz_dame_a':('C',12,dict(m2(12,'diadem_gross_v2','keiner','hochsteck',('mund_schmal',),J=RED,**KD),acc=['perlen'])),
+ 'kreuz_dame_b':('C',12,m2(12,'ohrringe_2x2','keiner','zopfkrone',('mund_schmal',),**KD)),
 }
 # Pik König Zwilling steht in masters_v2.py (pik_koenig_zwilling)
 

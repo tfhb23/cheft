@@ -345,7 +345,9 @@ HAT['tikka_herz']=rows_raw(12,['.....JJ..JJ.....','.....JJJJJJ.....','......JJJJ
 HAT['mond']=rows_raw(5,['.......GG.......','....G......G....','....GG....GG....','.....GG..GG.....','......GGGG......'])
 HAT['muenzen']=rows_raw(13,['...GGGGGGGGGG...','...G.G.GG.G.G...'])
 HAT['ohrringe']=rows_raw(19,['..G..........G..','..G..........G..'])
+HAT['ohrringe_2x2']=rows_raw(19,['..GG........GG..','..GG........GG..'])   # 2x2 Pixel, Richtung Gesicht (nicht nach außen)
 HAT['perlenband']=rows_raw(13,['...WWWWWWWWWW...'])
+HAT['diadem_gross_v2']=part(9,['.......J','....J.GG','....GGGG','...GGGJG','...GGGGG'])   # markierte Pixel (Spitzen, Mittelspitze, Eckpixel links) 1 px runter, 2 Steine im Band
 HAT['diadem_gross']=part(8,['.......J','....J.GG','....G.GG','...GGGGG','...GGGJG','...GGGGG'])
 HAT['goldband']=rows_raw(13,['...GGGGGGGGGG...'])
 HAT['uraeus']=rows_raw(10,['.......GG.......','.......JJ.......','.......GG.......'])
@@ -620,6 +622,8 @@ EXTRA['brauen_2i_hoch']={14:'.....KK..KK.....'}
 # ======================= Runde 32 =======================
 EXTRA['brauen_3']={15:'....KKK..KKK....'}        # Brauen 3 Pixel, mittig über den Augen (Spalten 4-6 und 9-11)
 EXTRA['brauen_3_hoch']={14:'....KKK..KKK....'}    # eine Zeile höher
+EXTRA['brauen_3_li_runter']={14:'.........KKK....',15:'....KKK.........'}   # linke Braue (Betrachter) stößt ans Auge, rechte bleibt oben
+EXTRA['brauen_3_re_runter']={14:'....KKK.........',15:'.........KKK....'}   # rechte Braue stößt ans Auge, linke bleibt oben
 
 # Nasen-Varianten (Buben etc.): N1 2 px in Nasenfarbe T, N2 1 px (rechts der Mitte, Licht links), N3 2 px per Formel aus der Hautfarbe (t)
 EXTRA['nase_n1']={17:'.......TT.......'}
