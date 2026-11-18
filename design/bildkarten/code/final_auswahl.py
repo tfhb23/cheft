@@ -36,7 +36,7 @@ def _falke_kopf(x0,y0=6):
 PERSONEN={
  # Herz Bube
  'herz_bube_a':('H',11,m2(11,['turbm_a','mond_klein'],'keiner','kurz_b',('brauen',),A=WHITE,a=SHADE)),
- 'herz_bube_b':('H',11,m2(11,['turban_klein','feder_s4'],'keiner','glatze',('brauen','nase_n3'),A=WHITE,a=SHADE,J=RED,F=C['gold'],Y=hx('c8902a'))),
+ 'herz_bube_b':('H',11,dict(m2(11,['turban_klein','feder_s4'],'keiner','glatze',('brauen','nase_n3'),A=WHITE,a=SHADE,J=RED,F=C['gold'],Y=hx('c8902a')),a_mix=0.35)),
  # Herz Dame
  'herz_dame_a':('H',12,m2(12,['fall_rc','mond_rc','sterne_schleier'],'keiner','rund_scheitel',('mund_schmal',),J=RED,**HH)),
  'herz_dame_b':('H',12,m2(12,['kamm5_8_rot_u','ohrringe'],'keiner','hochsteck',('mund_schmal',),**HH)),

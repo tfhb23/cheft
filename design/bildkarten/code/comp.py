@@ -135,6 +135,7 @@ def compose(suit,spec,emph='ohne'):
     cm['w']=_t.hi(cm['H'])                          # Falkenbraun aus dem Haarbraun der Person (Formel)
     cm['h']=_t.lo(cm['H'])                          # dunklere Strähnen aus demselben Braun (Formel)
     cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
+    if spec.get('v_mix') is not None: cm['V']=tuple(round(cm['W'][i]+(cm['V'][i]-cm['W'][i])*spec['v_mix']) for i in range(3))   # graue Kontur dezenter (1 = Formelfarbe)
     if 'a' in pal: cm['a']=_t.fold(cm['A'])         # Fez-/Turbanfalten per Formel (früher a02a20, c8902a, d8cfbf)
     if spec.get('a_mix') is not None and 'a' in pal: cm['a']=tuple(round(cm['A'][i]+(cm['a'][i]-cm['A'][i])*spec['a_mix']) for i in range(3))   # Falte dezenter: Anteil der Formelfarbe (1 = wie bisher, 0 = unsichtbar)
     layers=[P.BODY[spec['body']]]
@@ -180,6 +181,7 @@ def compose(suit,spec,emph='ohne'):
     if spec.get('shrink') or spec.get('chin'): grid=_shrink(grid,8 if spec.get('narrow')=='A' else 7,spec.get('shrink',[]),spec.get('chin'))
     for (hx_,hy_,hch_) in spec.get('hair_px',[]):   # Einzelpixel in der fertigen Figur (Spalte 0-15, Zeile wie LAST_GRID)
         r_=list(grid.get(hy_,'.'*16)); r_[hx_]=hch_; grid[hy_]=''.join(r_)
+    if spec.get('grid_fn'): grid=spec['grid_fn'](grid)      # Entwürfe: Figur nach dem Zusammenbau frei umbauen (Spalte 0-15)
     global LAST_GRID; LAST_GRID=dict(grid)
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust
