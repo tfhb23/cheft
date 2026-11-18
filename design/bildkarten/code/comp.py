@@ -175,6 +175,8 @@ def compose(suit,spec,emph='ohne'):
             grid[20]=''.join(r)
     if spec.get('narrow'): grid=_narrow(grid,spec['narrow'],prot)
     if spec.get('shrink') or spec.get('chin'): grid=_shrink(grid,8 if spec.get('narrow')=='A' else 7,spec.get('shrink',[]),spec.get('chin'))
+    for (hx_,hy_,hch_) in spec.get('hair_px',[]):   # Einzelpixel in der fertigen Figur (Spalte 0-15, Zeile wie LAST_GRID)
+        r_=list(grid.get(hy_,'.'*16)); r_[hx_]=hch_; grid[hy_]=''.join(r_)
     global LAST_GRID; LAST_GRID=dict(grid)
     if not spec.get('dyn'): grid[P.HEM_Y]='G'*16
     import bust

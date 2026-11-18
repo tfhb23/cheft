@@ -6,6 +6,7 @@ from comp import *
 def spec_v2(name):
     suit,rank,em,spec=_M[name]; sp=copy.deepcopy(spec)
     sp['dyn']['xmin']=8; sp['dyn']['notch_left']=True; sp['dyn']['lift']=1; sp['lift']=1
+    if name=='herz_koenig': sp['pal'].update(F=C['gold'],Y=hx('c8902a'))   # Feder in Gold (freigegeben)
     if name=='pik_koenig': sp['hat']=['z_a10']
     if name=='pik_dame': sp['hair']='bob_r2_l3'          # Haare +3 Pixel
     if name=='kreuz_koenig': sp['hat']=['krone_ck_final']   # Krone Variante D, Steine weiter außen und eine Zeile tiefer
