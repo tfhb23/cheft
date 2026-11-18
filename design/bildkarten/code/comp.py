@@ -200,6 +200,10 @@ def compose(suit,spec,emph='ohne'):
                 for x in range(W):
                     if (x<=10 and 10<=y<=18) or (x>=24 and y>=25): sh.p[x,y]=(0,0,0,0)
         if spec.get('body_clip'): _clip_body(L,*spec['body_clip'])
+        if spec.get('trim'):                    # Layout v7: unterste n Körperzeilen je Spalte löschen (Saum/Streifen entfallen)
+            for x in range(W):
+                ys=[y for y in range(H) if L.p[x,y][3]>0]
+                for y in ys[-spec['trim']:]: L.p[x,y]=(0,0,0,0)
         L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):

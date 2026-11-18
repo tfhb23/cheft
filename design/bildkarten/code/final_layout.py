@@ -21,8 +21,10 @@ SHRINK={
 }
 SHRINK['pik_koenig_zwilling']=SHRINK['pik_koenig_zwilling']+[('del',13,13,[6])]   # Zylinderkrempe 1 px kürzer
 MODE='v6a'      # Person mittig (v5a = 2 px nach rechts)
+TRIM=5          # Layout v7: unterste 5 Körperzeilen je Spalte weg (die Saumstreifen entfallen)
+DY=3            # ... und die ganze Figur für alle gleich um DY Pixel nach unten (mittig)
 def final_spec(k):
-    s,r,sp=spec_of(k); return s,r,dict(sp,shrink=SHRINK.get(k,[]),chin=True)
+    s,r,sp=spec_of(k); return s,r,dict(sp,shrink=SHRINK.get(k,[]),chin=True,trim=TRIM,dy=DY)
 def render_final(k,mode=None):
     s,r,sp=final_spec(k); return card(s,r,sp,'schlagschatten',mode or MODE)
 def blank_card(s,r):
@@ -53,4 +55,5 @@ def check_sym(k,im):
     px=im.convert('RGBA').load(); s,r,_=spec_of(k); ink=inkOf(s)
     return [(x,y) for y in range(11,18) for x in range(3,10) if SH[s][y-11][x-3]=='#' and px[x,y][:3]!=ink]
 if __name__=='__main__':
+    if len(sys.argv)>2: DY=int(sys.argv[2])
     main(sys.argv[1] if len(sys.argv)>1 else os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','images','final_layout'))
