@@ -136,6 +136,7 @@ def compose(suit,spec,emph='ohne'):
     cm['h']=_t.lo(cm['H'])                          # dunklere Strähnen aus demselben Braun (Formel)
     cm['V']=_t.fold(cm['W'])                        # Falten in Weiß per Formel (früher d8cfbf)
     if 'a' in pal: cm['a']=_t.fold(cm['A'])         # Fez-/Turbanfalten per Formel (früher a02a20, c8902a, d8cfbf)
+    if spec.get('a_mix') is not None and 'a' in pal: cm['a']=tuple(round(cm['A'][i]+(cm['a'][i]-cm['A'][i])*spec['a_mix']) for i in range(3))   # Falte dezenter: Anteil der Formelfarbe (1 = wie bisher, 0 = unsichtbar)
     layers=[P.BODY[spec['body']]]
     if spec.get('back'): layers.append(P.BACK[spec['back']])
     layers.append(P.FACE)
@@ -150,6 +151,8 @@ def compose(suit,spec,emph='ohne'):
         else: layers.append(P.EXTRA[e] if e in P.EXTRA else P.HAT[e])
     for a in spec.get('acc',[]): layers.append(P.ACC[a])
     grid=P.merge(*layers)
+    if spec.get('a_dither'):                      # Falte nur jeder zweite Pixel (spiegelsymmetrisch)
+        grid={y:''.join(('A' if (ch=='a' and not ((x if x<8 else 15-x)%2==1)) else ch) for x,ch in enumerate(r)) for y,r in grid.items()}
     st=spec.get('eye',EYE)
     if st and 16 in grid:                       # Augenfarbe (Varianten S1 bis S4, siehe EYE)
         import tiefe as _te
