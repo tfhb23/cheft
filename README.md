@@ -86,7 +86,11 @@ anderen „Weiter“, spielt ein Autopilot für ihn, bis er von selbst zurückko
   jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die der Autopilot vertritt.
 - **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt, und spielt mit der aktuellen Hand weiter.
   Der Platz eines Abwesenden bleibt für ihn reserviert (Sperrzeit: 2 Minuten je verbleibender Runde, mindestens 3, höchstens 10, gerechnet ab „Weiter“
-  nach der Pause) und erscheint erst danach in der Auswahl, mit dem Stecker-Symbol statt eines Textes. Wer von selbst zurückkommt, sitzt sofort wieder an seinem Platz.
+  nach der Pause) und erscheint erst danach in der Auswahl, mit dem Funksymbol (mit X) statt eines Textes. Wer von selbst zurückkommt, sitzt sofort wieder an seinem Platz.
+  Wer einen Platz übernehmen will, fragt an und braucht die Zustimmung des Spielleiters (Zulassen/Ablehnen, nach einer Minute ohne Antwort läuft die Anfrage ab).
+- **Spielleitung:** Der Gastgeber kann die Spielleitung bewusst und dauerhaft übergeben (Lobby und Einstellungen). Der Spielleiter sieht im Spiel die Spielerliste mit
+  einem X hinter jedem Menschen (nicht hinter sich selbst, und nicht hinter dem Gastgeber, solange der nur vertreten wird) und im Pausenmenü bei den Abwesenden.
+  Wer entfernt wird, verliert alle Raumdaten und gilt als Unbekannter; sein Platz wird ein Bot „Botname (Max)“ mit derselben Hand, den ein Neuer (mit Zustimmung) sofort übernehmen kann.
   Ist der Gastgeber weg, leitet ihn der am längsten anwesende verbundene Mensch (nie ein Bot) vorübergehend; kommt der Gastgeber zurück,
   leitet er sofort wieder. Plätze haben feste Kennungen, die Rolle bleibt also auch beim Entfernen und Umsortieren erhalten.
 - **Raum neu eröffnen:** Gibt es einen Raum (z. B. `/232`) nicht mehr, bietet die App an, ihn mit demselben Code neu zu eröffnen; man wird Gastgeber.
@@ -96,7 +100,7 @@ anderen „Weiter“, spielt ein Autopilot für ihn, bis er von selbst zurückko
   „Raum verlassen“ gibt ihn sofort frei. Danach geht die Gastgeber-Rolle dauerhaft an den nächsten Menschen.
 - **Verbindungsprüfung:** Der Server prüft alle 10 Sekunden; nach zwei verpassten Antworten gilt eine stille Verbindung als getrennt.
 - **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten, und es pausiert von selbst, wenn jemand länger als 45 Sekunden die Verbindung verliert (kurze Aussetzer
-  bleiben unsichtbar, das Stecker-Symbol am Namen erscheint nach 10 Sekunden). Es geht weiter, wenn alle verbundenen Spieler „Weiter“ getippt haben;
+  bleiben unsichtbar, das Funksymbol am Namen erscheint nach 10 Sekunden). Es geht weiter, wenn alle verbundenen Spieler „Weiter“ getippt haben;
   der Spielleiter hat zusätzlich „Für alle fortsetzen“. Kommt der Abwesende vorher zurück, geht es ohne Bestätigung weiter. Währenddessen spielt niemand für Abwesende,
   danach der Autopilot, aber ohne weitere Pause für dieselbe Abwesenheit. Nach der letzten Runde gibt es keine Pause mehr.
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,

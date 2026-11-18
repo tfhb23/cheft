@@ -83,6 +83,10 @@ type ClientMsg =
   | { type: 'open'; room: string; name: string; auto?: boolean; back?: string }
   | { type: 'rejoin'; room: string; token: string; snap?: string }
   | { type: 'claim'; room: string; pid: number; name: string; auto?: boolean; back?: string }
+  | { type: 'claimReply'; id: number; ok: boolean }
+  | { type: 'claimCancel' }
+  | { type: 'kick'; pid: number }
+  | { type: 'handover'; pid: number }
   | { type: 'setBack'; back: string }
   | { type: 'pause'; on: boolean; all?: boolean }
   | { type: 'rename'; name: string }
@@ -109,6 +113,29 @@ interface Conn {
 const rooms = new Rooms();
 const conns = new Set<Conn>();
 const botTimers = new Map<string, NodeJS.Timeout>();
+/** Wer hinter einer offenen Anfrage steckt (die Raumdaten stehen in room.requests). */
+const requesters = new Map<number, { c: Conn; room: Room; name: string; back?: string; auto: boolean }>();
+
+/** Zieht eine Anfrage zurück und sagt dem Anfragenden bei Bedarf, warum. */
+function endRequest(room: Room, id: number, error?: string): void {
+  room.takeRequest(id);
+  const r = requesters.get(id);
+  requesters.delete(id);
+  if (r && error) send(r.c, { type: 'error', error });
+}
+
+function cancelRequestsOf(c: Conn): void {
+  for (const [id, r] of requesters) {
+    if (r.c !== c) continue;
+    endRequest(r.room, id);
+    if (rooms.get(r.room.code) === r.room) broadcast(r.room);
+  }
+}
+
+/** Alles, was nach einer Änderung der Plätze nachzuziehen ist. */
+function dropRequestsForSeat(room: Room, pid: number): void {
+  for (const req of [...room.requests]) if (req.pid === pid) endRequest(room, req.id, 'net.seatTaken');
+}
 
 function send(c: Conn, msg: unknown): void {
   if (c.ws.readyState === WebSocket.OPEN) c.ws.send(JSON.stringify(msg));
@@ -177,6 +204,18 @@ function leave(c: Conn, hard = true): void {
     scheduleBots(room);
   }
   broadcast(room);
+}
+
+/** Anfragen, auf die der Spielleiter nicht geantwortet hat, laufen nach einer Minute ab. */
+function expireRequests(): void {
+  for (const code of rooms.codes()) {
+    const room = rooms.get(code);
+    if (!room) continue;
+    const expired = room.expiredRequests();
+    if (!expired.length) continue;
+    for (const req of expired) endRequest(room, req.id, 'net.noAnswer');
+    broadcast(room);
+  }
 }
 
 /** Gibt Lobby-Sitze frei, deren Spieler zu lange getrennt sind. */
@@ -303,13 +342,72 @@ function handle(c: Conn, msg: ClientMsg): void {
       return;
     }
     case 'claim': {
+      // Einen Platz im laufenden Spiel übernehmen: nur mit Zustimmung des Spielleiters.
       const room = rooms.get(msg.room);
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      const r = room.claim(Number(msg.pid), msg.name, Date.now(), msg.back, msg.auto === true);
-      if (!('pid' in r)) return send(c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
-      for (const o of conns) if (o !== c && o.room === room && o.pid === r.pid) o.room = null;
-      leave(c);
-      joined(c, room, r.pid, r.token);
+      const hostSeat = room.seats[room.effectiveHost()];
+      if (!hostSeat || hostSeat.isBot || !hostSeat.connected) return send(c, { type: 'error', error: 'net.noHostNow' });
+      cancelRequestsOf(c);
+      const req = room.addRequest(Number(msg.pid), String(msg.name ?? ''));
+      if (!('id' in req)) return send(c, { type: 'error', error: req.ok ? 'net.serverError' : req.error, params: req.ok ? undefined : req.params });
+      requesters.set(req.id, { c, room, name: String(msg.name ?? ''), back: msg.back, auto: msg.auto === true });
+      send(c, { type: 'pending', room: room.code });
+      broadcast(room);
+      return;
+    }
+    case 'claimCancel':
+      cancelRequestsOf(c);
+      return;
+    case 'claimReply': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      if (c.pid !== room.effectiveHost()) return send(c, { type: 'error', error: 'net.hostOnly' });
+      const req = room.requests.find((r) => r.id === Number(msg.id));
+      const who = requesters.get(Number(msg.id));
+      if (!req || !who) return;
+      if (!msg.ok) {
+        endRequest(room, req.id, 'net.declined');
+        broadcast(room);
+        return;
+      }
+      endRequest(room, req.id);
+      const r = room.claim(req.pid, who.name, Date.now(), who.back, who.auto);
+      if (!('pid' in r)) {
+        send(who.c, { type: 'error', error: r.ok ? 'net.serverError' : r.error, params: r.ok ? undefined : r.params });
+        broadcast(room);
+        return;
+      }
+      for (const o of conns) if (o !== who.c && o.room === room && o.pid === r.pid) o.room = null;
+      leave(who.c);
+      joined(who.c, room, r.pid, r.token);
+      return;
+    }
+    case 'kick': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const target = room.seats[Number(msg.pid)];
+      const name = target?.name ?? '';
+      const r = room.removePlayer(c.pid, Number(msg.pid));
+      if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
+      // Wer entfernt wurde, verliert alle Raumdaten und gilt als Unbekannter.
+      for (const o of conns) {
+        if (o.room === room && o.pid === Number(msg.pid)) {
+          o.room = null;
+          send(o, { type: 'kicked' });
+        }
+      }
+      dropRequestsForSeat(room, Number(msg.pid));
+      for (const o of conns) if (o.room === room) send(o, { type: 'notice', key: 'notice.removed', params: { name } });
+      broadcast(room);
+      scheduleBots(room);
+      return;
+    }
+    case 'handover': {
+      const room = c.room;
+      if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
+      const r = room.handover(c.pid, Number(msg.pid));
+      if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
+      broadcast(room);
       return;
     }
     case 'rename': {
@@ -428,6 +526,7 @@ wss.on('connection', (ws) => {
   });
   ws.on('close', () => {
     conns.delete(c);
+    cancelRequestsOf(c);
     leave(c, false);
   });
 });
@@ -443,6 +542,7 @@ setInterval(() => {
     c.ws.ping();
   }
   dropStaleSeats();
+  expireRequests();
   if (++tick % 3 === 0) for (const code of rooms.sweep()) botTimers.delete(code);
 }, PING_MS);
 

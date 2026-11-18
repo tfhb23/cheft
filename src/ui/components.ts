@@ -50,7 +50,7 @@ export function badge(text: string, mode?: string): HTMLElement {
   return h('span', { class: `badge${mode ? ' ' + mode : ''}` }, text);
 }
 
-/** 6.24: Kleines Stecker-Piktogramm hinter einem Namen: die Verbindung ist weg. Ohne sichtbaren Text, nur als Beschriftung für Screenreader. */
+/** 6.24: Kleines Funk-Piktogramm hinter einem Namen: die Verbindung ist weg. Ohne sichtbaren Text, nur als Beschriftung für Screenreader. */
 export function lostIcon(): HTMLElement {
   const title = t('conn.lost');
   return h('span', { class: 'conn-lost', title, role: 'img', 'aria-label': title }, pixelIcon(ICON_NOCONN));

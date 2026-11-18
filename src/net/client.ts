@@ -17,6 +17,8 @@ export interface LobbyInfo {
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
+  /** Offene Anfragen, einen Platz zu übernehmen; der Spielleiter antwortet. */
+  requests?: { id: number; name: string; seatName: string }[];
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; /** Ein Abwesender, für den der Autopilot spielt. */ autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
@@ -42,6 +44,12 @@ export interface NetHandlers {
   onLeft(): void;
   /** Ein laufendes Spiel hat deinen frisch eröffneten Raum ersetzt: neu beitreten, um einen Platz zu übernehmen. */
   onReplaced(room: string): void;
+  /** Die Anfrage auf einen Platz ist beim Spielleiter angekommen. */
+  onPending(room: string): void;
+  /** Der Spielleiter hat dich entfernt: alle Raumdaten sind gelöscht. */
+  onKicked(): void;
+  /** Kurze Meldung für alle im Raum (z. B. „Max wurde entfernt“). */
+  onNotice(key: string, params?: Record<string, string | number>): void;
   /** Das Spiel läuft schon: Plätze, die man übernehmen kann. */
   onClaimable(room: string, seats: ClaimableSeat[]): void;
 }
@@ -159,6 +167,17 @@ export class NetClient {
           if ('snap' in msg) this.snap = typeof msg.snap === 'string' ? msg.snap : null;
           this.handlers.onUpdate({ lobby: msg.lobby as LobbyInfo, state: (msg.state as GameView | null) ?? null, last: (msg.last as ServerUpdate['last']) ?? null, snap: this.snap });
           break;
+        case 'pending':
+          this.handlers.onPending(String(msg.room));
+          break;
+        case 'kicked':
+          this.rejoin = null;
+          this.snap = null;
+          this.handlers.onKicked();
+          break;
+        case 'notice':
+          this.handlers.onNotice(String(msg.key), msg.params as Record<string, string | number> | undefined);
+          break;
         case 'replaced':
           this.rejoin = null;
           this.snap = null;
@@ -232,6 +251,21 @@ export class NetClient {
   }
   claim(room: string, pid: number, name: string, back?: string, auto = false): void {
     this.send({ type: 'claim', room, pid, name, back, auto });
+  }
+  /** Spielleiter: Anfrage eines Fremden auf einen Platz zulassen oder ablehnen. */
+  claimReply(id: number, ok: boolean): void {
+    this.send({ type: 'claimReply', id, ok });
+  }
+  cancelClaim(): void {
+    this.send({ type: 'claimCancel' });
+  }
+  /** Spielleiter: einen Menschen aus dem laufenden Spiel entfernen (wird ein Bot). */
+  kick(pid: number): void {
+    this.send({ type: 'kick', pid });
+  }
+  /** Gastgeber: die Spielleitung dauerhaft weitergeben. */
+  handover(pid: number): void {
+    this.send({ type: 'handover', pid });
   }
   rename(name: string): void {
     this.send({ type: 'rename', name });

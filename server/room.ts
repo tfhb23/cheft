@@ -50,6 +50,21 @@ export interface Seat {
 
 export type PauseKind = 'manual' | 'auto';
 
+/** Wer im laufenden Spiel einen Platz übernehmen möchte, braucht die Zustimmung des Spielleiters. */
+export interface ClaimRequest {
+  id: number;
+  /** Gewünschter Platz. */
+  pid: number;
+  /** Name des Anfragenden. */
+  name: string;
+  /** Name des Platzes zum Zeitpunkt der Anfrage. */
+  seatName: string;
+  at: number;
+}
+/** So lange wartet eine Anfrage auf die Antwort des Spielleiters. */
+export const REQUEST_TTL_MS = 60 * 1000;
+export const MAX_REQUESTS = 3;
+
 export interface LobbyView {
   code: string;
   hostPid: number;
@@ -60,6 +75,8 @@ export interface LobbyView {
   paused: PauseKind | null;
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
+  /** Offene Anfragen, einen Platz zu übernehmen (nur der Spielleiter beantwortet sie). */
+  requests: { id: number; name: string; seatName: string }[];
   settings: LobbySettings;
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
@@ -150,6 +167,9 @@ export class Room {
   private resumeVotes = new Set<number>();
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
   rev = 0;
+  /** Offene Anfragen auf einen Platz (flüchtig: nicht in der Kopie). */
+  requests: ClaimRequest[] = [];
+  private nextRequestId = 1;
   /** Zeitpunkt, an dem der Raum aus einer Kopie wiederhergestellt wurde. */
   restoredAt: number | null = null;
   readonly createdAt = Date.now();
@@ -431,6 +451,79 @@ export class Room {
     return { pid, token };
   }
 
+  // ------------------------------------------------------------ Anfragen, Entfernen, Übergabe
+  /** Legt eine Anfrage auf einen übernehmbaren Platz an. */
+  addRequest(pid: number, name: string, now = Date.now()): ClaimRequest | Result {
+    if (!this.state) return fail('net.notStarted');
+    if (this.state.finished) return fail('net.alreadyStarted');
+    const seat = this.seats[pid];
+    if (!seat) return fail('net.noSuchSeat');
+    if (!this.isClaimable(seat, now)) return fail('net.seatTaken');
+    if (this.requests.some((r) => r.pid === pid) || this.requests.length >= MAX_REQUESTS) return fail('net.seatTaken');
+    const req: ClaimRequest = { id: this.nextRequestId++, pid, name: sanitizeName(name) || `Spieler ${pid + 1}`, seatName: seat.name, at: now };
+    this.requests.push(req);
+    return req;
+  }
+
+  /** Nimmt eine Anfrage aus der Liste (beantwortet, zurückgezogen oder abgelaufen). */
+  takeRequest(id: number): ClaimRequest | undefined {
+    const i = this.requests.findIndex((r) => r.id === id);
+    return i < 0 ? undefined : this.requests.splice(i, 1)[0];
+  }
+
+  expiredRequests(now = Date.now()): ClaimRequest[] {
+    return this.requests.filter((r) => now - r.at > REQUEST_TTL_MS);
+  }
+
+  /**
+   * Der Spielleiter entfernt einen Menschen aus dem laufenden Spiel. Der Platz wird ein Bot („Botname (Max)“), das Spiel geht mit
+   * derselben Hand weiter; wer entfernt wurde, ist ab sofort ein Unbekannter (sein Token ist ungültig).
+   */
+  removePlayer(by: number, pid: number): Result {
+    if (!this.state) return fail('net.notStarted');
+    if (by !== this.effectiveHost()) return fail('net.hostOnly');
+    const seat = this.seats[pid];
+    if (!seat || seat.isBot) return fail('net.noSuchSeat');
+    // Sich selbst und den Gastgeber (den ein Vertreter nicht entfernen darf) schützt der Raum.
+    if (pid === by || (seat.sid === this.hostSid && by !== pid)) return fail('net.hostOnly');
+    const former = seat.name;
+    // Ein Bot mit eigenem Namen, der noch nicht am Tisch sitzt.
+    let bot = resolveBots([{ level: 'random', style: 'random' }], this.rng)[0];
+    for (let i = 0; i < 20 && this.seats.some((o) => o.name.startsWith(bot.name)); i++) bot = resolveBots([{ level: 'random', style: 'random' }], this.rng)[0];
+    const name = `${bot.name} (${former.slice(0, 8)})`;
+    seat.isBot = true;
+    seat.name = name;
+    seat.bot = { level: bot.level, style: bot.style };
+    seat.botChoice = { level: bot.level, style: bot.style };
+    delete seat.token;
+    delete seat.back;
+    seat.connected = true;
+    seat.disconnectedAt = undefined;
+    delete seat.autopilot;
+    delete seat.autopilotSince;
+    const info = this.state.players[pid];
+    info.isBot = true;
+    info.name = name;
+    info.bot = seat.bot;
+    this.resumeVotes.delete(pid);
+    this.requests = this.requests.filter((r) => r.pid !== pid);
+    // Wer fehlte, hält eine Pause nicht mehr auf.
+    if (this.paused === 'auto' && this.humans().every((s) => s.connected)) this.resume();
+    else this.checkResumeVotes();
+    this.touch();
+    return ok;
+  }
+
+  /** Die Gastgeber-Rolle bewusst weitergeben; nur der Gastgeber selbst, nur an einen verbundenen Menschen. */
+  handover(from: number, to: number): Result {
+    if (from !== this.hostPid) return fail('net.hostOnly');
+    const target = this.seats[to];
+    if (!target || target.isBot || !target.connected || to === from) return fail('net.noSuchSeat');
+    this.hostSid = target.sid;
+    this.touch();
+    return ok;
+  }
+
   // ------------------------------------------------------------ Kopie
   toSnapshot(): RoomSnapshot {
     return {
@@ -643,6 +736,7 @@ export class Room {
       started: this.started,
       paused: this.paused,
       resumed: [...this.resumeVotes],
+      requests: this.requests.map((r) => ({ id: r.id, name: r.name, seatName: r.seatName })),
       settings: this.settings,
       seats: this.seats.map((s) => ({
         pid: s.pid,

@@ -13,16 +13,18 @@ export const ICON_GEAR = ['....##....', '.#.####.#.', '.########.', '..##..##..'
 export const ICON_ARROW_L = ['..........', '....#.....', '...##.....', '..###.....', '.####.....', '.####.....', '..###.....', '...##.....', '....#.....', '..........'];
 export const ICON_ARROW_R = ['..........', '.....#....', '.....##...', '.....###..', '.....####.', '.....####.', '.....###..', '.....##...', '.....#....', '..........'];
 export const ICON_X = ['..........', '.##....##.', '..##..##..', '...####...', '....##....', '....##....', '...####...', '..##..##..', '.##....##.', '..........'];
-/** Stecker mit Kabel: Verbindung verloren (Variante 1 aus design/icons/verbindung-varianten.png). */
-export const ICON_NOCONN = ['..#....#..', '..#....#..', '.########.', '.########.', '.########.', '..######..', '...####...', '....##....', '....##....', '....##....'];
+/**
+ * Funksymbol mit fettem X: Verbindung verloren (Variante 3b, design/icons/funk-varianten-runde2.png). 12 × 12 Pixel, also
+ * nicht in ICONS (die 10 × 10 für Icon-Buttons); die Größe steht im Token `--size-icon-status`. Das X hat überall 1 Pixel Abstand zu den Wellen.
+ */
+export const ICON_NOCONN = ['..####.##.##', '.#......###.', '#........#..', '...###..###.', '..#....##.##', '............', '....####....', '...#....#...', '............', '.....##.....', '.....##.....', '............'];
 
-/** 5.41–5.45: alle Piktogramme der App. */
+/** 5.41–5.44: alle Piktogramme der App. */
 export const ICONS: IconDef[] = [
   { id: '5.41', key: 'table', name: 'Punkteübersicht', use: 'Kopfzeile im Spiel, links', rows: ICON_TABLE },
   { id: '5.42', key: 'book', name: 'Regeln', use: 'Kopfzeile im Spiel, rechts', rows: ICON_BOOK },
   { id: '5.43', key: 'gear', name: 'Einstellungen', use: 'Kopfzeile im Spiel, rechts außen', rows: ICON_GEAR },
   { id: '5.44', key: 'x', name: 'Entfernen', use: 'Lobby: Mitspieler oder Bot entfernen (nur Gastgeber)', rows: ICON_X },
-  { id: '5.45', key: 'noconn', name: 'Verbindung verloren', use: 'Hinter dem Namen in Spiel, Lobby und Platzauswahl, wenn jemand die Verbindung verloren hat', rows: ICON_NOCONN },
 ];
 
 const NS = 'http://www.w3.org/2000/svg';

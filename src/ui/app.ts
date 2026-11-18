@@ -47,7 +47,7 @@ import { NavGuard } from './nav';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'guide' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
-/** So lange muss jemand getrennt sein, bevor das Stecker-Symbol erscheint (kurze Aussetzer bleiben unsichtbar). */
+/** So lange muss jemand getrennt sein, bevor das Funksymbol erscheint (kurze Aussetzer bleiben unsichtbar). */
 const LOST_ICON_DELAY_MS = 10000;
 interface StoredOnline {
   url: string;
@@ -177,8 +177,10 @@ export class App {
   private joinCode = '';
   /** Raumcode aus dem Link, solange die Verbindung aufgebaut wird. */
   private linkRoom: string | null = null;
-  /** Wann wir zuerst gesehen haben, dass ein Mensch getrennt ist (pid → Zeit). Das Stecker-Symbol erscheint erst nach einer kurzen Verzögerung, damit kurze Aussetzer nicht flackern. */
+  /** Wann wir zuerst gesehen haben, dass ein Mensch getrennt ist (pid → Zeit). Das Funksymbol erscheint erst nach einer kurzen Verzögerung, damit kurze Aussetzer nicht flackern. */
   private lostSince = new Map<number, number>();
+  /** Meine Anfrage auf einen Platz wartet auf die Zustimmung des Spielleiters. */
+  private claimWait = false;
   /** Code, den wir gerade beitreten wollen: meldet der Server „gibt es nicht“, bieten wir an, den Raum neu zu eröffnen. */
   private pendingCode: string | null = null;
   /** Fehlender Raum: Angebot zum Neueröffnen (wait: noch so viele Sekunden, in denen Mitspieler ein laufendes Spiel wiederherstellen können). */
@@ -1494,6 +1496,8 @@ export class App {
     if (this.showSettings && !this.chooser && !(r.ended && !this.peekTable)) game.appendChild(this.renderSettings());
     if (this.showScores) game.appendChild(this.renderScores());
     if (this.online?.lobby?.paused) game.appendChild(this.renderPause(this.online.lobby));
+    const request = this.online?.lobby ? this.renderRequest(this.online.lobby) : null;
+    if (request) game.appendChild(request);
     return game;
   }
 
@@ -1977,7 +1981,7 @@ export class App {
   }
 
   // ------------------------------------------------------------ Dialoge
-  /** Merkt sich, seit wann jemand getrennt ist; nach kurzer Zeit wird neu gezeichnet, damit das Stecker-Symbol erscheint. */
+  /** Merkt sich, seit wann jemand getrennt ist; nach kurzer Zeit wird neu gezeichnet, damit das Funksymbol erscheint. */
   private trackLost(lobby: LobbyInfo): void {
     const now = Date.now();
     for (const seat of lobby.seats) {
@@ -1998,7 +2002,8 @@ export class App {
 
   private renderPause(lobby: LobbyInfo): HTMLElement {
     // Genannt wird nur, wer neu die Verbindung verloren hat; wen der Autopilot schon vertritt, kennen alle.
-    const away = lobby.seats.filter((s) => !s.isBot && !s.connected && !s.autopilot).map((s) => s.name);
+    const awaySeats = lobby.seats.filter((s) => !s.isBot && !s.connected && !s.autopilot);
+    const away = awaySeats.map((s) => s.name);
     const waiting = lobby.paused === 'auto' && away.length > 0;
     const isHost = lobby.hostPid === this.me;
     // Weiter geht es erst, wenn alle verbundenen Menschen auf „Weiter“ getippt haben
@@ -2008,10 +2013,72 @@ export class App {
     return windowEl([
       h('h2', null, t('pause.title')),
       h('p', null, waiting ? t(away.length > 1 ? 'pause.waitingMany' : 'pause.waiting', { names: away.join(', ') }) : t('pause.text')),
+      // Der Spielleiter kann Abwesende, die den Platz blockieren, direkt entfernen.
+      waiting && isHost ? h('div', { class: 'seat-list' }, ...awaySeats.filter((s) => this.canRemove(lobby, s.pid)).map((s) => this.playerRow(lobby, s))) : null,
       // Der Spielleiter kann die Pause für alle beenden oder wie jeder andere nur selbst „Weiter“ sagen.
       isHost ? btn(t('pause.resumeAll'), () => this.net?.pause(false, true), { variant: 'primary' }) : null,
       btn(t('pause.resume'), () => this.net?.pause(false), { variant: isHost ? 'default' : 'primary', disabled: mine }),
       mine && missing.length ? hint(t('wait.others', { names: missing.join(', ') }), true) : null,
+    ]);
+  }
+
+  /** Darf der Spielleiter diesen Menschen entfernen? Nicht sich selbst, keine Bots und nicht den Gastgeber, solange er nur vertreten wird. */
+  private canRemove(lobby: LobbyInfo, pid: number): boolean {
+    const seat = lobby.seats.find((s) => s.pid === pid);
+    if (!seat || seat.isBot || lobby.hostPid !== this.me || pid === this.me) return false;
+    return pid !== (lobby.ownerPid ?? lobby.hostPid);
+  }
+
+  /** Eine Zeile mit Namen, Gastgeber-Markierung, Funksymbol und (für den Spielleiter) dem Entfernen-Knopf. */
+  private playerRow(lobby: LobbyInfo, seat: LobbyInfo['seats'][number]): HTMLElement {
+    const owner = lobby.ownerPid ?? lobby.hostPid;
+    return h(
+      'div',
+      { class: 'lobby-seat' },
+      h(
+        'div',
+        { class: 'row spread' },
+        h(
+          'span',
+          { class: 'row' },
+          h('span', null, seat.name),
+          seat.pid === owner ? h('span', { class: 'badge' }, t('lobby.host')) : null,
+          !seat.isBot && !seat.connected && this.lostVisible(seat.pid) ? lostIcon() : null,
+        ),
+        this.canRemove(lobby, seat.pid) ? iconBtn(pixelIcon(ICON_X), t('lobby.remove'), () => this.askKick(seat.pid, seat.name)) : null,
+      ),
+    );
+  }
+
+  private askKick(pid: number, name: string): void {
+    this.askDialog({
+      title: t('kick.title'),
+      text: t('kick.text', { name }),
+      buttons: [{ label: t('btn.cancel') }, { label: t('lobby.remove'), danger: true, onClick: () => this.net?.kick(pid) }],
+    });
+  }
+
+  /** Der Gastgeber gibt die Spielleitung dauerhaft an einen anderen verbundenen Menschen. */
+  private askHandover(lobby: LobbyInfo): void {
+    const others = lobby.seats.filter((s) => !s.isBot && s.connected && s.pid !== this.me);
+    this.askDialog({
+      title: t('handover.title'),
+      buttons: [...others.map((s) => ({ label: s.name, onClick: () => this.net?.handover(s.pid) })), { label: t('btn.cancel') }],
+    });
+  }
+
+  private canHandover(lobby: LobbyInfo): boolean {
+    return (lobby.ownerPid ?? lobby.hostPid) === this.me && lobby.seats.some((s) => !s.isBot && s.connected && s.pid !== this.me);
+  }
+
+  /** Spielleiter: jemand möchte einen Platz übernehmen. */
+  private renderRequest(lobby: LobbyInfo): HTMLElement | null {
+    const req = lobby.requests?.[0];
+    if (!req || lobby.hostPid !== this.me) return null;
+    return windowEl([
+      h('h2', null, t('request.title')),
+      h('p', null, t('request.text', { name: req.name, seat: req.seatName })),
+      h('div', { class: 'btn-row' }, btn(t('request.deny'), () => this.net?.claimReply(req.id, false)), btn(t('request.allow'), () => this.net?.claimReply(req.id, true), { variant: 'primary' })),
     ]);
   }
 
@@ -2101,7 +2168,23 @@ export class App {
       ),
       this.cardBackChoice(),
     );
-    return windowEl([h('h2', null, t('btn.settings')), gameActions, invite, general, backBtn(() => this.back())], () => this.back());
+    // Spieler im Raum: für alle sichtbar; der Spielleiter kann entfernen, der Gastgeber die Leitung übergeben
+    const players =
+      inGame && lobby
+        ? h(
+            'div',
+            { class: 'menu-group' },
+            fieldLabel(t('players.title')),
+            h('div', { class: 'seat-list' }, ...lobby.seats.map((s) => this.playerRow(lobby, s))),
+            this.canHandover(lobby)
+              ? btn(t('handover.btn'), () => {
+                  this.showSettings = false;
+                  this.askHandover(lobby);
+                })
+              : null,
+          )
+        : null;
+    return windowEl([h('h2', null, t('btn.settings')), gameActions, invite, players, general, backBtn(() => this.back())], () => this.back());
   }
 
   /** Auswahl der Kartenrückseite mit Vorschaubild je Design; wirkt sofort, auch mitten im Spiel. */
@@ -2169,6 +2252,7 @@ export class App {
         this.linkRoom = null;
         this.pendingCode = null;
         this.openOffer = null;
+        this.claimWait = false;
       },
       onClaimable: (room, seats) => {
         this.linkRoom = null;
@@ -2177,6 +2261,15 @@ export class App {
         this.claimChoice = { room, seats };
         this.render();
       },
+      onPending: () => {
+        this.claimWait = true;
+        this.render();
+      },
+      onKicked: () => {
+        this.leaveOnlineNow(false);
+        this.toast(t('kicked'), true);
+      },
+      onNotice: (key, params) => this.toast(t(key, params)),
       onReplaced: (room) => {
         // Ein laufendes Spiel hat unseren frischen Raum ersetzt: neu beitreten, um einen Platz zu übernehmen.
         this.online = null;
@@ -2199,6 +2292,10 @@ export class App {
           return;
         }
         this.toast(t(error, params), true);
+        if (this.claimWait) {
+          this.claimWait = false; // abgelehnt oder keine Antwort: zurück zur Platzauswahl
+          this.render();
+        }
         if (this.linkRoom) {
           this.linkRoom = null;
           this.render();
@@ -2493,6 +2590,23 @@ export class App {
   /** Spiel läuft schon: einen Bot-Platz oder den Platz eines länger Abwesenden übernehmen. */
   private renderClaim(c: { room: string; seats: ClaimableSeat[] }): HTMLElement {
     const name = this.playerName();
+    if (this.claimWait) {
+      return h(
+        'div',
+        { class: 'menu' },
+        h('h2', null, t('claim.title', { code: c.room })),
+        h(
+          'div',
+          { class: 'panel' },
+          h('p', null, t('claim.wait')),
+          btn(t('btn.cancel'), () => {
+            this.net?.cancelClaim();
+            this.claimWait = false;
+            this.render();
+          }),
+        ),
+      );
+    }
     return h(
       'div',
       { class: 'menu' },
@@ -2560,6 +2674,7 @@ export class App {
         btn(t(this.canShareLink() ? 'lobby.copy' : 'lobby.copyCode'), () => this.copyCode(lobby.code)),
         list,
         isHost && lobby.seats.length < 4 ? btn(t('lobby.addBot'), () => this.net?.addBot({ level: 'random', style: 'random' })) : null,
+        this.canHandover(lobby) ? btn(t('handover.btn'), () => this.askHandover(lobby)) : null,
         ...settings,
         hint(t('setup.directionCcw')),
         isHost

@@ -282,6 +282,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
   { id: '3.93', css: '--size-icon-glyph', name: 'Größe Piktogramm', units: 10, use: 'Pixel-Piktogramm im Icon-Button (10 × 10 Pixel)' },
+  { id: '3.112', css: '--size-icon-status', name: 'Größe Statussymbol', units: 12, use: 'Funksymbol „Verbindung verloren“ hinter Namen (12 × 12 Pixel)' },
   { id: '3.94', css: '--size-handle', name: 'Größe Griff', units: 9, use: 'Sortier-Griff in der Lobby' },
   { id: '3.95', css: '--pile-gap', name: 'Abstand Stapel–Ablage', units: 16, use: 'Zwischen den beiden Spalten in der Tischmitte' },
   { id: '3.96', css: '--stock-shift', name: 'Versatz Stapel', units: 14, use: 'Stapel und Beschriftung nach rechts, damit die Teppichkarte links Platz hat' },

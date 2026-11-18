@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS, claimLockMs, CLAIM_LOCK_MAX_MS, LOBBY_GRACE_MS, SNAPSHOT_TTL_MS, MAX_ROOMS, snapshotUsable, isRoomCode, RoomSnapshot } from './room';
+import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS, claimLockMs, CLAIM_LOCK_MAX_MS, LOBBY_GRACE_MS, SNAPSHOT_TTL_MS, MAX_ROOMS, snapshotUsable, isRoomCode, REQUEST_TTL_MS, MAX_REQUESTS, RoomSnapshot } from './room';
 import { seal, open } from './snapshot';
 
 describe('Räume', () => {
@@ -740,5 +740,101 @@ describe('Verbindungsverlust im Spiel: Pause, Autopilot, Sperrzeit', () => {
     room.seats[0].disconnectedAt = Date.now() - AUTOPILOT_AFTER_MS - 1000;
     room.state!.round.nextReady = [false, true, true];
     expect(room.autoSeat()).toBe(0);
+  });
+});
+
+describe('Spielleitung: Übergabe, Entfernen, Anfragen', () => {
+  function game(seed: number, humans = 3): Room {
+    const room = new Rooms(seed).create();
+    for (const n of ['Tobias', 'Max', 'Anna'].slice(0, humans)) room.addHuman(n);
+    if (humans < 4) room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    return room;
+  }
+  const pidOf = (room: Room, name: string) => room.seats.find((s) => s.name === name)!.pid;
+
+  it('Übergabe: nur der Gastgeber, nur an einen verbundenen Menschen; danach ist es dauerhaft', () => {
+    const room = game(80);
+    const host = room.hostPid;
+    const max = pidOf(room, 'Max');
+    expect(room.handover(max, host).ok).toBe(false); // wer nicht Gastgeber ist, kann nicht übergeben
+    expect(room.handover(host, host).ok).toBe(false);
+    const bot = room.seats.find((s) => s.isBot)!.pid;
+    expect(room.handover(host, bot).ok).toBe(false);
+    room.setConnected(pidOf(room, 'Anna'), false);
+    expect(room.handover(host, pidOf(room, 'Anna')).ok).toBe(false); // Getrennte nicht
+    expect(room.handover(host, max).ok).toBe(true);
+    expect(room.hostPid).toBe(max);
+    room.setConnected(host, false);
+    room.setConnected(host, true);
+    expect(room.effectiveHost()).toBe(max); // der alte Gastgeber bekommt die Rolle nicht automatisch zurück
+    expect(room.lobbyView().ownerPid).toBe(max);
+  });
+
+  it('Entfernen: der Platz wird ein Bot „Botname (Max)“, gleiche Hand, Token ungültig', () => {
+    const room = game(81);
+    const host = room.effectiveHost();
+    const max = pidOf(room, 'Max');
+    const token = room.seats[max].token!;
+    const hand = room.state!.round.players[max].hand.map((c) => c.id);
+    expect(room.removePlayer(host, max).ok).toBe(true);
+    const seat = room.seats[max];
+    expect(seat.isBot).toBe(true);
+    expect(seat.name).toMatch(/ \(Max\)$/);
+    expect(room.state!.players[max]).toMatchObject({ isBot: true, name: seat.name });
+    expect(room.state!.round.players[max].hand.map((c) => c.id)).toEqual(hand);
+    expect(room.findByToken(token)).toBeUndefined();
+    expect(seat.token).toBeUndefined();
+    // Der Bot-Platz ist sofort übernehmbar (mit Zustimmung); der Zusatz verschwindet beim Übernehmen
+    expect(room.claimable().some((c) => c.pid === max && c.kind === 'bot')).toBe(true);
+    const r = room.claim(max, 'Neu');
+    expect('pid' in r).toBe(true);
+    expect(room.seats[max].name).toBe('Neu');
+  });
+
+  it('Entfernen: nicht sich selbst, nicht den Gastgeber (durch einen Vertreter), nicht ohne Spielleiter, keine Bots', () => {
+    const room = game(82);
+    const host = room.hostPid;
+    const max = pidOf(room, 'Max');
+    const anna = pidOf(room, 'Anna');
+    expect(room.removePlayer(host, host).ok).toBe(false);
+    expect(room.removePlayer(max, anna).ok).toBe(false); // Max ist nicht Spielleiter
+    expect(room.removePlayer(host, room.seats.find((s) => s.isBot)!.pid).ok).toBe(false);
+    // Gastgeber weg: Max vertritt ihn und darf ihn nicht entfernen, wohl aber Anna
+    room.setConnected(host, false);
+    expect(room.effectiveHost()).toBe(max);
+    expect(room.removePlayer(max, host).ok).toBe(false);
+    expect(room.removePlayer(max, anna).ok).toBe(true);
+    expect(room.seats[host].isBot).toBe(false);
+  });
+
+  it('Wer fehlte und entfernt wird, hält die Pause nicht mehr auf', () => {
+    const room = game(83);
+    const host = room.hostPid;
+    const max = pidOf(room, 'Max');
+    room.setConnected(max, false);
+    expect(room.checkAwayPause(Date.now() + AUTOPILOT_AFTER_MS + 1000)).toBe(true);
+    expect(room.paused).toBe('auto');
+    expect(room.removePlayer(host, max).ok).toBe(true);
+    expect(room.paused).toBeNull(); // der Grund der Pause ist weg: alle übrigen Menschen sind verbunden, es geht ohne Bestätigung weiter
+  });
+
+  it('Anfragen: nur auf übernehmbare Plätze, eine je Platz, höchstens drei, laufen nach einer Minute ab', () => {
+    const room = game(84, 2);
+    const bot = room.seats.find((s) => s.isBot)!.pid;
+    const now = Date.now();
+    const human = room.seats.find((s) => !s.isBot)!.pid;
+    const bad = room.addRequest(human, 'Fremd', now);
+    expect('ok' in bad && bad.ok).toBe(false); // Menschen sind nicht übernehmbar
+    const req = room.addRequest(bot, 'Fremd', now);
+    expect('id' in req && req.seatName).toBe(room.seats[bot].name);
+    expect(room.lobbyView().requests).toEqual([{ id: (req as { id: number }).id, name: 'Fremd', seatName: room.seats[bot].name }]);
+    const dup = room.addRequest(bot, 'Zweiter', now);
+    expect('ok' in dup && dup.ok).toBe(false);
+    expect(room.expiredRequests(now + REQUEST_TTL_MS - 1000)).toEqual([]);
+    expect(room.expiredRequests(now + REQUEST_TTL_MS + 1000)).toHaveLength(1);
+    expect(room.takeRequest((req as { id: number }).id)).toBeDefined();
+    expect(room.requests).toEqual([]);
+    expect(MAX_REQUESTS).toBe(3);
   });
 });
