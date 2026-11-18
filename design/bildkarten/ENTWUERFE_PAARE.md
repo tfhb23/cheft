@@ -234,3 +234,8 @@ Zusätzlich: Pik Dame (erste Person), Hutkrempe an der Saumkante links und recht
 Freigegeben und in `zwillinge.py` eingetragen (wird von `export_ts.py` importiert, noch nicht exportiert, nichts live): Karo Bube Person 2 (Takke + Stirnlocken), Pik Dame Person 2 (Beret + Schönheitspunkt). Vergleich: `images/entw/zwillinge_freigegeben.png`.
 
 Neue Entwürfe (`entw5.py`): `karo_koenig_krone2` (Federkrone 1 bis 2 px niedriger), `karo_dame_haare` (lang, wellig, asymmetrisch), `pik_bube_3` (Mischung 12 und 6 als Haar, Vorhang-Fransen), `kreuz_koenig_bart2` (Bart zwischen kurz und lang).
+
+# Runde 4
+
+Freigegeben und in `zwillinge.py` eingetragen (noch nicht exportiert, nichts live): Karo König Person 2 (Federkrone minus 2 Zeilen), Karo Dame Person 2 (wellig mit Goldbändern), Kreuz König Person 2 (runder Bart, Mund vorläufig 3 breit, Auswahl offen).
+Neue Entwürfe (`entw6.py`): `pik_bube_4` (nur Merkmale von 12 und 6, als Haar) und `kreuz_koenig_mund` (Mund-Varianten).
