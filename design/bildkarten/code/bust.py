@@ -84,7 +84,9 @@ def full_shape(p):
     xl=p.get('xl',4); shape=p['shape']
     xs=range(xl,32-xl)
     cut=p.get('cut',0)
-    bot={x:BS(abs(x+0.5-16),shape)-cut for x in xs if BS(abs(x+0.5-16),shape)-cut>=T2(x)}
+    cx=p.get('cx',16.0); S2=int(2*cx-1)                                   # cx=16,5: Mitte auf Pixelspalte 16 (ungerade Breite, wie der Kopf)
+    T2=lambda x: T(min(x,S2-x))
+    bot={x:BS(abs(x+0.5-cx),shape)-cut for x in xs if BS(abs(x+0.5-cx),shape)-cut>=T2(x)}
     lift=p.get('lift',0)
     body={(x,y) for x in bot for y in range(T2(x)-lift,bot[x]+1)}
     extra={(x,bot[x]+1) for x in bot} if EXTRA_ROW else set()

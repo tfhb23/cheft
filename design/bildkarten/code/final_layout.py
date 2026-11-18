@@ -24,7 +24,7 @@ MODE='v6a'      # Person mittig (v5a = 2 px nach rechts)
 TRIM=5          # Layout v7: unterste 5 Körperzeilen je Spalte weg (die Saumstreifen entfallen)
 DY=3            # ... und die ganze Figur für alle gleich um DY Pixel nach unten (mittig)
 def final_spec(k):
-    s,r,sp=spec_of(k); return s,r,dict(sp,shrink=SHRINK.get(k,[]),chin=True,trim=TRIM,dy=DY)
+    s,r,sp=spec_of(k); return s,r,dict(sp,shrink=SHRINK.get(k,[]),chin=True,trim=TRIM,flat=True,dy=DY)
 def render_final(k,mode=None):
     s,r,sp=final_spec(k); return card(s,r,sp,'schlagschatten',mode or MODE)
 def blank_card(s,r):

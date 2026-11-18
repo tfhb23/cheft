@@ -211,6 +211,11 @@ def compose(suit,spec,emph='ohne'):
             for x in range(W):
                 ys=[y for y in range(H) if L.p[x,y][3]>0]
                 for y in ys[-spec['trim']:]: L.p[x,y]=(0,0,0,0)
+            if spec.get('flat'):                # Unterkante gerade: kürzere Spalten (Ränder) um die fehlenden Pixel nach unten auffüllen
+                bots={x:max(y for y in range(H) if L.p[x,y][3]>0) for x in range(W) if any(L.p[x,y][3]>0 for y in range(H))}
+                B=max(bots.values())
+                for x,b in bots.items():
+                    for y in range(b+1,B+1): L.p[x,y]=L.p[x,b]
         L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):
@@ -278,13 +283,13 @@ def outer_shadow(c,fig):
     c.over(sh)
 def card(suit,rank,spec,emph='ohne',sym='ref'):
     spec=dict(spec,lip=LIPS[1 if rank==12 else 0])
-    if sym=='v6a': spec=dict(spec,narrow='A',head_down=1,dyn=dict(spec['dyn'],cut=2,notch_left=False)); sym='v6'   # v6 = wie v4/v5a, aber Person wieder mittig (kein Versatz)
+    if sym=='v6a': spec=dict(spec,narrow='A',head_down=1,dyn=dict(spec['dyn'],cut=2,notch_left=False,cx=16.5)); sym='v6'   # v6 = wie v4/v5a, aber Person wieder mittig (kein Versatz)
     if sym in ('v5a','v5b'): spec=dict(spec,narrow=sym[-1].upper()); sym='v4'
     if sym=='v4': sym='v3'; spec=dict(spec,head_down=1,dyn=dict(spec['dyn'],cut=2))   # v4 = v3 + Kopf 1 px tiefer + Körper unten 2 px kürzer
     c=base(); idx=index_layer(suit,rank); c.over(idx); c.over(idx.rot())
     x0,y0,x1,y1=P.WIN
     if sym in ('cut1','symmA','symm','symm0','v3','v6'): x1=24 if sym!='symm0' else 23
-    if sym=='v6': x0=10; x1=23; spec=dict(spec,body_clip=(9,22))   # Schultern rechts/links 1 px schmaler, Symbol unten rechts sichtbar ab Spalte 24 (5 von 7 Spalten)                                                    # Fenster beginnt hinter dem Symbol links oben (Spalte 3 bis 9)
+    if sym=='v6': x0=10; x1=23; spec=dict(spec,body_clip=(10,22))   # Schultern rechts/links 1 px schmaler, Symbol unten rechts sichtbar ab Spalte 24 (5 von 7 Spalten)                                                    # Fenster beginnt hinter dem Symbol links oben (Spalte 3 bis 9)
     if sym=='v3':                                                           # Layout v3: Index links oben ganz sichtbar (Symbol 7 breit, Spalte 3 bis 9) -> Fenster beginnt erst ab Spalte 10
         x0=10; spec=dict(spec,dx=2,dyn=dict(spec['dyn'],notch_left=False))   # Person 2 Pixel verschoben, kein Symbol unten links
     if sym in ('symm','symm0'):
