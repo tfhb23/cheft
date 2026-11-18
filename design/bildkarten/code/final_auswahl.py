@@ -23,6 +23,30 @@ def m2(rank,hat=(),beard='keiner',hair='glatze',extra=(),px=(),acc=(),**pal):
     """Spec im Master-v2-Stil (Körper symmetrisch, Person 1 Pixel angehoben, Aussparung links wie rechts)."""
     dyn=dict({13:KING_DYN,11:BUBE_DYN,12:DAME_DYN}[rank]); dyn.update(xmin=8,notch_left=True,lift=1)
     return dict(body='leer',hair=hair,beard=beard,hat=[hat] if isinstance(hat,str) else list(hat),extra=list(extra),acc=list(acc),pal=pal,dyn=dyn,lift=1,px=list(px))
+# ---- Herz Dame A: schlichtes Tuch mit Goldsaum, rechts länger (Variante D3, freigegeben). Arbeitet auf der fertigen Figur (Spalte 0-15).
+def _put(g,y,s):
+    r=list(g.get(y,'.'*16))
+    for x,ch in enumerate(s):
+        if ch!=' ': r[x]=ch
+    g[y]=''.join(r)
+def _contour(g):
+    out={}
+    for y,r in g.items():
+        n=list(r)
+        for x,ch in enumerate(r):
+            if ch=='W' and ((r[x-1] if x>0 else '.')=='.' or g.get(y-1,'.'*16)[x]=='.'): n[x]='V'   # zarte graue Kontur links/oben
+        out[y]=''.join(n)
+    return out
+def tuch_d3(g):
+    g=dict(g)
+    for y in range(7,13): g[y]='.'*16
+    for y in range(14,30):
+        if y in g: g[y]=g[y].replace('V','W').replace('G','W')
+    for y,s in ((9,'.......WWW......'),(10,'.....WWWWWWW....'),(11,'....WWWWWWWWW...'),(12,'...WWWWWWWWWWW..'),(13,'...WGGGGGGGGGW..'),
+                (14,'..WWWWHHSHHWWWW.'),(22,'..WWWSSSSSSSWWW.'),(23,'..WWWWWSSSWWWWW.'),(24,'..WWWW.....WWWW.'),(25,'..GGG......WWWW.')): _put(g,y,s)
+    g[26]='............WWW.'; g[27]='............GGG.'; g[28]='.'*16; g[29]='.'*16
+    return _contour(g)
+
 def render(suit,rank,sp,emph='schlagschatten'): return card(suit,rank,sp,emph,'symm')
 
 # ---------------- freigegebene neue Personen (zweite Person je Karte) ----------------
@@ -38,7 +62,7 @@ PERSONEN={
  'herz_bube_a':('H',11,m2(11,['turbm_a','mond_klein'],'keiner','kurz_b',('brauen',),A=WHITE,a=SHADE)),
  'herz_bube_b':('H',11,dict(m2(11,['turban_klein','feder_s4'],'keiner','glatze',('brauen','nase_n3'),A=WHITE,a=SHADE,J=RED,F=C['gold'],Y=hx('c8902a')),a_mix=0.35)),
  # Herz Dame
- 'herz_dame_a':('H',12,m2(12,['fall_rc','mond_rc','sterne_schleier'],'keiner','rund_scheitel',('mund_schmal',),J=RED,**HH)),
+ 'herz_dame_a':('H',12,dict(m2(12,['fall_rc','mond_rc','sterne_schleier'],'keiner','rund_scheitel',('mund_schmal',),J=RED,**HH),grid_fn=tuch_d3,v_mix=0.5)),
  'herz_dame_b':('H',12,m2(12,['kamm5_8_rot_u','ohrringe'],'keiner','hochsteck',('mund_schmal',),**HH)),
  # Kreuz Bube
  'kreuz_bube_a':('C',11,_falke_kopf(13)),
