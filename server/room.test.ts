@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS } from './room';
+import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS, LOBBY_GRACE_MS, SNAPSHOT_TTL_MS, MAX_ROOMS, snapshotUsable, isRoomCode, RoomSnapshot } from './room';
 import { seal, open } from './snapshot';
 
 describe('Räume', () => {
@@ -426,5 +426,161 @@ describe('Räume', () => {
     manual.addHuman('Anna');
     manual.addHuman('Anna'); // selbst gewählt: bekommt weiter die Nummer
     expect(manual.seats[1].name).toBe('Anna 2');
+  });
+});
+
+describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
+  it('der Gastgeber bleibt Gastgeber, wenn ein Sitz vor ihm entfernt oder die Reihenfolge geändert wird', () => {
+    const room = new Rooms(50).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addHuman('C');
+    room.hostPid = 2; // C ist Gastgeber
+    expect(room.seats[room.hostPid].name).toBe('C');
+    room.removeSeat(0);
+    expect(room.seats[room.hostPid].name).toBe('C');
+    expect(room.effectiveHost()).toBe(room.hostPid);
+    room.shuffleSeats();
+    expect(room.seats[room.hostPid].name).toBe('C');
+  });
+
+  it('fehlt der Gastgeber, vertritt ihn der am längsten anwesende Mensch (nie ein Bot) und gibt zurück, wenn er wieder da ist', () => {
+    const room = new Rooms(51).create();
+    room.addHuman('Host');
+    room.addBot({ level: 'random', style: 'random' });
+    room.addHuman('Zweiter');
+    room.addHuman('Dritter');
+    room.setConnected(0, false);
+    expect(room.seats[room.effectiveHost()].name).toBe('Zweiter');
+    room.setConnected(2, false);
+    expect(room.seats[room.effectiveHost()].name).toBe('Dritter');
+    expect(room.lobbyView().ownerPid).toBe(0);
+    room.setConnected(0, true);
+    expect(room.effectiveHost()).toBe(0);
+    // Die Reihenfolge richtet sich nach dem Beitritt, nicht nach der (ausgelosten) Sitzordnung
+    room.setConnected(0, false);
+    room.setConnected(2, true);
+    room.shuffleSeats();
+    expect(room.seats[room.effectiveHost()].name).toBe('Zweiter');
+  });
+
+  it('Lobby: ein getrennter Sitz bleibt die Karenzzeit reserviert, dann wird er frei und die Rolle geht dauerhaft weiter', () => {
+    const room = new Rooms(52).create();
+    const a = room.addHuman('Host');
+    room.addHuman('Zweiter');
+    room.setConnected(0, false);
+    const t0 = room.seats[0].disconnectedAt!;
+    expect(room.staleLobbySeats(t0 + LOBBY_GRACE_MS - 1000)).toEqual([]);
+    expect(room.staleLobbySeats(t0 + LOBBY_GRACE_MS + 1000)).toEqual([0]);
+    // Rückkehr mit dem Token innerhalb der Karenz: gleicher Platz, wieder Gastgeber
+    expect('token' in a && room.findByToken(a.token)!.pid).toBe(0);
+    room.setConnected(0, true);
+    expect(room.staleLobbySeats(t0 + LOBBY_GRACE_MS + 1000)).toEqual([]);
+    expect(room.effectiveHost()).toBe(0);
+    // Läuft die Karenz ab, wird der Sitz entfernt und der Zweite ist dauerhaft Gastgeber
+    room.setConnected(0, false);
+    room.removeSeat(0);
+    room.setConnected(0, true);
+    expect(room.seats.map((s) => s.name)).toEqual(['Zweiter']);
+    expect(room.hostPid).toBe(0);
+    expect(room.lobbyView().ownerPid).toBe(0);
+    // Im laufenden Spiel gibt es keine Lobby-Karenz
+    const g = new Rooms(53).create();
+    g.addHuman('A');
+    g.addHuman('B');
+    g.addBot({ level: 'random', style: 'random' });
+    g.start();
+    g.setConnected(0, false);
+    expect(g.staleLobbySeats(Date.now() + 10 * LOBBY_GRACE_MS)).toEqual([]);
+  });
+
+  it('wer einen Platz übernimmt, kommt hinten in die Reihenfolge und erbt die Gastgeber-Rolle nicht', () => {
+    const room = new Rooms(54).create();
+    room.addHuman('Host');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    const sidOfBot = room.seats[2].sid;
+    const r = room.claim(2, 'Neu');
+    expect('pid' in r).toBe(true);
+    expect(room.seats[2].sid).toBeGreaterThan(sidOfBot);
+    expect(room.hostPid).toBe(0);
+    // Übernimmt jemand den Gastgeber-Sitz, geht die Rolle an den am längsten anwesenden Menschen
+    room.setConnected(0, false);
+    room.paused = 'manual';
+    expect('pid' in room.claim(0, 'Fremd')).toBe(true);
+    expect(room.seats[room.hostPid].name).toBe('B');
+  });
+
+  it('Kopie: nur laufende, nicht zu alte Spiele sind brauchbar', () => {
+    const room = new Rooms(55).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    const lobbySnap = room.toSnapshot();
+    expect(snapshotUsable(lobbySnap)).toBe(false); // Lobby: nichts wiederherzustellen
+    room.start();
+    const snap = room.toSnapshot();
+    expect(snapshotUsable(snap)).toBe(true);
+    expect(snapshotUsable(snap, snap.activeAt! + SNAPSHOT_TTL_MS - 1000)).toBe(true);
+    expect(snapshotUsable(snap, snap.activeAt! + SNAPSHOT_TTL_MS + 1000)).toBe(false); // nach 72 Stunden hinfällig
+    const old: RoomSnapshot = { ...snap, activeAt: undefined }; // Kopie aus der Zeit vor dem Update
+    expect(snapshotUsable(old)).toBe(true);
+    const finished = { ...snap, state: { ...snap.state!, finished: true } };
+    expect(snapshotUsable(finished)).toBe(false); // Endauswertung zählt nicht als aktives Spiel
+    expect(snapshotUsable(null)).toBe(false);
+  });
+
+  it('die 72 Stunden zählen ab dem letzten Spielzug, nicht ab Verbindungen', () => {
+    const room = new Rooms(56).create();
+    room.addHuman('A');
+    room.addBot({ level: 'random', style: 'random' });
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    room.activeAt = 1000;
+    room.setConnected(0, false);
+    room.setConnected(0, true);
+    expect(room.activeAt).toBe(1000);
+    const pid = room.autoSeat()!;
+    room.autoStep(pid);
+    expect(room.activeAt).toBeGreaterThan(1000);
+  });
+
+  it('eine ältere Kopie ohne feste Sitz-Kennungen lässt sich laden', () => {
+    const room = new Rooms(57).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    for (const s of snap.seats) delete (s as Partial<typeof s>).sid;
+    delete snap.hostSid;
+    delete snap.nextSid;
+    delete snap.activeAt;
+    snap.hostPid = 1;
+    const restored = new Rooms(58).restore(snap);
+    expect(restored.seats.map((s) => s.sid)).toEqual([0, 1, 2]);
+    expect(restored.hostPid).toBe(1);
+    const next = restored.claim(2, 'Neu');
+    expect('pid' in next).toBe(true);
+    expect(restored.seats[2].sid).toBe(3);
+  });
+
+  it('Raum mit Wunschcode eröffnen: nur gültige freie Codes, mit Obergrenze', () => {
+    const rooms = new Rooms(59);
+    expect(isRoomCode('232')).toBe(true);
+    expect(isRoomCode('0232')).toBe(false);
+    expect(isRoomCode('12')).toBe(false);
+    expect(isRoomCode('abc')).toBe(false);
+    const a = rooms.open('232');
+    expect(a?.code).toBe('232');
+    expect(rooms.get('232')).toBe(a);
+    expect(rooms.open('232')).toBeNull(); // gibt es schon
+    expect(rooms.open('x')).toBeNull();
+    const many = new Rooms(60);
+    let opened = 0;
+    for (let n = 1000; opened < MAX_ROOMS; n++) if (many.open(String(n))) opened++;
+    expect(many.full).toBe(true);
+    expect(many.open('555')).toBeNull();
   });
 });

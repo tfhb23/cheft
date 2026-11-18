@@ -7,7 +7,10 @@ import { BotChoice } from '../bot/names';
 
 export interface LobbyInfo {
   code: string;
+  /** Aktueller Spielleiter (kann ein Vertreter des Gastgebers sein). */
   hostPid: number;
+  /** Gastgeber, also der Besitzer der Rolle. */
+  ownerPid?: number;
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' solange nicht alle Menschen verbunden sind. */
   paused: 'manual' | 'auto' | null;
@@ -21,8 +24,8 @@ export interface ServerUpdate {
   lobby: LobbyInfo;
   state: GameView | null;
   last: { pid: number; action: Action } | null;
-  /** Verschlüsselte Kopie des Raums, mit der der Server nach dem Einschlafen den Raum wiederherstellen kann. */
-  snap?: string;
+  /** Verschlüsselte Kopie des laufenden Spiels, mit der der Server nach dem Einschlafen den Raum wiederherstellen kann; null, wenn es nichts wiederherzustellen gibt. */
+  snap: string | null;
 }
 
 export interface ClaimableSeat {
@@ -37,9 +40,14 @@ export interface NetHandlers {
   onError(error: string, params?: Record<string, string | number>): void;
   onStatus(status: 'connecting' | 'open' | 'closed'): void;
   onLeft(): void;
+  /** Ein laufendes Spiel hat deinen frisch eröffneten Raum ersetzt: neu beitreten, um einen Platz zu übernehmen. */
+  onReplaced(room: string): void;
   /** Das Spiel läuft schon: Plätze, die man übernehmen kann. */
   onClaimable(room: string, seats: ClaimableSeat[]): void;
 }
+
+/** So lange ist eine gespeicherte Kopie eines laufenden Spiels brauchbar (gleicher Wert wie auf dem Server). */
+export const SNAPSHOT_TTL_MS = 72 * 3600 * 1000;
 
 /** Standardadresse: gleiche Herkunft wie die Seite (der Server liefert die App selbst aus). */
 export function defaultServerUrl(): string {
@@ -148,8 +156,13 @@ export class NetClient {
           this.handlers.onJoined({ room: String(msg.room), pid: Number(msg.pid), token: String(msg.token) });
           break;
         case 'state':
-          if (typeof msg.snap === 'string') this.snap = msg.snap;
-          this.handlers.onUpdate({ lobby: msg.lobby as LobbyInfo, state: (msg.state as GameView | null) ?? null, last: (msg.last as ServerUpdate['last']) ?? null, snap: this.snap ?? undefined });
+          if ('snap' in msg) this.snap = typeof msg.snap === 'string' ? msg.snap : null;
+          this.handlers.onUpdate({ lobby: msg.lobby as LobbyInfo, state: (msg.state as GameView | null) ?? null, last: (msg.last as ServerUpdate['last']) ?? null, snap: this.snap });
+          break;
+        case 'replaced':
+          this.rejoin = null;
+          this.snap = null;
+          this.handlers.onReplaced(String(msg.room));
           break;
         case 'error':
           this.handlers.onError(String(msg.error), msg.params as Record<string, string | number> | undefined);
@@ -189,6 +202,10 @@ export class NetClient {
   }
   join(room: string, name: string, back?: string, auto = false): void {
     this.send({ type: 'join', room: room.toUpperCase(), name, back, auto });
+  }
+  /** Einen fehlenden Raum mit diesem Code neu eröffnen; man wird Gastgeber. */
+  openRoom(room: string, name: string, back?: string, auto = false): void {
+    this.send({ type: 'open', room, name, back, auto });
   }
   /** Eigene Kartenrückseite den anderen mitteilen (nur Anzeige). */
   setBack(back: string): void {

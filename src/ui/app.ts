@@ -38,7 +38,7 @@ import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from '.
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
-import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl } from '../net/client';
+import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl, SNAPSHOT_TTL_MS } from '../net/client';
 import { RoundView } from '../engine/view';
 import { play, setSoundEnabled, unlockAudio, vibrate, SoundName, VIB } from './sound';
 import { randomForgottenName } from './names';
@@ -47,6 +47,14 @@ import { NavGuard } from './nav';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'guide' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
+interface StoredOnline {
+  url: string;
+  room: string;
+  token: string;
+  snap?: string;
+  /** Zeitpunkt, an dem die Kopie zuletzt aktualisiert wurde. */
+  at?: number;
+}
 const SAVE_KEY = 'cheft.save.v2';
 const PREFS_KEY = 'cheft.prefs.v2';
 /** Wählbare Rundenzahlen. */
@@ -167,6 +175,10 @@ export class App {
   private joinCode = '';
   /** Raumcode aus dem Link, solange die Verbindung aufgebaut wird. */
   private linkRoom: string | null = null;
+  /** Code, den wir gerade beitreten wollen: meldet der Server „gibt es nicht“, bieten wir an, den Raum neu zu eröffnen. */
+  private pendingCode: string | null = null;
+  /** Fehlender Raum: Angebot zum Neueröffnen (wait: noch so viele Sekunden, in denen Mitspieler ein laufendes Spiel wiederherstellen können). */
+  private openOffer: { code: string; wait: number } | null = null;
   /** Eigener Dialog im Look der App (statt der Browser-Pop-ups). */
   private dialog: DialogSpec | null = null;
   private dialogInput = '';
@@ -258,6 +270,7 @@ export class App {
     const url = this.serverUrl();
     if (!url) return;
     this.linkRoom = code;
+    this.pendingCode = code;
     this.screen = 'online';
     const net = this.ensureNet();
     net.connect(url);
@@ -828,8 +841,9 @@ export class App {
         this.goto('menu');
         return true;
       case 'online':
-        if (this.claimChoice) {
+        if (this.claimChoice || this.openOffer) {
           this.claimChoice = null;
+          this.openOffer = null;
           this.render();
         } else this.goto('menu');
         return true;
@@ -2090,16 +2104,22 @@ export class App {
   }
 
   // ------------------------------------------------------------ Online
-  private storedOnline(): { url: string; room: string; token: string; snap?: string } | null {
+  private storedOnline(): StoredOnline | null {
     try {
       const raw = localStorage.getItem(ONLINE_KEY);
-      return raw ? (JSON.parse(raw) as { url: string; room: string; token: string; snap?: string }) : null;
+      const v = raw ? (JSON.parse(raw) as StoredOnline) : null;
+      // Eine Kopie, die älter als die Haltbarkeit ist, ist hinfällig: Es gibt dann ein frisches Spiel ohne Historie.
+      if (v && v.at && Date.now() - v.at > SNAPSHOT_TTL_MS) {
+        localStorage.removeItem(ONLINE_KEY);
+        return null;
+      }
+      return v;
     } catch {
       return null;
     }
   }
 
-  private storeOnline(v: { url: string; room: string; token: string; snap?: string } | null): void {
+  private storeOnline(v: StoredOnline | null): void {
     try {
       if (v) localStorage.setItem(ONLINE_KEY, JSON.stringify(v));
       else localStorage.removeItem(ONLINE_KEY);
@@ -2117,17 +2137,40 @@ export class App {
     this.net = new NetClient({
       onJoined: (info) => {
         this.online = { room: info.room, pid: info.pid, token: info.token, lobby: this.online?.lobby ?? null, status: 'open' };
-        this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token, snap: this.storedOnline()?.snap });
+        this.storeOnline({ url: this.serverUrl(), room: info.room, token: info.token, snap: this.storedOnline()?.snap, at: Date.now() });
         this.claimChoice = null;
         this.linkRoom = null;
+        this.pendingCode = null;
+        this.openOffer = null;
       },
       onClaimable: (room, seats) => {
         this.linkRoom = null;
+        this.pendingCode = null;
+        this.openOffer = null;
         this.claimChoice = { room, seats };
         this.render();
       },
+      onReplaced: (room) => {
+        // Ein laufendes Spiel hat unseren frischen Raum ersetzt: neu beitreten, um einen Platz zu übernehmen.
+        this.online = null;
+        this.storeOnline(null);
+        this.state = null;
+        this.order = [];
+        this.botGen++;
+        this.pendingCode = room;
+        this.goto('online');
+        this.net?.join(room, this.playerName(), this.prefs.cardDesign, this.autoName());
+      },
       onUpdate: (u) => this.onServerUpdate(u),
       onError: (error, params) => {
+        // Den Raum gibt es nicht: nicht nur eine Fehlermeldung, sondern anbieten, ihn neu zu eröffnen.
+        if (error === 'net.noRoom' && this.pendingCode) {
+          const code = this.pendingCode;
+          this.pendingCode = null;
+          this.linkRoom = null;
+          this.offerOpen(code, Number(params?.wait ?? 0));
+          return;
+        }
         this.toast(t(error, params), true);
         if (this.linkRoom) {
           this.linkRoom = null;
@@ -2186,7 +2229,45 @@ export class App {
     }
     const name = this.playerName();
     this.claimChoice = null;
+    this.pendingCode = code;
     this.connectOnline(() => this.net!.join(code, name, this.prefs.cardDesign, this.autoName()));
+  }
+
+  /** Raum fehlt: erst kurz warten, falls Mitspieler ein laufendes Spiel wiederherstellen, dann Neueröffnen anbieten. */
+  private offerOpen(code: string, wait: number): void {
+    this.openOffer = { code, wait };
+    this.goto('online');
+    if (wait > 0) {
+      window.setTimeout(() => {
+        if (this.openOffer?.code !== code || !this.net) return;
+        this.pendingCode = code;
+        this.net.join(code, this.playerName(), this.prefs.cardDesign, this.autoName());
+      }, wait * 1000 + 1500);
+    }
+  }
+
+  private renderOpenOffer(o: { code: string; wait: number }): HTMLElement {
+    const cancel = btn(t('btn.cancel'), () => {
+      this.openOffer = null;
+      this.net?.close();
+      this.net = null;
+      this.goto('menu');
+    });
+    return h(
+      'div',
+      { class: 'menu' },
+      h('h2', null, t('lobby.title', { code: o.code })),
+      o.wait > 0
+        ? h('div', { class: 'panel' }, h('p', null, t('open.wait')), hint(t('open.waitHint')), cancel)
+        : h(
+            'div',
+            { class: 'panel' },
+            h('p', null, t('open.missing')),
+            hint(t('open.hint')),
+            btn(t('open.create'), () => this.net?.openRoom(o.code, this.playerName(), this.prefs.cardDesign, this.autoName()), { variant: 'primary' }),
+            cancel,
+          ),
+    );
   }
 
   private resumeOnline(): void {
@@ -2244,7 +2325,7 @@ export class App {
     if (!this.online) return;
     this.online.lobby = u.lobby;
     const stored = this.storedOnline();
-    if (u.snap && stored && stored.room === this.online.room) this.storeOnline({ ...stored, snap: u.snap });
+    if (stored && stored.room === this.online.room) this.storeOnline({ ...stored, snap: u.snap ?? undefined, at: Date.now() });
     if (!u.state) {
       this.state = null;
       this.lastRoundNo = 0;
@@ -2345,6 +2426,7 @@ export class App {
       },
     });
     if (this.claimChoice) return this.renderClaim(this.claimChoice);
+    if (this.openOffer) return this.renderOpenOffer(this.openOffer);
     if (this.linkRoom) {
       return h(
         'div',
@@ -2453,6 +2535,7 @@ export class App {
         isHost
           ? btn(lobby.seats.length < 3 ? t('lobby.need', { min: 3 }) : t('lobby.start'), () => this.net?.start(), { variant: 'primary', disabled: lobby.seats.length < 3 })
           : h('div', { class: 'field-label' }, t('lobby.waitHost')),
+        isHost && lobby.ownerPid !== undefined && lobby.ownerPid !== this.me ? hint(t('lobby.acting')) : null,
         o.status !== 'open' ? hint(t(o.status === 'connecting' ? 'online.connecting' : 'online.offline')) : null,
         btn(t('lobby.leave'), () => this.leaveOnline(true), { variant: 'danger' }),
       ),

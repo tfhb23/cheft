@@ -85,12 +85,22 @@ der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kan
   jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die länger als 45 Sekunden weg sind.
 - **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt oder
   deren Spieler länger als 45 Sekunden weg ist, und spielt mit der aktuellen Hand weiter. Das gilt für alle, auch für den Gastgeber.
-  Ist der Gastgeber weg, übernimmt der nächste verbundene Spieler die Gastgeber-Rechte, bis er zurück ist.
+  Ist der Gastgeber weg, leitet ihn der am längsten anwesende verbundene Mensch (nie ein Bot) vorübergehend; kommt der Gastgeber zurück,
+  leitet er sofort wieder. Plätze haben feste Kennungen, die Rolle bleibt also auch beim Entfernen und Umsortieren erhalten.
+- **Raum neu eröffnen:** Gibt es einen Raum (z. B. `/232`) nicht mehr, bietet die App an, ihn mit demselben Code neu zu eröffnen; man wird Gastgeber.
+  So bleibt ein alter Familienraum beim gleichen Link. Direkt nach dem Aufwachen des Servers wartet die App zuerst kurz (45 s), weil Mitspieler
+  ein laufendes Spiel wiederherstellen könnten.
+- **Lobby-Karenz:** Bricht in der Lobby die Verbindung ab (z. B. kurzer Wechsel in eine andere App), bleibt der Sitz 3 Minuten reserviert.
+  „Raum verlassen“ gibt ihn sofort frei. Danach geht die Gastgeber-Rolle dauerhaft an den nächsten Menschen.
+- **Verbindungsprüfung:** Der Server prüft alle 10 Sekunden; nach zwei verpassten Antworten gilt eine stille Verbindung als getrennt.
 - **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten. Es geht erst weiter, wenn alle verbundenen Spieler auf „Weiter“ getippt haben. Sind alle Menschen getrennt, pausiert das Spiel
   von selbst (auch die Endauswertung) und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
+  Wiederhergestellt werden nur laufende Spiele (nicht Lobbys, nicht die Endauswertung nach der letzten Runde), und nur bis 72 Stunden nach dem
+  letzten Spielzug; danach gibt es ein frisches Spiel ohne Historie. Ein laufendes Spiel hat Vorrang vor einem inzwischen frisch eröffneten
+  Raum, in dem noch nicht gespielt wird: Dessen Besucher bekommen die Platzauswahl.
 - **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein (auch im Solospiel). Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
 - **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
 - **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Die Ansicht bleibt nach dem Loslassen stehen, ein Tippen irgendwo beendet sie. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
