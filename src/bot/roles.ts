@@ -62,14 +62,14 @@ export const NEIGHBORS: Record<StyleId, StyleId[]> = {
 };
 
 /** Empfohlene Würze (gemessen: 94 % der Erkennbarkeit bleiben, im Schnitt weicht der Bot in 7 Runden einmal ab). */
-export const SPICE = { loyalty: 0.85, jitter: 0.2, tilt: 0.5 } as const;
+export const SPICE = { loyalty: 0.85, jitter: 0.2, tilt: 1 } as const;
 
 export interface RoleOptions {
   /** Vorlieben (Standard: an). */
   tastes?: boolean;
   /** Gegner-Gedächtnis nutzen, 0 bis 1 (Standard 1; was der Bot weiß, bestimmt seine Stufe). */
   oppUse?: number;
-  /** Rollentreue, Launen, Stimmung (Standard: SPICE, d. h. Treue 0,85, Launen 0,2, Stimmung 0,5; 1 / 0 / 0 schaltet die Würze ab). */
+  /** Rollentreue, Launen, Stimmung (Standard: SPICE, d. h. Treue 0,85, Launen 0,2, Stimmung 1; 1 / 0 / 0 schaltet die Würze ab). */
   loyalty?: number;
   /** Wohin eine Laune-Runde ausweicht: 'neighbors' (Standard, nur ähnliche Spielweisen) oder 'all'. */
   deviate?: 'neighbors' | 'all';

@@ -180,6 +180,25 @@ Messung mit `lab6`, `lab_recog`, `lab5 tastes` und einer Entscheidungsprobe (60 
 - **Erkennbarkeit der Rollen mit Würze:** Der Klassifikator trifft 34,1 % bei reinen Rollen, mit Treue 0,85, Launen 0,2 und Stimmung 0,5 noch 30,6 % (90 % Erhalt), 84 % der Runden in der eigenen Rolle, 72 % der Spiele mit mindestens einer Abweichung.
 - **Befund Stimmung:** Sie verschiebt nur den Ehrgeiz, und der entscheidet nur über „Erstmeldung jetzt oder noch warten“ in seltenen Lagen. Selbst eine absurd starke Stimmung ändert weniger als 0,5 % der Entscheidungen; das Ausweichen der Rollentreue ebenfalls kaum (0,4 %), weil die Nachbarrollen der Ausgewogenen ähnlich spielen. Die Stimmung ist damit praktisch unsichtbar. Möglicher Ausbau (nicht umgesetzt): nach einer Pleite zusätzlich Cheft früher ansagen oder den Abwurfdruck erhöhen, danach Stärke und Erkennbarkeit neu messen.
 
+## 5e. Stimmung wird Endspurt-Neigung (18.11.2026)
+
+**Warum:** Die alte Stimmung (nach einer Pleite mutiger) änderte praktisch keine Entscheidung (5d). Neu (`resolvePersona` in `personas.ts`, Regler `tilt`, Standard in `SPICE` jetzt 1): Der Bot misst seinen Rückstand an dem, was in den verbleibenden Runden noch aufzuholen ist (etwa 45 Punkte je Runde), gewichtet mit dem Spielfortschritt. Wer hinten liegt, wird mutiger (Ehrgeiz höher, ab mittlerem Druck Cheft schon mit 4, ab hohem Druck mit 3 Paaren, Paare früher nehmen; der mutige Modus sucht dann auch die Hand); wer deutlich führt, wird vorsichtiger. Der Frühvogel (Cheft 99 = nie) bleibt bei „nie Cheft“, wird aber ehrgeiziger.
+
+**Verlauf von Spielen** (1200 Spiele, 7 Runden, vier Ausgewogene Normal; `Führender` = nach Runde k vorn):
+
+| nach Runde | Führender gewinnt | wer ≥100 Pkt hinten liegt, gewinnt | wer ≥50 hinten, gewinnt |
+|---|---|---|---|
+| 2 | 46 % | 9 % | 13 % |
+| 3 | 55 % | 6,5 % | 10 % |
+| 4 | 61 % | 4,6 % | 8,4 % |
+| 5 | 71 % | 2,6 % | 5,8 % |
+| 6 | 80 % | 0,5 % | 3,2 % |
+
+Mit Stimmung 1 (nach Runde 5): Führender 66 % statt 71 %, Aufholsieg bei ≥100 Rückstand 3,9 % statt 2,6 %, der mittlere Abstand der Spitze wächst leicht (86 statt 80 Punkte): mehr Dramatik, aber das Spiel kippt nicht. Bei 9 Runden ist es offener (nach Runde 6 gewinnt der Führende 68 %, ≥100 hinten 4,3 %), bei 5 Runden früher entschieden (nach Runde 3 gewinnt der Führende 62 %).
+Stärke: Siegquote mit Stimmung 1 gegen drei ohne (je 1000 Spiele): Ausgewogen 25,7 (Ø der drei ohne 24,8), Pärchenkönig 26,6 (24,5), Glücksritter 25,9 (24,7), Gerissener 24,5 (25,2), Frühvogel 26,4 (24,6): kein Verlust, dafür etwa 2 Strafpunkte mehr und mehr Streuung. Dauertest extrem (600 Spiele): keine Verstöße.
+
+*Hinweis zu den Messungen:* Bots ohne Persona-Angabe in den Laborskripten spielen automatisch als Ausgewogen mit allen Zutaten (Vorlieben, Gegner-Gedächtnis, Würze), deshalb war „ohne Vorlieben“ im Vorlieben-Sweep identisch mit „Skala 2“ (der Standard).
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
