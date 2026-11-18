@@ -7,7 +7,7 @@ def spec_v2(name):
     suit,rank,em,spec=_M[name]; sp=copy.deepcopy(spec)
     sp['dyn']['xmin']=8; sp['dyn']['notch_left']=True; sp['dyn']['lift']=1; sp['lift']=1
     if name=='herz_koenig': sp['pal'].update(F=C['gold'],Y=hx('c8902a')); sp['a_mix']=0.35   # Turbanfalte dezenter (freigegeben)
-    if name=='karo_bube': sp['hair_px']=[(x,y,'H') for y in (18,19) for x in (4,12)]+[(9,16,'H'),(10,16,'H'),(11,16,'H')]   # Frisur 2: Koteletten länger + Fransen rechts (freigegeben)
+    if name=='karo_bube': sp['hair_px']=[(x,y,'H') for y in (18,19) for x in (4,12)]+[(9,16,'H'),(10,16,'H'),(11,16,'H')]   # Frisur 2: Koteletten länger + Fransen rechts (freigegeben)+[(x,y,'H') for y in (15,16,17) for x in (3,13)]   # Variante A: Haar außen neben dem Gesicht (freigegeben)
     if name=='pik_koenig': sp['hat']=['z_a10']
     if name=='pik_dame': sp['hair']='bob_r2_l3'          # Haare +3 Pixel
     if name=='kreuz_koenig': sp['hat']=['krone_ck_final']   # Krone Variante D, Steine weiter außen und eine Zeile tiefer
