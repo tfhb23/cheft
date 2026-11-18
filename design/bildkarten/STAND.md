@@ -110,3 +110,10 @@ Zum Zeitpunkt der Übergabe: `npx tsc --noEmit` ohne Fehler, `npx vitest run` 30
 - Atlas: 68 Zellen (9 Zeilen). Zellen 56–67 enthalten die Bildkarten des zweiten Decks (Karten-Id 52–103), Index in `buildAtlas().index()`.
 - Tokens 1.20–1.33 sind jetzt Haut je Familie, Weiß, Haar je Familie, Grau, Augen je Familie. `lib.py` liest sie direkt aus `src/ui/tokens.ts`. Design Guide 5.20 und 5.27 sind angepasst.
 - Offen: die 7 echten zweiten Personen entwerfen; Formeln (Licht/Schatten, Lippen, Nase) laufen bisher nur in Python und stecken als fertige Pixel in `face-art.ts`.
+
+## 10. Layout v9 (live)
+
+- Torso 13 Pixel breit (Spalte 10 bis 22), Mitte auf Pixelspalte 16 wie Nase und Mund des Kopfes. Untere 5 Zeilen entfallen (keine Saumstreifen), Unterkante gerade, dann 1 Zeile weniger und die beiden unteren Ecken je 1 Pixel abgerundet. Figur für alle 3 Pixel tiefer (`TRIM`, `DY` in `final_layout.py`).
+- Freigegeben und eingebaut: Kreuz Dame A Krone (markierte Pixel 1 tiefer), Kreuz Dame B Ohrringe 2×2, Pik König Zwilling rechte Braue unten, Federn Herz in Gold, Turbanfalte 35 % (`a_mix`), Karo Bube Frisur (Fransen rechts, Haar außen), Herz Dame A Tuch D3 (`tuch_d3`), Pik Bube Tolle a.
+- Neue Spec-Hilfen in `comp.py`: `hair_px`, `grid_fn`, `trim`, `flat`, `flat_cut`, `a_mix`, `a_dither`, `v_mix`.
+- Ausgabe: `python3 design/bildkarten/code/export_ts.py` schreibt `src/ui/face-art.ts`.
