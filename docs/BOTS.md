@@ -134,6 +134,34 @@ Neustart aus JSON, Erinnerung (Mastermind gleich Referenzrechnung), Teppichkarte
 
   Alle Mittelwerte liegen im Zielband, die Stufen sind sauber gestaffelt (Strafpunkte/Runde 57 / 54 / 51 / 49). Einzelne Läufe schwanken um die Messtoleranz (±2,5 bis 3 Punkte); Werte wurden deshalb nicht verändert.
 
+## 5c. Feinschliff-Durchlauf (18.11.2026): Ergebnis „Werte bleiben“
+
+Alle Messungen mit dem Stand von `main` (keine Werteänderung), 7 Runden, Erstzug gesperrt, wenn nicht anders genannt.
+
+**Matrix Rolle × Gedächtnis** (800 Spiele je Zelle, ein Platz gegen drei schlichte Ausgewogene Normal, Siegquote %, Toleranz ±3):
+
+| | Vergesslich | Normal | Scharfsinnig | Mastermind | Ø | Cheft-Runden | nie Cheft |
+|---|---|---|---|---|---|---|---|
+| Ausgewogen | 21,6 | 23,8 | 28,6 | 30,4 | 26,1 | 12 % | 43 % |
+| Frühvogel | 22,3 | 22,6 | 28,5 | 31,1 | 26,1 | 5 % | 68 % |
+| Gerissener | 20,1 | 22,1 | 26,5 | 27,3 | 24,0 | 16 % | 30 % |
+| Pärchenkönig | 18,9 | 23,1 | 25,8 | 29,7 | 24,4 | 17 % | 28 % |
+| Glücksritter | 19,1 | 22,6 | 26,6 | 29,7 | 24,5 | 23 % | 16 % |
+| Wildcard | 20,6 | 22,3 | 28,0 | 31,0 | 25,5 | 15 % | 32 % |
+
+Die Stufen sind in jeder Zeile gestaffelt (die frühere Auffälligkeit Glücksritter/Mastermind ist mit größerer Stichprobe verschwunden), die Rollenstile bleiben deutlich verschieden (Cheft-Anteil 5 bis 23 %, Erstmeldung 56 bis 67 Augen).
+
+**Rollen direkt am selben Tisch** (Normal, je 2000 Spiele, ±1,9): Tisch 1 Ausgewogen 26,8 / Frühvogel 24,6 / Gerissener 24,1 / Pärchenkönig 24,6; Tisch 2 Glücksritter 24,1 / Wildcard 22,1 / Ausgewogen 25,3 / Frühvogel 28,5; Tisch 3 Gerissener 26,6 / Pärchenkönig 24,7 / Glücksritter 23,0 / Wildcard 25,7.
+Alle Rollen liegen zwischen 22 und 28 %, ohne Muster, das über das Messrauschen hinausgeht (derselbe Rollenvergleich schwankt zwischen Tischen um bis zu 3,6 Punkte).
+
+**Extremtische** (800 Spiele je Tisch, auch 3 Runden und 9 Runden mit erlaubtem Erstzug): Vier Wildcards 24,3 bis 25,9 %; vier verschiedene Rollen und vier Glücksritter 22 bis 28 % (Glücksritter mit der höchsten Streuung, 75 bis 81 Strafpunkte, Cheft 24 %);
+gemischte Stufen wie vorgesehen (Frühvogel Mastermind 31 bis 37 %, Pärchenkönig Scharfsinnig 27 bis 28 %, Glücksritter Normal 21 %, Gerissener Vergesslich 15 bis 19 %); 2 Spieler: Pärchenkönig Mastermind 62 bis 65 % gegen Frühvogel Vergesslich; 3 Spieler: Wildcard Mastermind 36 bis 41 %.
+
+**Beschluss:** Kein Regler wurde verändert. Die Unterschiede zwischen den Rollen (Ø 24,0 bis 26,1 % in der Matrix, ±1,5) sind höchstens knapp außerhalb des Rauschens und passen zur Absicht (Gerissener, Pärchenkönig und Glücksritter etwas riskanter und damit leicht unter der Ausgewogenen); ein Nachregeln auf Messrauschen würde die Stile eher verwischen
+(vgl. Abschnitt 2: `holdAt0` 0,3 macht den Gerissenen schwächer erkennbar). Zusammen mit den Dauertests aus 5b (normal und extrem, 3000 Spiele, keine Verstöße) und der Kalibrierung der Stufen (Mittel 19,7 / 22,7 / 26,8 / 30,9 %) ist damit der „lange Durchlauf“ in der Breite erledigt.
+
+Noch offen: Rollen-Varianten (`lab14.ts`) und Vorlieben/Erkennbarkeit nach künftigen Änderungen erneut messen.
+
 ## 6. Werkzeuge
 
 | Befehl | Zweck |
