@@ -5,7 +5,7 @@
  *   loyalty  Rollentreue 0..1: Chance je Runde, wirklich in der Rolle zu spielen. Sonst spielt der Bot diese Runde eine andere
  *            Rolle aus `pool` (eine ganze Runde lang, nicht zugweise, damit es wie eine Laune wirkt). Wildcard = Rollentreue 0.
  *   jitter   Launen 0..1: Jede Runde werden Ehrgeiz, Blockierwille und Abwurfdruck leicht verschoben.
- *   tilt     Stimmung -1..1: Nach einer schlechten Runde mutiger (> 0) oder vorsichtiger (< 0), nach einem Sieg umgekehrt.
+ *   tilt     Stimmung / Endspurt-Neigung -1..1: Wer hinten liegt, wird mit fortschreitendem Spiel mutiger (> 0; früher Cheft, Hand-Jagd), wer deutlich führt, vorsichtiger; < 0 kehrt um.
  *   levels   Gedächtnis pro Runde aus dieser Liste (Tagesform als Charakterzug); sonst bleibt die Stufe des Bots.
  *
  * Alles ist eine reine Funktion des Spielzustands (Seed, Runde, Spieler): kein echter Zufall, deterministisch, auch nach einem
@@ -25,6 +25,8 @@ export interface PersonaDef {
   carelessness?: { noise?: number; handMiss?: number };
   /** Zustandsabhängige Zusatzregler (z. B. nur mutig, wenn man hinten liegt). Rein aus dem Spielstand. */
   adapt?: (state: GameState, pid: number) => Partial<Knobs>;
+  /** Wie stark die Stimmung (Endspurt-Neigung) bei dieser Rolle wirkt (1 = Standard). */
+  tiltScale?: number;
 }
 
 export interface Persona {
@@ -65,11 +67,28 @@ export function resolvePersona(p: Persona, state: GameState, pid: number): Resol
     knobs.shedOpen = Math.max(0, (knobs.shedOpen ?? 0.9) * (1 + j(6)));
   }
   if (p.tilt !== 0) {
-    const last = state.history[state.history.length - 1];
-    if (last) {
-      const pen = last.scores?.[pid]?.total ?? 0;
-      const heat = pen > 0 ? Math.min(1, pen / 100) : -0.3;
-      ambition += p.tilt * 0.5 * heat;
+    // Stimmung = Endspurt-Neigung: Je weiter das Spiel fortgeschritten ist und je weniger Runden bleiben, desto mutiger spielt, wer hinten liegt
+    // (früher Cheft, Paare nehmen, Hand suchen über den mutigen Modus), und desto vorsichtiger, wer deutlich führt. Maß ist der Rückstand
+    // im Verhältnis zu dem, was in den verbleibenden Runden noch aufzuholen ist (etwa 45 Punkte je Runde).
+    const s = standing(state, pid);
+    const left = s.roundsLeft + 1;
+    const progress = Math.min(1, state.history.length / Math.max(1, state.settings.rounds - 1));
+    // Nervenstärke: je Bot und Spiel fest (0,5 bis 1,5), dazu eine kleine Schwankung je Runde; Rollen haben einen eigenen Grundwert
+    const nerve = 0.5 + roll({ ...state, round: { ...state.round, no: 0 } } as GameState, pid, SALT + 20);
+    const wobble = 0.85 + 0.3 * roll(state, pid, SALT + 21);
+    const weight = (0.35 + 0.65 * progress) * nerve * wobble * (def.tiltScale ?? 1);
+    if (s.behind > 0) {
+      const need = Math.min(1.5, s.behind / (45 * left));
+      const t = p.tilt * need * weight;
+      ambition += 0.5 * t;
+      // Rollen, die sonst nie Cheft ansagen (Frühvogel: 99), tun es nur in großer Not
+      const never = knobs.cheftEagerPairs !== undefined && knobs.cheftEagerPairs >= 99;
+      if (t >= (never ? 0.6 : 0.35)) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 4);
+      if (t >= 0.6 && !never) knobs.cheftEagerPairs = Math.min(knobs.cheftEagerPairs ?? 99, 3);
+      if (t >= (never ? 0.6 : 0.35)) knobs.pairTakeAt = Math.min(knobs.pairTakeAt ?? 4, 3);
+    } else if (s.lead > 0) {
+      const safe = Math.min(1, s.lead / (45 * left));
+      ambition -= p.tilt * 0.4 * safe * weight;
     }
   }
   if (ambition !== base) knobs.ambition = clamp(ambition, 0, 1);

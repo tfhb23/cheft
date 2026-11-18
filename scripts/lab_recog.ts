@@ -93,6 +93,9 @@ if (!isMainThread) {
   };
 
   const variants: Variant[] = [
+    { name: 'APP-STANDARD (SPICE: Treue .85, Launen .2, Stimmung 1 mit Nervenstärke)', opts: {} },
+    { name: 'Treue .85, Launen .2, ohne Stimmung', opts: { loyalty: 0.85, jitter: 0.2, tilt: 0 } },
+    { name: 'Treue 1, Launen 0, nur Stimmung 1', opts: { loyalty: 1, jitter: 0, tilt: 1 } },
     { name: 'Nur Launen .3 + Stimmung .5 (Treue 1)', opts: { loyalty: 1, jitter: 0.3, tilt: 0.5 } },
     { name: 'Treue .9, Nachbarn, Launen .2, Stimmung .5', opts: { loyalty: 0.9, jitter: 0.2, tilt: 0.5 } },
     { name: 'Treue .85, Nachbarn, Launen .2, Stimmung .5', opts: { loyalty: 0.85, jitter: 0.2, tilt: 0.5 } },
@@ -153,7 +156,7 @@ if (!isMainThread) {
   const fmtPer = (e: ReturnType<typeof evaluate>) => STYLE_IDS.map((r) => `${r.slice(0, 5)} ${((100 * (e.per.get(r)?.ok ?? 0)) / (e.per.get(r)?.n ?? 1)).toFixed(0)}`).join(' | ');
   console.log(`Klassifikator auf reinen Rollen (Zufall 20 %): Trefferquote ${(100 * base.acc).toFixed(1)} % | ${fmtPer(base)}`);
   console.log(`Würze-Variante`.padEnd(48) + 'Treffer   Erhalt   Runden in Rolle   Spiele mit Abweichung | Trefferquote je Rolle');
-  for (const v of variants) {
+  for (const v of variants.slice(0, Number(process.env.RECOG_ONLY ?? variants.length))) {
     const rows = await collect(v.opts, games, 5000);
     const e = evaluate(rows);
     console.log(`${v.name.padEnd(48)}${(100 * e.acc).toFixed(1).padStart(5)} %  ${(100 * (e.acc / base.acc)).toFixed(0).padStart(5)} %   ${(100 * e.inRole).toFixed(0).padStart(10)} %        ${(100 * e.anyDev).toFixed(0).padStart(10)} %      | ${fmtPer(e)}`);
