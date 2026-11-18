@@ -160,7 +160,7 @@ gemischte Stufen wie vorgesehen (Frühvogel Mastermind 31 bis 37 %, Pärchenkön
 **Beschluss:** Kein Regler wurde verändert. Die Unterschiede zwischen den Rollen (Ø 24,0 bis 26,1 % in der Matrix, ±1,5) sind höchstens knapp außerhalb des Rauschens und passen zur Absicht (Gerissener, Pärchenkönig und Glücksritter etwas riskanter und damit leicht unter der Ausgewogenen); ein Nachregeln auf Messrauschen würde die Stile eher verwischen
 (vgl. Abschnitt 2: `holdAt0` 0,3 macht den Gerissenen schwächer erkennbar). Zusammen mit den Dauertests aus 5b (normal und extrem, 3000 Spiele, keine Verstöße) und der Kalibrierung der Stufen (Mittel 19,7 / 22,7 / 26,8 / 30,9 %) ist damit der „lange Durchlauf“ in der Breite erledigt.
 
-Noch offen: Rollen-Varianten (`lab14.ts`) und Vorlieben/Erkennbarkeit nach künftigen Änderungen erneut messen.
+Rollen-Varianten und Erkennbarkeit: siehe 5g.
 
 ## 5d. Wirken Vorlieben und „menschliche Faktoren“ wirklich? (18.11.2026)
 
@@ -203,6 +203,24 @@ Stärke: Siegquote mit Stimmung 1 gegen drei ohne (je 1000 Spiele): Ausgewogen 2
 
 - **Nervenstärke:** Die Stärke der Stimmung hängt jetzt von einem festen Zufallswert je Bot und Spiel ab (Faktor 0,5 bis 1,5), dazu einer kleinen Schwankung je Runde (±15 %) und einem Grundwert je Rolle (`STYLE_TILT` in `roles.ts`: Ausgewogen 1, Frühvogel 0,8, Gerissener 1, Pärchenkönig 1,1, Glücksritter 1,3). Gemessen (1000 Spiele je Rolle gegen drei ohne Stimmung): Frühvogel 26,3 % (Vergleich 24,6), Glücksritter 25,9 % (24,7), Ausgewogen 25,2 % (24,9); Cheft-Anteil Frühvogel 5 → 7 %, Ausgewogen 12 → 15 %. Aufholsieg bei ≥100 Punkten Rückstand nach Runde 5 von 7: 2,6 → 3,6 %, Führender gewinnt 70,5 → 67,2 %.
 - **Frühvogel und Cheft:** Der Frühvogel sagt Cheft nicht freiwillig an (`cheftEagerPairs` 99), legt aber mit fünf Paaren Cheft aus (Cheft-Runden 5 bis 7 %). Test eines Rückfallplans (Cheft ansagen mit 4 Paaren, wenn keine Rommé-Erstmeldung möglich ist, 1000 Spiele): 22,5 % statt 25,8 % und 11 % Cheft-Runden; ab 3 Paaren 12,7 % (Cheft in 30 % der Runden, 76 Strafpunkte). Freiwilliges Cheft mit 4 Paaren ist für ihn also schwächer als im Rommé zu bleiben; der Regler wurde nicht übernommen. Dafür sagt er in großer Not (Rückstand hoch, späte Runden) Cheft schon mit 4 Paaren an.
+
+## 5g. Erkennbarkeit und Rollen-Varianten (18.11.2026)
+
+**Erkennbarkeit der Rollen** (`lab_recog`, 800 Spiele zu 7 Runden je Variante; Klassifikator rät die Rolle aus einem Spiel, Zufall 20 %): reine Rollen 32,4 %. App-Standard (Treue 0,85, Launen 0,2, Stimmung 1 mit Nervenstärke) 29,7 %, also **92 % der Erkennbarkeit bleiben** (ohne Stimmung 98 %, nur Stimmung 96 %). Trefferquote je Rolle App-Standard: Frühvogel 44 % (rein 62, die Not-Cheft-Ansage verwischt ihn etwas), Gerissener 47, Glücksritter 37, Pärchenkönig 15, Ausgewogen 6. Die Rollen bleiben also lesbar; Pärchenkönig und Ausgewogen waren schon vorher kaum zu erkennen.
+
+**Rollen-Varianten** (`lab14`, 800 Spiele, ein Platz mit reiner Rolle gegen drei Standard-Bots, Siegquote %; Standard-Bots stehen bei etwa 24 %):
+
+| Rolle | Standardwerte | Varianten |
+|---|---|---|
+| Gerissener | 20,4 (Strafpunkte 63,7) | Hürde 1 (holdAt0 0,1, Ehrgeiz 0,85) 20,8; Hürde 2 (holdAt0 0, Ehrgeiz 0,9) 20,1; Hürde 3 (holdAt0 −0,2, Ehrgeiz 0,95) 17,9 |
+| Pärchenkönig | 22,8 (63,3) | Paarliebe 3: 21,8; mit Ehrgeiz 0,7: 21,7; Paarliebe 4 und Ablage ab 2 Paaren: 21,0 |
+| Glücksritter | 20,8 (66,1) | immer Cheft ab 3 Paaren: 18,8 (Strafpunkte 68,2, Führung gehalten 45 % statt 52 %) |
+
+Keine Variante macht die Rolle stärker erkennbar, ohne Stärke zu kosten (der stärkste Wartestil kostet 2,5 Punkte, „immer ab 3 Paaren“ 2 Punkte, die Paar-Varianten 1 bis 2 Punkte). **Beschluss: alle Standardwerte bleiben.** Auffällig: Mit reiner Rolle (Treue 1) liegen Gerissener und Glücksritter etwa 4 Punkte unter dem Standard; in der App weichen sie in 15 % der Runden zu Nachbarrollen aus und liegen dadurch näher an der Ausgewogenen (Matrix 5c: 24 %).
+
+## Offene Punkte (TODO)
+
+- **Spieler-Sicht und `seed`** (Regel- und Serverfrage, nicht die Bots): `engine/view.ts` schickt den `seed` an die Mitspieler. Wer den Mischalgorithmus kennt, könnte im Mehrspielermodus verdeckte Karten ableiten. Später prüfen, z. B. Seed aus der Sicht entfernen; die Vorlieben-Anzeige am Spielende bräuchte ihn dann aus einer anderen Quelle. An den Regeln wird nichts geändert, nur nach Rücksprache.
 
 ## 6. Werkzeuge
 
