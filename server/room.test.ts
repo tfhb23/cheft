@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS, LOBBY_GRACE_MS, SNAPSHOT_TTL_MS, MAX_ROOMS, snapshotUsable, isRoomCode, RoomSnapshot } from './room';
+import { Rooms, Room, MIN_PLAYERS, AUTOPILOT_AFTER_MS, claimLockMs, CLAIM_LOCK_MAX_MS, LOBBY_GRACE_MS, SNAPSHOT_TTL_MS, MAX_ROOMS, snapshotUsable, isRoomCode, RoomSnapshot } from './room';
 import { seal, open } from './snapshot';
 
 describe('Räume', () => {
@@ -125,7 +125,7 @@ describe('Räume', () => {
     expect(room.state!.round.ready).toEqual([false, false, false]);
   });
 
-  it('wer weg ist, bestätigt nach der Wartezeit automatisch', () => {
+  it('wer weg ist: nach 45 s pausiert das Spiel, nach „Weiter“ bestätigt der Autopilot für ihn', () => {
     const room = roundEndRoom(12);
     const no = room.state!.round.no;
     room.nextRound(0);
@@ -133,8 +133,16 @@ describe('Räume', () => {
     room.setConnected(2, true); // Bot bleibt unberührt
     expect(room.autoSeat()).toBe(2); // zuerst der Bot
     room.autoStep(2);
-    expect(room.autoSeat()).toBeNull(); // B ist noch in der Schonfrist
-    room.seats[1].disconnectedAt = Date.now() - AUTOPILOT_AFTER_MS - 1000;
+    expect(room.autoSeat()).toBeNull(); // B ist noch in der Schonfrist: kein Autopilot
+    expect(room.checkAwayPause()).toBe(false);
+    const late = Date.now() + AUTOPILOT_AFTER_MS + 1000;
+    expect(room.checkAwayPause(late)).toBe(true);
+    expect(room.paused).toBe('auto');
+    expect(room.autoSeat()).toBeNull(); // Pause: auch kein Autopilot
+    room.requestResume(0); // A ist der einzige aktive Mensch
+    expect(room.paused).toBeNull();
+    expect(room.seats[1].autopilot).toBe(true);
+    expect(room.checkAwayPause(late + 60000)).toBe(false); // keine zweite Pause für dieselbe Abwesenheit
     expect(room.autoSeat()).toBe(1);
     room.autoStep(1);
     expect(room.state!.round.no).toBe(no + 1);
@@ -234,7 +242,7 @@ describe('Räume', () => {
     expect(room.effectiveHost()).toBe(0);
   });
 
-  it('Plätze übernehmen: Bot sofort, Abwesende erst nach der Wartezeit', () => {
+  it('Plätze übernehmen: Bot sofort, Abwesende erst nach Pause, „Weiter“ und Sperrzeit', () => {
     const rooms = new Rooms(15);
     const room = rooms.create();
     room.addHuman('A');
@@ -244,11 +252,19 @@ describe('Räume', () => {
     const now = Date.now();
     expect(room.claimable(now).map((c) => [c.pid, c.kind])).toEqual([[2, 'bot']]);
     room.setConnected(1, false);
-    expect(room.claimable(now).map((c) => c.pid)).toEqual([2]); // B ist noch in der Schonfrist
-    const early = room.claim(1, 'Dritte', now);
+    // Solange B nur kurz weg ist oder die anderen noch nicht „Weiter“ gesagt haben, bleibt sein Platz für Fremde unsichtbar
+    expect(room.claimable(now + 5000).map((c) => c.pid)).toEqual([2]);
+    expect(room.checkAwayPause(now + AUTOPILOT_AFTER_MS + 1000)).toBe(true);
+    expect(room.claimable(now + AUTOPILOT_AFTER_MS + 2000).map((c) => c.pid)).toEqual([2]); // auch in der Pause nicht
+    const early = room.claim(1, 'Dritte', now + AUTOPILOT_AFTER_MS + 2000);
     expect('ok' in early && early.ok).toBe(false);
-    const later = now + AUTOPILOT_AFTER_MS + 1000;
-    expect(room.claimable(later).map((c) => c.pid)).toEqual([1, 2]);
+    room.requestResume(0);
+    const since = room.seats[1].autopilotSince!;
+    const lock = claimLockMs(room.roundsLeft());
+    expect(lock).toBe(CLAIM_LOCK_MAX_MS); // 7 Runden: gedeckelt auf 10 Minuten
+    expect(room.claimable(since + lock - 1000).map((c) => c.pid)).toEqual([2]);
+    const later = since + lock + 1000;
+    expect(room.claimable(later).map((c) => [c.pid, c.kind])).toEqual([[1, 'away'], [2, 'bot']]);
     const handBefore = room.state!.round.players[2].hand.map((c) => c.id);
     const r = room.claim(2, 'Neu', later);
     expect('pid' in r && r.pid).toBe(2);
@@ -507,8 +523,11 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
     expect(room.hostPid).toBe(0);
     // Übernimmt jemand den Gastgeber-Sitz, geht die Rolle an den am längsten anwesenden Menschen
     room.setConnected(0, false);
-    room.paused = 'manual';
-    expect('pid' in room.claim(0, 'Fremd')).toBe(true);
+    expect(room.checkAwayPause(Date.now() + AUTOPILOT_AFTER_MS + 1000)).toBe(true);
+    room.requestResume(1);
+    room.requestResume(2); // auch „Neu“ (hat vorher den Bot-Platz übernommen) muss bestätigen
+    const since = room.seats[0].autopilotSince!;
+    expect('pid' in room.claim(0, 'Fremd', since + CLAIM_LOCK_MAX_MS + 1000)).toBe(true);
     expect(room.seats[room.hostPid].name).toBe('B');
   });
 
@@ -582,5 +601,144 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
     for (let n = 1000; opened < MAX_ROOMS; n++) if (many.open(String(n))) opened++;
     expect(many.full).toBe(true);
     expect(many.open('555')).toBeNull();
+  });
+});
+
+describe('Verbindungsverlust im Spiel: Pause, Autopilot, Sperrzeit', () => {
+  function game(seed: number): Room {
+    const room = new Rooms(seed).create();
+    room.addHuman('Max');
+    room.addHuman('Anna');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    return room;
+  }
+  const LATE = () => Date.now() + AUTOPILOT_AFTER_MS + 1000;
+
+  it('die Sperrzeit richtet sich nach den verbleibenden Runden: 2 Minuten je Runde, mindestens 3, höchstens 10', () => {
+    const min = 60 * 1000;
+    expect([1, 2, 3, 4, 5, 9].map((n) => claimLockMs(n) / min)).toEqual([3, 4, 6, 8, 10, 10]);
+    const room = game(60);
+    room.updateSettings({ rounds: 7 });
+    expect(room.roundsLeft()).toBe(room.state!.settings.rounds - room.state!.history.length);
+    room.state!.settings.rounds = 3;
+    room.state!.history.push({} as never, {} as never);
+    expect(room.roundsLeft()).toBe(1);
+    expect(claimLockMs(room.roundsLeft())).toBe(3 * min);
+  });
+
+  it('kurze Aussetzer lösen keine Pause aus; wer in der Schonfrist zurückkommt, merkt nichts', () => {
+    const room = game(61);
+    room.setConnected(0, false);
+    expect(room.checkAwayPause(Date.now() + 20000)).toBe(false);
+    room.setConnected(0, true);
+    expect(room.checkAwayPause(LATE())).toBe(false);
+    expect(room.paused).toBeNull();
+    // Wackelige Verbindung: jede Rückkehr setzt den Zähler zurück
+    for (let i = 0; i < 5; i++) {
+      room.setConnected(0, false);
+      expect(room.checkAwayPause(Date.now() + 30000)).toBe(false);
+      room.setConnected(0, true);
+    }
+    expect(room.paused).toBeNull();
+  });
+
+  it('kommt der Abwesende zurück, solange die Pause läuft, geht es ohne Bestätigung weiter', () => {
+    const room = game(62);
+    room.setConnected(0, false);
+    expect(room.checkAwayPause(LATE())).toBe(true);
+    expect(room.paused).toBe('auto');
+    room.setConnected(0, true);
+    expect(room.paused).toBeNull();
+    expect(room.seats[0].autopilot).toBeUndefined();
+  });
+
+  it('kommt er später zurück, übernimmt er seinen Platz wieder und der Autopilot hört auf', () => {
+    const room = game(63);
+    room.setConnected(0, false);
+    room.checkAwayPause(LATE());
+    room.requestResume(1);
+    expect(room.seats[0].autopilot).toBe(true);
+    expect(room.lobbyView().seats[0].autopilot).toBe(true);
+    const token = room.seats[0].token!;
+    expect(room.findByToken(token)!.pid).toBe(0);
+    room.setConnected(0, true);
+    expect(room.seats[0].autopilot).toBeUndefined();
+    expect(room.lobbyView().seats[0].autopilot).toBeUndefined();
+  });
+
+  it('fällt ein weiterer Mensch aus, gibt es eine neue Pause; der schon vertretene bleibt außen vor', () => {
+    const room = new Rooms(64).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addHuman('C');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    room.setConnected(1, false);
+    room.checkAwayPause(LATE());
+    room.requestResume(0);
+    room.requestResume(2);
+    expect(room.paused).toBeNull();
+    expect(room.seats[1].autopilot).toBe(true);
+    room.setConnected(2, false);
+    expect(room.checkAwayPause(Date.now() + 5000)).toBe(false);
+    expect(room.checkAwayPause(LATE() + 100000)).toBe(true);
+    expect(room.lobbyView().seats.filter((s) => !s.connected && !s.autopilot).map((s) => s.pid)).toEqual([2]);
+  });
+
+  it('der Spielleiter beendet die Pause für alle, andere nicht', () => {
+    const room = game(65);
+    room.setConnected(0, false);
+    room.checkAwayPause(LATE());
+    // Max ist Gastgeber, aber weg: Anna leitet vorübergehend
+    expect(room.effectiveHost()).toBe(1);
+    const asBot = room.forceResume(2);
+    expect('error' in asBot && asBot.error).toBe('net.hostOnly');
+    expect(room.paused).toBe('auto');
+    expect(room.forceResume(1).ok).toBe(true);
+    expect(room.paused).toBeNull();
+    expect(room.seats[0].autopilot).toBe(true);
+    // „Bereit“ ist nur die eigene Stimme: bei zwei Menschen reicht eine allein nicht
+    const two = game(66);
+    two.pause();
+    two.requestResume(0);
+    expect(two.paused).toBe('manual');
+    expect(two.forceResume(0).ok).toBe(true);
+    expect(two.paused).toBeNull();
+  });
+
+  it('manuelle Pause: ein erst kurz Abwesender wird nicht sofort vom Autopilot vertreten', () => {
+    const room = game(67);
+    room.pause();
+    room.setConnected(0, false);
+    room.requestResume(1);
+    expect(room.paused).toBeNull();
+    expect(room.seats[0].autopilot).toBeUndefined();
+    expect(room.autoSeat()).not.toBe(0);
+  });
+
+  it('nach einer Wiederherstellung wartet alles; der Autopilot setzt erst nach „Weiter“ ein', () => {
+    const room = game(68);
+    room.setConnected(0, false);
+    room.checkAwayPause(LATE());
+    room.requestResume(1);
+    expect(room.seats[0].autopilot).toBe(true);
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    const restored = new Rooms(69).restore(snap);
+    expect(restored.seats.every((s) => !s.autopilot)).toBe(true);
+    expect(restored.paused).toBe('auto');
+    expect(restored.claimable()).toEqual([expect.objectContaining({ kind: 'bot' })]);
+  });
+
+  it('nach dem letzten Spiel gibt es keine Pause mehr; wer die Endauswertung nicht bestätigt, wird nach der Wartezeit vertreten', () => {
+    const room = game(70);
+    room.state!.finished = true;
+    room.state!.round.ended = true;
+    room.setConnected(0, false);
+    expect(room.checkAwayPause(LATE())).toBe(false);
+    expect(room.autoSeat()).toBe(2); // der Bot bestätigt von selbst
+    room.seats[0].disconnectedAt = Date.now() - AUTOPILOT_AFTER_MS - 1000;
+    room.state!.round.nextReady = [false, true, true];
+    expect(room.autoSeat()).toBe(0);
   });
 });

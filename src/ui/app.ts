@@ -33,7 +33,7 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_X, pixelIcon } from './icons';
-import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from './tokens';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
@@ -47,6 +47,8 @@ import { NavGuard } from './nav';
 
 type Screen = 'menu' | 'setup' | 'rules' | 'guide' | 'game' | 'online' | 'lobby';
 const ONLINE_KEY = 'cheft.online.v1';
+/** So lange muss jemand getrennt sein, bevor das Stecker-Symbol erscheint (kurze Aussetzer bleiben unsichtbar). */
+const LOST_ICON_DELAY_MS = 10000;
 interface StoredOnline {
   url: string;
   room: string;
@@ -175,6 +177,8 @@ export class App {
   private joinCode = '';
   /** Raumcode aus dem Link, solange die Verbindung aufgebaut wird. */
   private linkRoom: string | null = null;
+  /** Wann wir zuerst gesehen haben, dass ein Mensch getrennt ist (pid → Zeit). Das Stecker-Symbol erscheint erst nach einer kurzen Verzögerung, damit kurze Aussetzer nicht flackern. */
+  private lostSince = new Map<number, number>();
   /** Code, den wir gerade beitreten wollen: meldet der Server „gibt es nicht“, bieten wir an, den Raum neu zu eröffnen. */
   private pendingCode: string | null = null;
   /** Fehlender Raum: Angebot zum Neueröffnen (wait: noch so viele Sekunden, in denen Mitspieler ein laufendes Spiel wiederherstellen können). */
@@ -1353,7 +1357,7 @@ export class App {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
       const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
-      const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length });
+      const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length, lost: seat.pid !== this.me && this.lostVisible(seat.pid) });
       // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
       const backId = this.seatBack(seat.pid);
       const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
@@ -1973,17 +1977,40 @@ export class App {
   }
 
   // ------------------------------------------------------------ Dialoge
+  /** Merkt sich, seit wann jemand getrennt ist; nach kurzer Zeit wird neu gezeichnet, damit das Stecker-Symbol erscheint. */
+  private trackLost(lobby: LobbyInfo): void {
+    const now = Date.now();
+    for (const seat of lobby.seats) {
+      if (!seat.isBot && !seat.connected) {
+        if (this.lostSince.has(seat.pid)) continue;
+        this.lostSince.set(seat.pid, now);
+        window.setTimeout(() => {
+          if (this.lostSince.has(seat.pid) && (this.screen === 'game' || this.screen === 'lobby')) this.render();
+        }, LOST_ICON_DELAY_MS + 100);
+      } else this.lostSince.delete(seat.pid);
+    }
+  }
+
+  private lostVisible(pid: number): boolean {
+    const since = this.lostSince.get(pid);
+    return since !== undefined && Date.now() - since >= LOST_ICON_DELAY_MS;
+  }
+
   private renderPause(lobby: LobbyInfo): HTMLElement {
-    const away = lobby.seats.filter((s) => !s.isBot && !s.connected).map((s) => s.name);
+    // Genannt wird nur, wer neu die Verbindung verloren hat; wen der Autopilot schon vertritt, kennen alle.
+    const away = lobby.seats.filter((s) => !s.isBot && !s.connected && !s.autopilot).map((s) => s.name);
     const waiting = lobby.paused === 'auto' && away.length > 0;
+    const isHost = lobby.hostPid === this.me;
     // Weiter geht es erst, wenn alle verbundenen Menschen auf „Weiter“ getippt haben
     const voted = new Set(lobby.resumed ?? []);
     const mine = voted.has(this.me);
     const missing = lobby.seats.filter((s) => !s.isBot && s.connected && !voted.has(s.pid) && s.pid !== this.me).map((s) => s.name);
     return windowEl([
       h('h2', null, t('pause.title')),
-      h('p', null, waiting ? t('pause.waiting', { names: away.join(', ') }) : t('pause.text')),
-      btn(waiting ? t('pause.resumeAnyway') : t('pause.resume'), () => this.net?.pause(false), { variant: 'primary', disabled: mine }),
+      h('p', null, waiting ? t(away.length > 1 ? 'pause.waitingMany' : 'pause.waiting', { names: away.join(', ') }) : t('pause.text')),
+      // Der Spielleiter kann die Pause für alle beenden oder wie jeder andere nur selbst „Weiter“ sagen.
+      isHost ? btn(t('pause.resumeAll'), () => this.net?.pause(false, true), { variant: 'primary' }) : null,
+      btn(t('pause.resume'), () => this.net?.pause(false), { variant: isHost ? 'default' : 'primary', disabled: mine }),
       mine && missing.length ? hint(t('wait.others', { names: missing.join(', ') }), true) : null,
     ]);
   }
@@ -2324,6 +2351,7 @@ export class App {
   private onServerUpdate(u: ServerUpdate): void {
     if (!this.online) return;
     this.online.lobby = u.lobby;
+    this.trackLost(u.lobby);
     const stored = this.storedOnline();
     if (stored && stored.room === this.online.room) this.storeOnline({ ...stored, snap: u.snap ?? undefined, at: Date.now() });
     if (!u.state) {
@@ -2473,7 +2501,9 @@ export class App {
         'div',
         { class: 'panel' },
         hint(t('claim.hint')),
-        ...c.seats.map((seat) => btn(`${seat.name} · ${t(seat.kind === 'bot' ? 'claim.bot' : 'claim.away')}`, () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign, this.autoName()))),
+        ...c.seats.map((seat) =>
+          btn(seat.kind === 'bot' ? `${seat.name} · ${t('claim.bot')}` : h('span', null, seat.name, lostIcon()), () => this.net?.claim(c.room, seat.pid, name, this.prefs.cardDesign, this.autoName())),
+        ),
         backBtn(() => this.back()),
       ),
     );
@@ -2500,7 +2530,7 @@ export class App {
             isHost && lobby.seats.length > 1 ? h('span', { class: 'handle', title: t('lobby.drag') }) : null,
             seat.pid === this.me ? this.nameField(seat.name) : h('span', null, seat.name),
             seat.isHost ? h('span', { class: 'badge' }, t('lobby.host')) : null,
-            !seat.isBot && !seat.connected ? h('span', { class: 'badge' }, t('lobby.offline')) : null,
+            !seat.isBot && !seat.connected && this.lostVisible(seat.pid) ? lostIcon() : null,
             seat.isBot && !isHost ? h('span', { class: 'badge' }, 'Bot') : null,
           ),
           isHost && seat.pid !== this.me ? iconBtn(pixelIcon(ICON_X), t('lobby.remove'), () => this.net?.removeSeat(seat.pid)) : null,

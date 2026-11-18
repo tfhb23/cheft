@@ -84,7 +84,7 @@ type ClientMsg =
   | { type: 'rejoin'; room: string; token: string; snap?: string }
   | { type: 'claim'; room: string; pid: number; name: string; auto?: boolean; back?: string }
   | { type: 'setBack'; back: string }
-  | { type: 'pause'; on: boolean }
+  | { type: 'pause'; on: boolean; all?: boolean }
   | { type: 'rename'; name: string }
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
@@ -211,6 +211,12 @@ function scheduleBots(room: Room, afterAction: Action | null = null): void {
   const timer = setTimeout(() => {
     botTimers.delete(room.code);
     if (!rooms.get(room.code)) return;
+    // Ist jemand länger als 45 s weg, pausiert das Spiel, statt dass ein Bot für ihn zieht.
+    if (room.checkAwayPause()) {
+      broadcast(room);
+      scheduleBots(room);
+      return;
+    }
     const seat = room.autoSeat();
     if (seat === null) {
       scheduleBots(room);
@@ -325,7 +331,8 @@ function handle(c: Conn, msg: ClientMsg): void {
     case 'pause': {
       const room = c.room;
       if (!room) return send(c, { type: 'error', error: 'net.noRoom' });
-      const r = msg.on ? room.pause() : room.requestResume(c.pid);
+      // Beenden: der Spielleiter kann es für alle (`all`), sonst gibt jeder nur seine eigene Stimme ab.
+      const r = msg.on ? room.pause() : msg.all ? room.forceResume(c.pid) : room.requestResume(c.pid);
       if (!r.ok) return send(c, { type: 'error', error: r.error, params: r.params });
       broadcast(room);
       scheduleBots(room);

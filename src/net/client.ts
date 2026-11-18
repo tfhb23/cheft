@@ -17,7 +17,7 @@ export interface LobbyInfo {
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; /** Ein Abwesender, für den der Autopilot spielt. */ autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 export interface ServerUpdate {
@@ -236,8 +236,9 @@ export class NetClient {
   rename(name: string): void {
     this.send({ type: 'rename', name });
   }
-  pause(on: boolean): void {
-    this.send({ type: 'pause', on });
+  /** `all`: der Spielleiter beendet die Pause für alle; sonst zählt nur die eigene Stimme. */
+  pause(on: boolean, all = false): void {
+    this.send({ type: 'pause', on, all: all || undefined });
   }
   nextRound(): void {
     this.send({ type: 'nextRound' });

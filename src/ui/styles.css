@@ -219,6 +219,8 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-label { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); font-size: var(--fs-caption); color: var(--text-muted); white-space: nowrap; }
 .seat-label .sl-name { font-size: var(--fs-label); color: var(--text-strong); }
 .seat-label .sl-hint { color: var(--text-accent); }
+.conn-lost { display: inline-block; width: var(--size-icon-glyph); height: var(--size-icon-glyph); margin-left: var(--sp-2); vertical-align: middle; color: var(--text-muted); }
+.conn-lost svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
 .seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-accent); color: var(--text-on-accent); }
 .seat.current .seat-label .sl-name, .own.current .seat-label .sl-name { color: var(--text-on-accent); }
 .seat-inner > .seat-label { align-self: center; }

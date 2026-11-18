@@ -5,7 +5,7 @@
 import { h, Child } from './dom';
 import { t } from '../i18n';
 import { MOTION } from './tokens';
-import { ICON_ARROW_L, ICON_ARROW_R, pixelIcon } from './icons';
+import { ICON_ARROW_L, ICON_ARROW_R, ICON_NOCONN, pixelIcon } from './icons';
 
 export type BtnVariant = 'default' | 'primary' | 'dark' | 'danger';
 
@@ -50,12 +50,18 @@ export function badge(text: string, mode?: string): HTMLElement {
   return h('span', { class: `badge${mode ? ' ' + mode : ''}` }, text);
 }
 
+/** 6.24: Kleines Stecker-Piktogramm hinter einem Namen: die Verbindung ist weg. Ohne sichtbaren Text, nur als Beschriftung für Screenreader. */
+export function lostIcon(): HTMLElement {
+  const title = t('conn.lost');
+  return h('span', { class: 'conn-lost', title, role: 'img', 'aria-label': title }, pixelIcon(ICON_NOCONN));
+}
+
 /** 6.20: Beschriftung eines Sitzes: Name, Spielweise, Kartenzahl, optional Hinweis. */
-export function seatLabel(o: { name: string; mode: string; count: number; hint?: string; cls?: string }): HTMLElement {
+export function seatLabel(o: { name: string; mode: string; count: number; hint?: string; cls?: string; lost?: boolean }): HTMLElement {
   return h(
     'div',
     { class: `seat-label${o.cls ? ' ' + o.cls : ''}` },
-    h('span', { class: 'sl-name' }, o.name),
+    h('span', { class: 'sl-name' }, o.name, o.lost ? lostIcon() : null),
     badge(t(`mode.${o.mode}`), o.mode),
     h('span', { class: 'sl-cnt' }, t('cards.count', { n: o.count })),
     o.hint ? h('span', { class: 'sl-hint' }, o.hint) : null,

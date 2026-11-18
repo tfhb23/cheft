@@ -79,12 +79,14 @@ Unabhängig vom Gedächtnis wägen alle Bots ab (`src/bot/strategy.ts`), auch de
 Der Server (`server/`) hält den Spielzustand je Raum, führt die Regeln aus, spielt die Bots und
 liefert zusätzlich die gebaute App aus. Die Clients sehen nur ihre eigene Hand; fremde Hände und
 der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
-„Zurück in den Raum“ wieder einsteigen; nach 45 Sekunden ohne Verbindung spielt ein Bot für ihn weiter.
+„Zurück in den Raum“ wieder einsteigen. Nach 45 Sekunden ohne Verbindung pausiert das Spiel („Max hat die Verbindung verloren“); sagen die
+anderen „Weiter“, spielt ein Autopilot für ihn, bis er von selbst zurückkommt.
 
 - **Neue Runde nur mit allen:** Nach der Rundenauswertung muss jeder Mensch „Nächste Runde“ bestätigen, nach dem Austeilen
-  jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die länger als 45 Sekunden weg sind.
-- **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt oder
-  deren Spieler länger als 45 Sekunden weg ist, und spielt mit der aktuellen Hand weiter. Das gilt für alle, auch für den Gastgeber.
+  jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die der Autopilot vertritt.
+- **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt, und spielt mit der aktuellen Hand weiter.
+  Der Platz eines Abwesenden bleibt für ihn reserviert (Sperrzeit: 2 Minuten je verbleibender Runde, mindestens 3, höchstens 10, gerechnet ab „Weiter“
+  nach der Pause) und erscheint erst danach in der Auswahl, mit dem Stecker-Symbol statt eines Textes. Wer von selbst zurückkommt, sitzt sofort wieder an seinem Platz.
   Ist der Gastgeber weg, leitet ihn der am längsten anwesende verbundene Mensch (nie ein Bot) vorübergehend; kommt der Gastgeber zurück,
   leitet er sofort wieder. Plätze haben feste Kennungen, die Rolle bleibt also auch beim Entfernen und Umsortieren erhalten.
 - **Raum neu eröffnen:** Gibt es einen Raum (z. B. `/232`) nicht mehr, bietet die App an, ihn mit demselben Code neu zu eröffnen; man wird Gastgeber.
@@ -93,8 +95,10 @@ der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kan
 - **Lobby-Karenz:** Bricht in der Lobby die Verbindung ab (z. B. kurzer Wechsel in eine andere App), bleibt der Sitz 3 Minuten reserviert.
   „Raum verlassen“ gibt ihn sofort frei. Danach geht die Gastgeber-Rolle dauerhaft an den nächsten Menschen.
 - **Verbindungsprüfung:** Der Server prüft alle 10 Sekunden; nach zwei verpassten Antworten gilt eine stille Verbindung als getrennt.
-- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten. Es geht erst weiter, wenn alle verbundenen Spieler auf „Weiter“ getippt haben. Sind alle Menschen getrennt, pausiert das Spiel
-  von selbst (auch die Endauswertung) und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
+- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten, und es pausiert von selbst, wenn jemand länger als 45 Sekunden die Verbindung verliert (kurze Aussetzer
+  bleiben unsichtbar, das Stecker-Symbol am Namen erscheint nach 10 Sekunden). Es geht weiter, wenn alle verbundenen Spieler „Weiter“ getippt haben;
+  der Spielleiter hat zusätzlich „Für alle fortsetzen“. Kommt der Abwesende vorher zurück, geht es ohne Bestätigung weiter. Währenddessen spielt niemand für Abwesende,
+  danach der Autopilot, aber ohne weitere Pause für dieselbe Abwesenheit. Nach der letzten Runde gibt es keine Pause mehr.
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.

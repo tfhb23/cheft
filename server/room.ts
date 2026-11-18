@@ -40,8 +40,12 @@ export interface Seat {
   /** Kennung der Kartenrückseite, die dieser Spieler gewählt hat (nur Anzeige; Bots haben keine). */
   back?: string;
   connected: boolean;
-  /** Zeitpunkt der Trennung (für Autopilot). */
+  /** Zeitpunkt der Trennung (für die Pause nach 45 s). */
   disconnectedAt?: number;
+  /** Ein getrennter Mensch, für den die anderen nach der Pause „Weiter“ gesagt haben: der Autopilot spielt, bis er zurück ist. */
+  autopilot?: boolean;
+  /** Seit wann der Autopilot für diesen Platz spielt (die Sperrzeit für Fremde läuft ab hier). */
+  autopilotSince?: number;
 }
 
 export type PauseKind = 'manual' | 'auto';
@@ -57,7 +61,7 @@ export interface LobbyView {
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: LobbySettings;
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 /** Platz, den ein neu hinzukommender Spieler übernehmen kann. */
@@ -121,8 +125,15 @@ export function isRoomCode(code: unknown): code is string {
   return typeof code === 'string' && /^[1-9]\d{2,3}$/.test(code);
 }
 export const MIN_PLAYERS = 3;
-/** Nach so vielen Millisekunden ohne Verbindung spielt ein Bot für den Menschen weiter. */
+/** Nach so vielen Millisekunden ohne Verbindung pausiert das Spiel („Max hat die Verbindung verloren“). */
 export const AUTOPILOT_AFTER_MS = 45000;
+/** Sperrzeit für den Platz eines Abwesenden, bevor ihn Fremde übernehmen dürfen: 2 Minuten je verbleibender Runde, mindestens 3, höchstens 10. */
+export const CLAIM_LOCK_PER_ROUND_MS = 2 * 60 * 1000;
+export const CLAIM_LOCK_MIN_MS = 3 * 60 * 1000;
+export const CLAIM_LOCK_MAX_MS = 10 * 60 * 1000;
+export function claimLockMs(roundsLeft: number): number {
+  return Math.min(CLAIM_LOCK_MAX_MS, Math.max(CLAIM_LOCK_MIN_MS, roundsLeft * CLAIM_LOCK_PER_ROUND_MS));
+}
 
 export class Room {
   readonly code: string;
@@ -260,6 +271,11 @@ export class Room {
     if (!seat) return;
     seat.connected = connected;
     seat.disconnectedAt = connected ? undefined : Date.now();
+    if (connected) {
+      // Wer von selbst zurückkommt, sitzt wieder an seinem Platz; der Autopilot hört auf.
+      delete seat.autopilot;
+      delete seat.autopilotSince;
+    }
     if (this.state) {
       // Ist niemand mehr da, wartet das Spiel (auch die Endauswertung), statt dass Bots allein weiterspielen.
       if (!connected && !this.paused && !this.humans().some((s) => s.connected)) this.paused = 'auto';
@@ -322,22 +338,55 @@ export class Room {
     if (active.length > 0 && active.every((s) => this.resumeVotes.has(s.pid))) this.resume();
   }
 
+  /** Der Spielleiter beendet die Pause für alle, ohne dass jeder „Weiter“ tippen muss. */
+  forceResume(pid: number): Result {
+    if (!this.paused) return ok;
+    if (pid !== this.effectiveHost()) return fail('net.hostOnly');
+    return this.resume();
+  }
+
   resume(): Result {
     if (!this.paused) return ok;
+    const wasAuto = this.paused === 'auto';
     this.paused = null;
     this.resumeVotes.clear();
-    // Wer währenddessen weg war, bekommt die volle Wartezeit noch einmal.
+    // Wer weg ist, wird nach „Weiter“ vom Autopilot vertreten, bis er zurück ist. Eine Pause wegen Verbindungsverlust gilt für alle
+    // Abwesenden; bei einer manuellen Pause nur für die, die schon lange genug weg sind.
     const now = Date.now();
-    for (const s of this.seats) if (!s.isBot && !s.connected) s.disconnectedAt = now;
+    for (const s of this.seats) {
+      if (s.isBot || s.connected) continue;
+      if (wasAuto || now - (s.disconnectedAt ?? now) >= AUTOPILOT_AFTER_MS) {
+        s.autopilot = true;
+        s.autopilotSince = now;
+      }
+    }
     this.touch();
     return ok;
+  }
+
+  /** Ist ein Mensch länger als 45 s weg und noch nicht vom Autopilot vertreten, pausiert das Spiel. Liefert true, wenn es pausiert wurde. */
+  checkAwayPause(now = Date.now()): boolean {
+    if (!this.state || this.state.finished || this.paused) return false;
+    const lost = this.seats.some((s) => !s.isBot && !s.connected && !s.autopilot && s.disconnectedAt !== undefined && now - s.disconnectedAt >= AUTOPILOT_AFTER_MS);
+    if (!lost) return false;
+    this.paused = 'auto';
+    this.resumeVotes.clear();
+    this.touch();
+    return true;
+  }
+
+  /** Wie viele Runden noch zu spielen sind (die laufende eingerechnet). */
+  roundsLeft(): number {
+    const s = this.state;
+    return s ? Math.max(1, s.settings.rounds - s.history.length) : 0;
   }
 
   // ------------------------------------------------------------ Platz übernehmen
   private isClaimable(seat: Seat, now = Date.now()): 'bot' | 'away' | null {
     if (seat.isBot) return 'bot';
-    if (seat.connected) return null;
-    if (this.paused || now - (seat.disconnectedAt ?? 0) > AUTOPILOT_AFTER_MS) return 'away';
+    if (seat.connected || !seat.autopilot) return null;
+    // Der Platz eines Abwesenden bleibt für ihn reserviert (Sperrzeit nach verbleibenden Runden), erst danach dürfen Fremde ihn übernehmen.
+    if (now - (seat.autopilotSince ?? now) >= claimLockMs(this.roundsLeft())) return 'away';
     return null;
   }
 
@@ -371,6 +420,8 @@ export class Room {
     seat.name = unique;
     seat.connected = true;
     seat.disconnectedAt = undefined;
+    delete seat.autopilot;
+    delete seat.autopilotSince;
     const info = this.state.players[pid];
     info.isBot = false;
     info.name = unique;
@@ -402,8 +453,9 @@ export class Room {
     const old = this.seats;
     this.seats = snap.seats.map((s) => {
       const prev = keepConnections ? old.find((o) => o.pid === s.pid && o.token === s.token) : undefined;
-      if (prev) return { ...s, connected: prev.connected, disconnectedAt: prev.disconnectedAt };
-      return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now() };
+      if (prev) return { ...s, connected: prev.connected, disconnectedAt: prev.disconnectedAt, autopilot: prev.autopilot, autopilotSince: prev.autopilotSince };
+      // Nach dem Wiederherstellen warten alle; der Autopilot setzt erst nach einem neuen „Weiter“ ein.
+      return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now(), autopilot: undefined, autopilotSince: undefined };
     });
     // Ältere Kopien kennen feste Sitz-Kennungen noch nicht: die Platznummer ersetzt sie.
     this.seats.forEach((s, i) => {
@@ -546,7 +598,10 @@ export class Room {
       const seat = this.seats[pid];
       if (!seat) return false;
       if (seat.isBot) return true;
-      return !seat.connected && seat.disconnectedAt !== undefined && now - seat.disconnectedAt > AUTOPILOT_AFTER_MS;
+      if (seat.connected) return false;
+      if (seat.autopilot) return true;
+      // Nach dem letzten Spiel gibt es keine Pause mehr: Wer die Endauswertung nicht bestätigt, wird nach der Wartezeit vertreten.
+      return s.finished && seat.disconnectedAt !== undefined && now - seat.disconnectedAt > AUTOPILOT_AFTER_MS;
     };
     if (r.ended) {
       const flags = r.nextReady ?? [];
@@ -594,6 +649,7 @@ export class Room {
         name: s.name,
         isBot: s.isBot,
         connected: s.connected,
+        autopilot: s.autopilot || undefined,
         isHost: s.pid === host,
         botLabel: s.isBot && s.botChoice ? `${s.botChoice.level}/${s.botChoice.style}` : undefined,
         back: s.back,
