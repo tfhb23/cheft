@@ -216,6 +216,10 @@ def compose(suit,spec,emph='ohne'):
                 B=max(bots.values())
                 for x,b in bots.items():
                     for y in range(b+1,B+1): L.p[x,y]=L.p[x,b]
+                if spec.get('flat_cut'):        # Layout v9: unterste Zeile weg, dann die beiden unteren Ecken (links/rechts je 1 Pixel) abgerundet
+                    for x in bots: L.p[x,B]=(0,0,0,0)
+                    B-=1
+                    for x in (min(bots),max(bots)): L.p[x,B]=(0,0,0,0)
         L.over(sh)
     out=emphasize(L,emph)
     if spec.get('px_after'):
