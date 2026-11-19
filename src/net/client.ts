@@ -7,22 +7,27 @@ import { BotChoice } from '../bot/names';
 
 export interface LobbyInfo {
   code: string;
+  /** Aktueller Spielleiter (kann ein Vertreter des Gastgebers sein). */
   hostPid: number;
+  /** Gastgeber, also der Besitzer der Rolle. */
+  ownerPid?: number;
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' solange nicht alle Menschen verbunden sind. */
   paused: 'manual' | 'auto' | null;
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
   settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
+  /** Offene Anfragen, einen Platz zu übernehmen; der Spielleiter antwortet. */
+  requests?: { id: number; name: string; seatName: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; /** Ein Abwesender, für den der Autopilot spielt. */ autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 export interface ServerUpdate {
   lobby: LobbyInfo;
   state: GameView | null;
   last: { pid: number; action: Action } | null;
-  /** Verschlüsselte Kopie des Raums, mit der der Server nach dem Einschlafen den Raum wiederherstellen kann. */
-  snap?: string;
+  /** Verschlüsselte Kopie des laufenden Spiels, mit der der Server nach dem Einschlafen den Raum wiederherstellen kann; null, wenn es nichts wiederherzustellen gibt. */
+  snap: string | null;
 }
 
 export interface ClaimableSeat {
@@ -37,9 +42,20 @@ export interface NetHandlers {
   onError(error: string, params?: Record<string, string | number>): void;
   onStatus(status: 'connecting' | 'open' | 'closed'): void;
   onLeft(): void;
+  /** Ein laufendes Spiel hat deinen frisch eröffneten Raum ersetzt: neu beitreten, um einen Platz zu übernehmen. */
+  onReplaced(room: string): void;
+  /** Die Anfrage auf einen Platz ist beim Spielleiter angekommen. */
+  onPending(room: string): void;
+  /** Der Spielleiter hat dich entfernt: alle Raumdaten sind gelöscht. */
+  onKicked(): void;
+  /** Kurze Meldung für alle im Raum (z. B. „Max wurde entfernt“). */
+  onNotice(key: string, params?: Record<string, string | number>): void;
   /** Das Spiel läuft schon: Plätze, die man übernehmen kann. */
   onClaimable(room: string, seats: ClaimableSeat[]): void;
 }
+
+/** So lange ist eine gespeicherte Kopie eines laufenden Spiels brauchbar (gleicher Wert wie auf dem Server). */
+export const SNAPSHOT_TTL_MS = 72 * 3600 * 1000;
 
 /** Standardadresse: gleiche Herkunft wie die Seite (der Server liefert die App selbst aus). */
 export function defaultServerUrl(): string {
@@ -148,8 +164,24 @@ export class NetClient {
           this.handlers.onJoined({ room: String(msg.room), pid: Number(msg.pid), token: String(msg.token) });
           break;
         case 'state':
-          if (typeof msg.snap === 'string') this.snap = msg.snap;
-          this.handlers.onUpdate({ lobby: msg.lobby as LobbyInfo, state: (msg.state as GameView | null) ?? null, last: (msg.last as ServerUpdate['last']) ?? null, snap: this.snap ?? undefined });
+          if ('snap' in msg) this.snap = typeof msg.snap === 'string' ? msg.snap : null;
+          this.handlers.onUpdate({ lobby: msg.lobby as LobbyInfo, state: (msg.state as GameView | null) ?? null, last: (msg.last as ServerUpdate['last']) ?? null, snap: this.snap });
+          break;
+        case 'pending':
+          this.handlers.onPending(String(msg.room));
+          break;
+        case 'kicked':
+          this.rejoin = null;
+          this.snap = null;
+          this.handlers.onKicked();
+          break;
+        case 'notice':
+          this.handlers.onNotice(String(msg.key), msg.params as Record<string, string | number> | undefined);
+          break;
+        case 'replaced':
+          this.rejoin = null;
+          this.snap = null;
+          this.handlers.onReplaced(String(msg.room));
           break;
         case 'error':
           this.handlers.onError(String(msg.error), msg.params as Record<string, string | number> | undefined);
@@ -190,6 +222,10 @@ export class NetClient {
   join(room: string, name: string, back?: string, auto = false): void {
     this.send({ type: 'join', room: room.toUpperCase(), name, back, auto });
   }
+  /** Einen fehlenden Raum mit diesem Code neu eröffnen; man wird Gastgeber. */
+  openRoom(room: string, name: string, back?: string, auto = false): void {
+    this.send({ type: 'open', room, name, back, auto });
+  }
   /** Eigene Kartenrückseite den anderen mitteilen (nur Anzeige). */
   setBack(back: string): void {
     this.send({ type: 'setBack', back });
@@ -216,11 +252,27 @@ export class NetClient {
   claim(room: string, pid: number, name: string, back?: string, auto = false): void {
     this.send({ type: 'claim', room, pid, name, back, auto });
   }
+  /** Spielleiter: Anfrage eines Fremden auf einen Platz zulassen oder ablehnen. */
+  claimReply(id: number, ok: boolean): void {
+    this.send({ type: 'claimReply', id, ok });
+  }
+  cancelClaim(): void {
+    this.send({ type: 'claimCancel' });
+  }
+  /** Spielleiter: einen Menschen aus dem laufenden Spiel entfernen (wird ein Bot). */
+  kick(pid: number): void {
+    this.send({ type: 'kick', pid });
+  }
+  /** Gastgeber: die Spielleitung dauerhaft weitergeben. */
+  handover(pid: number): void {
+    this.send({ type: 'handover', pid });
+  }
   rename(name: string): void {
     this.send({ type: 'rename', name });
   }
-  pause(on: boolean): void {
-    this.send({ type: 'pause', on });
+  /** `all`: der Spielleiter beendet die Pause für alle; sonst zählt nur die eigene Stimme. */
+  pause(on: boolean, all = false): void {
+    this.send({ type: 'pause', on, all: all || undefined });
   }
   nextRound(): void {
     this.send({ type: 'nextRound' });

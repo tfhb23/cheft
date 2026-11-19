@@ -46,6 +46,9 @@ export const STYLE_KNOBS: Record<StyleId, Partial<Knobs>> = {
   gambler: { cheftEagerPairs: 4, pairTakeAt: 3, pairLove: 2, ambition: 0.6 },
 };
 
+/** Grundstärke der Stimmung (Endspurt-Neigung) je Rolle: Der Frühvogel bleibt ruhiger, der Pärchenkönig und der Glücksritter gehen früher aufs Ganze. */
+export const STYLE_TILT: Record<StyleId, number> = { balanced: 1, early: 0.8, cunning: 1, pairs: 1.1, gambler: 1.3 };
+
 /** Rollenabhängige Sorgfalt (Faktoren auf Rauschen und Handüberblick der Stufe). Der Frühvogel hat es eilig und übersieht mehr. */
 export const STYLE_CARELESSNESS: Partial<Record<StyleId, { noise?: number; handMiss?: number }>> = {};
 
@@ -62,14 +65,14 @@ export const NEIGHBORS: Record<StyleId, StyleId[]> = {
 };
 
 /** Empfohlene Würze (gemessen: 94 % der Erkennbarkeit bleiben, im Schnitt weicht der Bot in 7 Runden einmal ab). */
-export const SPICE = { loyalty: 0.85, jitter: 0.2, tilt: 0.5 } as const;
+export const SPICE = { loyalty: 0.85, jitter: 0.2, tilt: 1 } as const;
 
 export interface RoleOptions {
   /** Vorlieben (Standard: an). */
   tastes?: boolean;
   /** Gegner-Gedächtnis nutzen, 0 bis 1 (Standard 1; was der Bot weiß, bestimmt seine Stufe). */
   oppUse?: number;
-  /** Rollentreue, Launen, Stimmung (Standard: SPICE, d. h. Treue 0,85, Launen 0,2, Stimmung 0,5; 1 / 0 / 0 schaltet die Würze ab). */
+  /** Rollentreue, Launen, Stimmung (Standard: SPICE, d. h. Treue 0,85, Launen 0,2, Stimmung 1; 1 / 0 / 0 schaltet die Würze ab). */
   loyalty?: number;
   /** Wohin eine Laune-Runde ausweicht: 'neighbors' (Standard, nur ähnliche Spielweisen) oder 'all'. */
   deviate?: 'neighbors' | 'all';
@@ -85,7 +88,7 @@ function def(id: StyleId, o: RoleOptions): PersonaDef {
   const knobs: Partial<Knobs> = { ...STYLE_KNOBS[id], oppUse: o.oppUse ?? 1, ...o.knobs };
   if (o.tastes ?? true) knobs.taste = 'auto';
   const adapt = id === 'gambler' ? (st: GameState, pid: number): Partial<Knobs> => (standing(st, pid).behind > 0 ? { cheftEagerPairs: 3 } : {}) : undefined;
-  return { id, label: ROLE_LABEL[id], knobs, adapt, carelessness: o.carelessness ?? STYLE_CARELESSNESS[id] };
+  return { id, label: ROLE_LABEL[id], knobs, adapt, carelessness: o.carelessness ?? STYLE_CARELESSNESS[id], tiltScale: STYLE_TILT[id] };
 }
 
 /** Die Rolle als Persona für `DecideOptions.persona`. Die Wildcard wählt jede Runde gleichverteilt eine Spielweise. */

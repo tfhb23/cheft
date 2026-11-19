@@ -1,5 +1,5 @@
 /** Kleine Pixel-Sounds per WebAudio, ohne Dateien. */
-export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'discard' | 'lay' | 'win' | 'lose' | 'error' | 'tick' | 'cheft';
+export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'discard' | 'lay' | 'win' | 'lose' | 'error' | 'tick' | 'cheft' | 'undo';
 
 let ctx: AudioContext | null = null;
 let enabled = false;
@@ -18,7 +18,8 @@ export const SOUND_CATALOG: { id: string; name: SoundName; label: string; use: s
   { id: '9.07', name: 'win', label: 'Rundensieg', use: 'Du gewinnst die Runde', recipe: 'Vier Rechtecktöne aufwärts: 523, 659, 784, 1047 Hz' },
   { id: '9.08', name: 'lose', label: 'Niederlage', use: 'Jemand anderes gewinnt die Runde', recipe: 'Vier Rechtecktöne abwärts in Moll: 523, 392, 311, 262 Hz; der letzte sackt ab' },
   { id: '9.09', name: 'error', label: 'Fehler', use: 'Unerlaubte Aktion', recipe: 'Sägezahn 180 Hz, 120 ms' },
-  { id: '9.10', name: 'tick', label: 'Tick', use: 'Karte vorwählen, Bereit, Zurücklegen, Markieren', recipe: 'Rechteck 1320 Hz, 20 ms, sehr leise' },
+  { id: '9.10', name: 'tick', label: 'Tick', use: 'Bereit, Markieren', recipe: 'Rechteck 1320 Hz, 20 ms, sehr leise' },
+  { id: '9.12', name: 'undo', label: 'Zug zurückgesetzt', use: 'Der Zug wird zurückgesetzt (Rückgängig); bewusst enttäuschend, denn das soll die Ausnahme bleiben', recipe: 'Zwei Dreiecktöne abwärts (392, 330 Hz), dann ein absackender Sägezahn von 262 auf 131 Hz' },
   { id: '9.11', name: 'cheft', label: 'Cheft!', use: 'Jemand sagt Cheft an', recipe: 'Pauke, Sägezahn-Akkord, Lauf aufwärts, zweiter Einschlag mit Becken' },
 ];
 
@@ -191,6 +192,12 @@ export function play(name: SoundName): void {
       break;
     case 'error':
       blip(180, 0.12, 'sawtooth', 0.05);
+      break;
+    case 'undo':
+      // Enttäuscht: zwei Töne abwärts und ein Schlusston, der absackt
+      blip(392, 0.12, 'triangle', 0.07);
+      blip(330, 0.12, 'triangle', 0.07, 0.12);
+      slide(262, 131, 0.34, 'sawtooth', 0.05, 0.24);
       break;
     case 'cheft':
       // Dramatisch: Paukenschlag mit verminderten Akkord, aufsteigender Lauf und ein zweiter, großer Einschlag

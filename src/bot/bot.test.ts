@@ -576,6 +576,63 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
     expect(cards[0].rank).toBe(cards[1].rank);
     expect(applyAction(g, me, lay).ok).toBe(true);
   });
+  it('ein ausgelegter Cheft-Bot mit fünf Paaren nimmt die Teppichkarte, wenn er Zwilling und ein weiteres Paar hat, und beendet die Runde', () => {
+    const { g, me } = drawScene(['HD', 'C7', 'C7', 'S3']);
+    const pr = g.round.players[me];
+    pr.opened = true;
+    pr.pairsLaid = 5;
+    const draw = decideLegacy(g, me, { memory: PERFECT });
+    expect(draw).toEqual({ kind: 'draw', source: 'carpet' });
+    expect(applyAction(g, me, draw).ok).toBe(true);
+    const lay = decideLegacy(g, me, { memory: PERFECT });
+    expect(lay.kind).toBe('lay');
+    expect(applyAction(g, me, lay).ok).toBe(true);
+    const out = decideLegacy(g, me, { memory: PERFECT });
+    expect(out.kind).toBe('discard');
+    expect(applyAction(g, me, out).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+    expect(g.round.result!.winner).toBe(me);
+  });
+  describe('Zugkette: Ablagekarte nehmen, Joker klauen, Joker und Karte anlegen', () => {
+    function chainScene(level: BotLevel) {
+      const g = testGame(3, 25);
+      const p = new CardPool();
+      const a = g.round.starter;
+      const b = (a + 1) % 3;
+      g.players[b].isBot = true;
+      g.players[b].bot = { level, style: 'balanced' };
+      g.round.players[a].opened = true;
+      g.round.players[b].opened = true;
+      g.round.players[b].turns = 3;
+      g.round.melds.push({ id: 70, owner: a, type: 'run', cards: p.takeAll('C6', 'C7', 'J'), suit: 'C', startRank: 6 });
+      g.round.discard = [p.take('C10')];
+      g.round.lastDiscarderMode = 'romme';
+      setHand(g, b, p.takeAll('C8', 'S2', 'D5'));
+      g.round.turn = { ...g.round.turn, player: b, phase: 'draw', drawSource: null, drawnCardId: null };
+      return { g, b };
+    }
+    it('der Mastermind spielt die Kette komplett und der Zug endet regelkonform', () => {
+      const { g, b } = chainScene('master');
+      const first = decideLegacy(g, b, { memory: PERFECT });
+      expect(first).toEqual({ kind: 'draw', source: 'discard' });
+      let guard = 0;
+      let act = first;
+      while (g.round.turn.player === b && guard++ < 8) {
+        const res = applyAction(g, b, act);
+        expect(res.ok).toBe(true);
+        if (g.round.turn.player !== b) break;
+        act = decideLegacy(g, b, { memory: PERFECT });
+      }
+      expect(g.round.turn.player).not.toBe(b);
+      expect(g.round.melds[0].cards.length).toBe(5);
+    });
+    it('Stufen ohne Kettenspiel nehmen die Karte nicht', () => {
+      for (const level of ['easy', 'normal'] as const) {
+        const { g, b } = chainScene(level);
+        expect(decideLegacy(g, b, { memory: PERFECT })).toEqual({ kind: 'draw', source: 'stock' });
+      }
+    });
+  });
   it('das gilt für jede Stufe, Spielweise und auch in einem Pflichtzug (mit Joker auf der Hand)', () => {
     for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
       for (const style of ['balanced', 'pairs', 'gambler', 'cunning'] as const) {

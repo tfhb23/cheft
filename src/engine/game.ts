@@ -77,9 +77,14 @@ export interface Turn {
   pendingJokerId: number | null;
   /** Anzahl Auslege-/Anlege-/Klau-Aktionen in diesem Zug. */
   actions: number;
-  /** Cheft-Ansage kam durch das Ziehen (Teppichkarte) zustande. */
-  cheftByDraw: boolean;
-  cheftAnnouncedBefore: boolean;
+  /**
+   * Rücksetzpunkt dieses Zuges (JSON der ganzen Runde). Bei Ablage- und Teppichkarte der Zustand VOR dem Nehmen,
+   * beim Stapel der Zustand direkt NACH dem Ziehen (eine verdeckte Karte geht nie zurück). Nur im Spiel selbst und auf dem
+   * Server; die Spieler-Sicht (viewFor) enthält ihn nie.
+   */
+  rewind?: string;
+  /** Es gibt einen Rücksetzpunkt (auch in der Spieler-Sicht sichtbar, ohne den Inhalt zu verraten). */
+  canRewind?: boolean;
 }
 
 export interface LogEntry {
@@ -268,9 +273,20 @@ function newTurn(player: number, phase: 'draw' | 'play', source: DrawSource | nu
     laidOffToOthers: false,
     pendingJokerId: null,
     actions: 0,
-    cheftByDraw: false,
-    cheftAnnouncedBefore: false,
   };
+}
+
+/**
+ * Karten, die der Spieler am Zug nur vorübergehend auf der Hand hat und in diesem Zug wieder loswerden muss
+ * (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker). Sie sind für alle Mitspieler offen sichtbar.
+ * Reihenfolge: zuerst die genommene Karte, dann der geklaute Joker.
+ */
+export function tempCardIds(round: RoundState): number[] {
+  const t = round.turn;
+  const p = round.players[t.player];
+  if (!p || t.phase !== 'play' || round.ended) return [];
+  const ids = [t.mustOpenWithId, t.mustUseId, t.mustPairWithId, t.pendingJokerId];
+  return ids.filter((id, i): id is number => id !== null && ids.indexOf(id) === i && p.hand.some((c) => c.id === id));
 }
 
 export function startNextRound(state: GameState): void {
@@ -432,7 +448,13 @@ export function canUseImmediately(state: GameState, pid: number, card: Card): bo
 
 // ---------------------------------------------------------------- Ziehen
 
-export function checkDraw(state: GameState, pid: number, source: DrawSource): Result {
+/**
+ * Darf der Spieler von dieser Quelle ziehen? Für Menschen gilt das Verpflichtungs-Modell: Die Ablagekarte darf (außer den
+ * harten, öffentlichen Regeln) immer genommen werden, danach muss sie in diesem Zug verwendet werden (`mustOpenWithId`,
+ * `mustUseId`); wer sich verzählt hat, setzt den Zug zurück. Mit `strict` gilt die frühere Vorabprüfung („nur nehmen,
+ * wenn es sofort geht“); die Bots nutzen sie, weil sie nie zurücksetzen.
+ */
+export function checkDraw(state: GameState, pid: number, source: DrawSource, strict = false): Result {
   const t = requireTurn(state, pid, 'draw');
   if (!t.ok) return t;
   const r = state.round;
@@ -445,23 +467,31 @@ export function checkDraw(state: GameState, pid: number, source: DrawSource): Re
     const top = r.discard[r.discard.length - 1];
     if (!top) return fail('err.discardEmpty');
     if (p.mode === 'cheft') return OK;
-    // Rommé-Spieler: nie von einem Cheft-Spieler; vor dem Rauskommen nur zum sofortigen Rauskommen,
-    // danach nur, wenn die Karte sofort angelegt oder ausgelegt wird.
+    // Rommé-Spieler: nie von einem Cheft-Spieler; im ersten Zug nur, wenn Rauskommen erlaubt ist.
     if (r.lastDiscarderMode === 'cheft') return fail('err.rommeDiscardCheft');
+    if (!p.opened && firstTurnBlocked(state, pid)) return fail('err.firstTurn');
+    if (!strict) return OK;
     if (p.opened) return canUseImmediately(state, pid, top) ? OK : fail('err.rommeOpenedNoDiscard');
-    if (firstTurnBlocked(state, pid)) return fail('err.firstTurn');
     if (!canOpenRommeWith([...p.hand, top], thresholdFor(state, pid), top.id)) return fail('err.rommeDiscardNoOpen');
     return OK;
   }
   // Teppichkarte
   if (!r.carpet) return fail('err.carpetGone');
   if (r.stock.length === 0) return OK; // Stapel leer: Teppichkarte wie vom Stapel, ohne Bedingungen
-  if (p.opened) return fail('err.carpetOnlyCheft');
   if (firstTurnBlocked(state, pid)) return fail('err.firstTurn');
   // Die Teppichkarte bildet ihr Paar nur mit der genau gleichen Karte, nie mit einem Joker (die einzige Stelle, an der ein
-  // Joker nicht einspringt). Die übrigen Paare dürfen Joker enthalten: Insgesamt braucht es fünf.
+  // Joker nicht einspringt). Die übrigen Paare dürfen Joker enthalten.
   const carpet = r.carpet;
   const twin = p.hand.findIndex((c) => !isJoker(c) && sameCard(c, carpet));
+  if (p.opened) {
+    // Nur ein Cheft-Spieler, der schon fünf Paare ausgelegt hat: Er hat genau vier Handkarten, darunter der Zwilling und ein
+    // weiteres Paar. Beide Paare (4 Karten) müssen in diesem Zug auf einmal liegen und beenden die Runde; ein sechstes
+    // Paar allein, auch „in Schritten“, gibt es nicht.
+    if (p.mode !== 'cheft') return fail('err.carpetOnlyCheft');
+    if (p.pairsLaid !== 5 || p.hand.length !== 4 || twin < 0 || maxPairs(p.hand.filter((_, i) => i !== twin)) < 1) return fail('err.carpetNeedsPair');
+    return OK;
+  }
+  // Noch nicht draußen: Zwilling plus vier weitere Paare (zusammen die fünf Paare zum Rauskommen).
   if (twin < 0 || maxPairs(p.hand.filter((_, i) => i !== twin)) < 4) return fail('err.carpetNeedsPair');
   return OK;
 }
@@ -471,6 +501,10 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
   if (!c.ok) return c;
   const r = state.round;
   const p = r.players[pid];
+  // Offen liegende Karten (Ablage, Teppichkarte) dürfen beim Zurücksetzen zurück auf ihren Platz; eine verdeckte
+  // Stapelkarte nie. Darum liegt der Rücksetzpunkt dort vor dem Nehmen und hier erst nach dem Ziehen.
+  const openSource = source === 'discard' || (source === 'carpet' && r.stock.length > 0);
+  const before = openSource ? JSON.stringify(r) : null;
   let card: Card;
   if (source === 'stock') {
     card = r.stock.pop()!;
@@ -487,8 +521,6 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
     card = r.carpet!;
     r.carpet = null;
     r.turn.mustPairWithId = card.id;
-    r.turn.cheftAnnouncedBefore = r.cheftAnnounced;
-    r.turn.cheftByDraw = p.mode !== 'cheft';
     setCheft(state, pid);
     r.taken.push({ player: pid, card, at: r.plies ?? 0 });
   }
@@ -497,6 +529,8 @@ export function doDraw(state: GameState, pid: number, source: DrawSource): Resul
   r.turn.drawSource = source;
   r.turn.drawnCardId = card.id;
   r.log.push({ key: `log.draw.${source}`, player: pid });
+  r.turn.rewind = before ?? JSON.stringify(r);
+  r.turn.canRewind = true;
   return OK;
 }
 
@@ -509,40 +543,49 @@ function setCheft(state: GameState, pid: number): void {
   }
 }
 
-// ---------------------------------------------------------------- Zurücklegen
+// ---------------------------------------------------------------- Zug zurücksetzen
 
-/** Ablagekarte (Rommé) oder Teppichkarte zurücklegen, solange noch nichts ausgelegt wurde. */
+/** Der Zug lässt sich zurücksetzen, solange er läuft und ein Rücksetzpunkt da ist (also nach dem Ziehen, vor dem Abwerfen). */
 export function checkUndoDraw(state: GameState, pid: number): Result {
   const t = requireTurn(state, pid, 'play');
   if (!t.ok) return t;
-  const turn = state.round.turn;
-  // Die Teppichkarte im letzten Zug (Stapel leer) ist wie eine Stapelkarte und lässt sich nicht zurücklegen.
-  const eligible = (turn.drawSource === 'discard' && (turn.mustOpenWithId !== null || turn.mustUseId !== null)) || (turn.drawSource === 'carpet' && !state.round.finalTurn);
-  if (!eligible) return fail('err.noUndo');
-  if (turn.openedThisTurn || turn.actions > 0 || turn.pendingJokerId !== null) return fail('err.noUndoAfterLay');
+  // Die Spieler-Sicht kennt den Rücksetzpunkt selbst nicht, nur dass es einen gibt (canRewind).
+  if (!state.round.turn.canRewind) return fail('err.noUndo');
   return OK;
+}
+
+/**
+ * Stellt die Runde auf den Rücksetzpunkt des Zuges zurück (siehe Turn.rewind). Eine einmal angesagte Cheft-Ansage bleibt
+ * bestehen, sie gilt für die ganze Runde. Das Protokoll bleibt erhalten und bekommt einen Eintrag, damit alle es sehen.
+ */
+function restoreRewind(state: GameState, pid: number): void {
+  const r = state.round;
+  const snap = r.turn.rewind;
+  if (!snap) return;
+  const restored: RoundState = JSON.parse(snap);
+  restored.players[pid].mode = r.players[pid].mode;
+  restored.cheftAnnounced = r.cheftAnnounced;
+  restored.log = [...r.log, { key: 'log.undo', player: pid }];
+  if (restored.turn.phase === 'play') {
+    restored.turn.rewind = snap;
+    restored.turn.canRewind = true;
+  }
+  for (const k of Object.keys(r)) delete (r as unknown as Record<string, unknown>)[k];
+  Object.assign(r, restored);
 }
 
 export function doUndoDraw(state: GameState, pid: number): Result {
   const c = checkUndoDraw(state, pid);
   if (!c.ok) return c;
-  const r = state.round;
-  const p = r.players[pid];
-  const turn = r.turn;
-  const card = p.hand.find((x) => x.id === turn.drawnCardId);
-  if (!card) return fail('err.noUndo');
-  p.hand = p.hand.filter((x) => x.id !== card.id);
-  if (turn.drawSource === 'discard') r.discard.push(card);
-  else r.carpet = card;
-  const ti = r.taken.map((x) => x.card.id).lastIndexOf(card.id);
-  if (ti >= 0) r.taken.splice(ti, 1);
-  if (turn.cheftByDraw) {
-    p.mode = 'romme';
-    r.cheftAnnounced = turn.cheftAnnouncedBefore;
-  }
-  r.turn = newTurn(pid, 'draw', null, null);
-  r.log.push({ key: 'log.undo', player: pid });
+  restoreRewind(state, pid);
   return OK;
+}
+
+/** Bricht einen angefangenen Zug ab (Spielstand laden, Autopilot): zurück auf den Rücksetzpunkt, falls etwas offen ist. */
+export function abortTurn(state: GameState): void {
+  const r = state.round;
+  if (r.ended || r.waiting || r.turn.phase !== 'play' || !r.turn.rewind) return;
+  restoreRewind(state, r.turn.player);
 }
 
 // ---------------------------------------------------------------- Cheft ansagen
@@ -553,7 +596,6 @@ export function checkDeclareCheft(state: GameState, pid: number): Result {
   const p = state.round.players[pid];
   if (p.mode === 'cheft') return fail('err.alreadyCheft');
   if (p.opened) return fail('err.alreadyOpenedRomme');
-  if (state.round.turn.mustOpenWithId !== null) return fail('err.rommeDiscardNoOpen');
   return OK;
 }
 
@@ -561,6 +603,8 @@ export function doDeclareCheft(state: GameState, pid: number): Result {
   const c = checkDeclareCheft(state, pid);
   if (!c.ok) return c;
   setCheft(state, pid);
+  // Eine als Rommé-Spieler genommene Ablagekarte ist für einen Cheft-Spieler eine ganz normale Handkarte.
+  state.round.turn.mustOpenWithId = null;
   return OK;
 }
 
@@ -596,6 +640,8 @@ export function checkLay(state: GameState, pid: number, groups: number[][]): Res
   const rommeShapes = shapes.filter((s) => s.type !== 'pair');
   const total = all.length;
   if (p.hand.length - total < 1) return fail('err.lastCard');
+  // Wer als Rommé-Spieler die Ablagekarte genommen hat, muss sie in die Erstmeldung einbauen.
+  if (!p.opened && r.turn.mustOpenWithId !== null && !all.some((c) => c.id === r.turn.mustOpenWithId)) return fail('err.rommeDiscardNoOpen');
   const isHand = !p.opened && p.hand.length - total === 1;
   const augen = rommeShapes.reduce((s, m) => s + meldAugen(m), 0);
   const carpetId = r.turn.mustPairWithId;
@@ -766,10 +812,12 @@ export function checkDiscard(state: GameState, pid: number, cardId: number): Res
   const p = r.players[pid];
   const card = handCard(state, pid, cardId);
   if (!card) return fail('err.cardNotInHand');
-  if (r.turn.pendingJokerId !== null) return fail('err.jokerMustUse');
-  if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) return fail('err.rommeDiscardNoOpen');
-  if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) return fail('err.carpetNeedsPair');
-  if (r.turn.mustUseId !== null && p.hand.some((c) => c.id === r.turn.mustUseId)) return fail('err.mustUseTaken');
+  // Vorübergehende Karten (Ablage als Rommé-Spieler, Teppichkarte, geklauter Joker) dürfen nicht auf der Hand bleiben.
+  const held = (id: number | null) => id !== null && p.hand.some((c) => c.id === id);
+  if (held(r.turn.pendingJokerId)) return fail('err.jokerMustUse');
+  if (held(r.turn.mustOpenWithId)) return fail('err.rommeDiscardNoOpen');
+  if (held(r.turn.mustPairWithId)) return fail('err.carpetNeedsPair');
+  if (held(r.turn.mustUseId)) return fail('err.mustUseTaken');
   if (p.hand.length > 1) {
     const next = nextIndex(state, pid);
     const layoffable = (c: Card) => r.melds.some((m) => addOptions(m, c).length > 0);

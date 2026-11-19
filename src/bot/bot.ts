@@ -238,15 +238,18 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
       const wants = pairsAfter >= 5 || (mate && pairsAfter >= pairTake && (p.mode === 'cheft' || pairsAfter >= cheftEager || chance(state, pid, k.gamble * 0.4)));
       if (mate && wants) {
         if (p.mode === 'romme' && checkDeclareCheft(state, pid).ok) return { kind: 'declareCheft' };
-        if (checkDraw(state, pid, 'discard').ok) return { kind: 'draw', source: 'discard' };
+        if (checkDraw(state, pid, 'discard', true).ok) return { kind: 'draw', source: 'discard' };
       }
     }
-    if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(view, pid, top)) {
+    if (top && p.opened && checkDraw(state, pid, 'discard', true).ok && usableAfterOpening(view, pid, top)) {
+      return { kind: 'draw', source: 'discard' };
+    }
+    if (top && p.opened && p.mode === 'romme' && !checkDraw(state, pid, 'discard', true).ok && checkDraw(state, pid, 'discard').ok && chainWorthTaking(state, pid)) {
       return { kind: 'draw', source: 'discard' };
     }
     const stockEmpty = r.stock.length === 0;
     if (r.carpet && !per.carpetBlind && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
-    if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard').ok) {
+    if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard', true).ok) {
       // Die Ablagekarte zu nehmen heißt, sofort rauszukommen: Das lohnt nur, wenn Warten nicht besser wäre
       if (!(hunter && holdForHand(state, pid, hunter, k.handReach)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
     }
@@ -256,6 +259,11 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
   }
 
   // ---- Spielphase
+  // Kette: Trägt der Bot die genommene Ablagekarte UND einen geklauten Joker, folgt er dem gefundenen Plan (der übliche Weg könnte den Joker anderswo anlegen und die Karte stranden lassen).
+  if (p.opened && p.mode === 'romme' && r.turn.drawSource === 'discard' && r.turn.pendingJokerId !== null && r.turn.mustUseId !== null && hand.some((c) => c.id === r.turn.pendingJokerId) && hand.some((c) => c.id === r.turn.mustUseId)) {
+    const steps = chainSearch(state, pid, CHAIN_DEPTH);
+    if (steps && steps.length > 0) return steps[0];
+  }
   const pendingJoker = r.turn.pendingJokerId;
   if (pendingJoker !== null) {
     const use = useJoker(state, pid, pendingJoker);
@@ -268,6 +276,28 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
     // Geht es nur durch Klauen, dann mit genau dieser Karte (sonst bleibt sie als letzte Karte übrig und lässt sich nicht mehr verwenden)
     const stealWith = findSteal(state, view, pid, k, per, mustUse);
     if (stealWith) return stealWith;
+  }
+
+  // Zugkette: Ist die genommene Karte noch offen und der übliche Weg findet nichts, spielt der Bot den nächsten Schritt der gefundenen Kette.
+  if (p.opened && p.mode === 'romme' && r.turn.drawSource === 'discard' && r.turn.mustUseId !== null && hand.some((c) => c.id === r.turn.mustUseId)) {
+    const steps = chainSearch(state, pid, CHAIN_DEPTH);
+    if (steps && steps.length > 0) return steps[0];
+  }
+
+  // Ausgelegter Cheft-Spieler mit der Teppichkarte: Zwilling und ein weiteres Paar liegen auf einmal, dann ist die Runde aus.
+  const carpetId = r.turn.mustPairWithId;
+  const carpetCard = carpetId === null ? undefined : hand.find((c) => c.id === carpetId);
+  if (p.opened && carpetCard) {
+    const twin = hand.find((c) => c.id !== carpetCard.id && !isJoker(c) && sameCard(c, carpetCard));
+    const rest = hand.filter((c) => c.id !== carpetCard.id && c.id !== twin?.id);
+    if (twin) {
+      for (let i = 0; i < rest.length; i++) {
+        for (let j = i + 1; j < rest.length; j++) {
+          const groups = [[carpetCard.id, twin.id], [rest[i].id, rest[j].id]];
+          if (checkLay(state, pid, groups).ok) return { kind: 'lay', groups };
+        }
+      }
+    }
   }
 
   if (!p.opened) {
@@ -622,6 +652,76 @@ function useJoker(state: GameState, pid: number, jokerId: number): Action | null
     return { kind: 'layOff', cardId: jokerId, meldId: own.meld.id, end: 'top' };
   }
   return null;
+}
+
+// ---------------------------------------------------------------- Zugketten
+// Ein Mensch darf die Ablagekarte nehmen und dann eine Kette spielen (Joker klauen, Joker und Karte anlegen). Mastermind und
+// Scharfsinnige (mit Toleranz) suchen so eine Kette auf einer Kopie des Spiels und nehmen die Karte nur, wenn sie aufgeht.
+
+const CHAIN_DEPTH = 4;
+
+/** Mögliche nächste Schritte einer Kette: Pflichtkarten (genommene Karte, geklauter Joker) verwenden oder einen Joker klauen. */
+function chainCandidates(state: GameState, pid: number): Action[] {
+  const r = state.round;
+  const p = r.players[pid];
+  const t = r.turn;
+  const held = (id: number | null) => (id !== null && p.hand.some((c) => c.id === id) ? id : null);
+  const musts = [held(t.pendingJokerId), held(t.mustUseId)].filter((x): x is number => x !== null);
+  const out: Action[] = [];
+  for (const id of musts) {
+    const opts = layOffTargets(state, pid, id);
+    const seen = new Map<number, number>();
+    for (const o of opts) {
+      const i = seen.get(o.meld.id) ?? 0;
+      seen.set(o.meld.id, i + 1);
+      out.push({ kind: 'layOff', cardId: id, meldId: o.meld.id, end: i === 0 ? 'top' : 'bottom' });
+    }
+    for (let kk = 0; kk < p.hand.length; kk++) {
+      if (p.hand[kk].id === id) continue;
+      const rest = p.hand.filter((_, i) => i !== kk);
+      const part = findPartition(rest, { types: ROMME_TYPES, allowSkip: true, mustInclude: [id] });
+      if (part && part.used > 0) out.push({ kind: 'lay', groups: groupsOf(part.melds) });
+    }
+  }
+  if (t.pendingJokerId === null || held(t.pendingJokerId) === null) {
+    for (const m of r.melds) {
+      m.cards.forEach((c, i) => {
+        if (!isJoker(c)) return;
+        for (const h of p.hand) if (!isJoker(h) && checkStealJoker(state, pid, m.id, i, h.id).ok) out.push({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: h.id });
+      });
+    }
+  }
+  return out;
+}
+
+/** Schritte, mit denen der Zug sauber endet (alle Pflichtkarten verwendet, eine Karte zum Abwerfen frei), oder null. */
+function chainSearch(state: GameState, pid: number, depth: number): Action[] | null {
+  const p = state.round.players[pid];
+  const t = state.round.turn;
+  const open = [t.mustUseId, t.pendingJokerId].some((id) => id !== null && p.hand.some((c) => c.id === id));
+  if (!open) return p.hand.some((c) => checkDiscard(state, pid, c.id).ok) ? [] : null;
+  if (depth === 0) return null;
+  for (const a of chainCandidates(state, pid)) {
+    const c = structuredClone(state);
+    if (!applyAction(c, pid, a).ok) continue;
+    const rest = chainSearch(c, pid, depth - 1);
+    if (rest) return [a, ...rest];
+  }
+  return null;
+}
+
+/** Darf dieser Bot Ketten spielen? Mastermind immer, der Scharfsinnige mit einer Toleranz (er übersieht sie öfter). */
+function chainAllowed(state: GameState, pid: number): boolean {
+  const level = profileOf(state, pid).level;
+  return level === 'master' || (level === 'hard' && chance(state, pid, 0.6));
+}
+
+/** Nimmt der Bot die Ablagekarte, weil sich mit einer Kette ein sauberer Zug ergibt? */
+function chainWorthTaking(state: GameState, pid: number): boolean {
+  if (!chainAllowed(state, pid)) return false;
+  const c = structuredClone(state);
+  if (!applyAction(c, pid, { kind: 'draw', source: 'discard' }).ok) return false;
+  return chainSearch(c, pid, CHAIN_DEPTH) !== null;
 }
 
 // ---------------------------------------------------------------- Kartenzählen und Wahrscheinlichkeiten

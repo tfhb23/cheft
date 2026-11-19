@@ -4,7 +4,7 @@
  */
 import { makeRng } from '../src/engine/cards';
 import { Action, applyAction } from '../src/engine/actions';
-import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '../src/engine/game';
+import { BotProfile, GameState, PlayerInfo, Settings, abortTurn, current, newGame } from '../src/engine/game';
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots, sanitizeChoice } from '../src/bot/names';
@@ -30,6 +30,8 @@ export interface LobbySettings {
 
 export interface Seat {
   pid: number;
+  /** Feste Kennung des Sitzes: ändert sich nie (anders als `pid`, die beim Entfernen und Umsortieren wechselt). Aufsteigend in der Reihenfolge, in der Spieler dazukamen. */
+  sid: number;
   name: string;
   isBot: boolean;
   bot?: BotProfile;
@@ -38,22 +40,45 @@ export interface Seat {
   /** Kennung der Kartenrückseite, die dieser Spieler gewählt hat (nur Anzeige; Bots haben keine). */
   back?: string;
   connected: boolean;
-  /** Zeitpunkt der Trennung (für Autopilot). */
+  /** Zeitpunkt der Trennung (für die Pause nach 45 s). */
   disconnectedAt?: number;
+  /** Ein getrennter Mensch, für den die anderen nach der Pause „Weiter“ gesagt haben: der Autopilot spielt, bis er zurück ist. */
+  autopilot?: boolean;
+  /** Seit wann der Autopilot für diesen Platz spielt (die Sperrzeit für Fremde läuft ab hier). */
+  autopilotSince?: number;
 }
 
 export type PauseKind = 'manual' | 'auto';
 
+/** Wer im laufenden Spiel einen Platz übernehmen möchte, braucht die Zustimmung des Spielleiters. */
+export interface ClaimRequest {
+  id: number;
+  /** Gewünschter Platz. */
+  pid: number;
+  /** Name des Anfragenden. */
+  name: string;
+  /** Name des Platzes zum Zeitpunkt der Anfrage. */
+  seatName: string;
+  at: number;
+}
+/** So lange wartet eine Anfrage auf die Antwort des Spielleiters. */
+export const REQUEST_TTL_MS = 60 * 1000;
+export const MAX_REQUESTS = 3;
+
 export interface LobbyView {
   code: string;
   hostPid: number;
+  /** Gastgeber (Besitzer der Rolle); `hostPid` ist der aktuelle Spielleiter und kann ein Vertreter sein. */
+  ownerPid: number;
   started: boolean;
   /** Pause: 'manual' durch einen Spieler, 'auto' wenn niemand verbunden ist oder der Raum wiederhergestellt wurde. */
   paused: PauseKind | null;
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
+  /** Offene Anfragen, einen Platz zu übernehmen (nur der Spielleiter beantwortet sie). */
+  requests: { id: number; name: string; seatName: string }[];
   settings: LobbySettings;
-  seats: { pid: number; name: string; isBot: boolean; connected: boolean; isHost: boolean; botLabel?: string; back?: string }[];
+  seats: { pid: number; name: string; isBot: boolean; connected: boolean; autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
 }
 
 /** Platz, den ein neu hinzukommender Spieler übernehmen kann. */
@@ -69,6 +94,11 @@ export interface RoomSnapshot {
   code: string;
   rev: number;
   hostPid: number;
+  /** Ab hier optional: ältere Kopien kennen diese Felder noch nicht. */
+  hostSid?: number;
+  nextSid?: number;
+  /** Zeitpunkt des letzten Spielzugs; danach läuft die Haltbarkeit der Kopie. */
+  activeAt?: number;
   settings: LobbySettings;
   seats: Seat[];
   state: GameState | null;
@@ -95,14 +125,41 @@ export function makeToken(rng: () => number = Math.random): string {
 }
 
 export const MAX_PLAYERS = 4;
+/** So lange bleibt der Sitz eines getrennten Spielers in der Lobby reserviert (z. B. kurzer Wechsel in eine andere App). */
+export const LOBBY_GRACE_MS = 3 * 60 * 1000;
+/** So lange ist die Kopie eines laufenden Spiels brauchbar, gerechnet ab dem letzten Spielzug. */
+export const SNAPSHOT_TTL_MS = 72 * 3600 * 1000;
+/** Höchstzahl gleichzeitiger Räume (Schutz vor Überlastung). */
+export const MAX_ROOMS = 500;
+
+/** Kopie eines Spiels, das noch läuft und nicht zu alt ist. Lobbys und beendete Spiele werden nicht wiederhergestellt. */
+export function snapshotUsable(snap: RoomSnapshot | null | undefined, now = Date.now()): snap is RoomSnapshot {
+  if (!snap || snap.v !== 1 || !snap.state || snap.state.finished) return false;
+  return now - (snap.activeAt ?? now) <= SNAPSHOT_TTL_MS;
+}
+
+export function isRoomCode(code: unknown): code is string {
+  return typeof code === 'string' && /^[1-9]\d{2,3}$/.test(code);
+}
 export const MIN_PLAYERS = 3;
-/** Nach so vielen Millisekunden ohne Verbindung spielt ein Bot für den Menschen weiter. */
+/** Nach so vielen Millisekunden ohne Verbindung pausiert das Spiel („Max hat die Verbindung verloren“). */
 export const AUTOPILOT_AFTER_MS = 45000;
+/** Sperrzeit für den Platz eines Abwesenden, bevor ihn Fremde übernehmen dürfen: 2 Minuten je verbleibender Runde, mindestens 3, höchstens 10. */
+export const CLAIM_LOCK_PER_ROUND_MS = 2 * 60 * 1000;
+export const CLAIM_LOCK_MIN_MS = 3 * 60 * 1000;
+export const CLAIM_LOCK_MAX_MS = 10 * 60 * 1000;
+export function claimLockMs(roundsLeft: number): number {
+  return Math.min(CLAIM_LOCK_MAX_MS, Math.max(CLAIM_LOCK_MIN_MS, roundsLeft * CLAIM_LOCK_PER_ROUND_MS));
+}
 
 export class Room {
   readonly code: string;
   seats: Seat[] = [];
-  hostPid = 0;
+  /** Gastgeber: feste Sitz-Kennung (überlebt Entfernen und Umsortieren). */
+  hostSid = 0;
+  private nextSid = 0;
+  /** Zeitpunkt des letzten Spielzugs (für die Haltbarkeit der Kopie). */
+  activeAt = Date.now();
   settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
@@ -110,8 +167,13 @@ export class Room {
   private resumeVotes = new Set<number>();
   /** Zählt jede Änderung; der neueste Spielstand gewinnt beim Wiederherstellen. */
   rev = 0;
+  /** Offene Anfragen auf einen Platz (flüchtig: nicht in der Kopie). */
+  requests: ClaimRequest[] = [];
+  private nextRequestId = 1;
   /** Zeitpunkt, an dem der Raum aus einer Kopie wiederhergestellt wurde. */
   restoredAt: number | null = null;
+  /** Für welchen Zug der Autopilot einen angefangenen Zug schon zurückgesetzt hat (Runde:Zugzähler:Platz). */
+  private autoAborted = '';
   readonly createdAt = Date.now();
   lastActivity = Date.now();
   private rng: () => number;
@@ -123,6 +185,23 @@ export class Room {
 
   get started(): boolean {
     return this.state !== null;
+  }
+
+  /** Platznummer des Gastgebers. */
+  get hostPid(): number {
+    const owner = this.seats.find((s) => s.sid === this.hostSid);
+    return owner ? owner.pid : 0;
+  }
+  set hostPid(pid: number) {
+    const seat = this.seats[pid];
+    if (seat) this.hostSid = seat.sid;
+  }
+
+  /** Gibt es den Gastgeber-Sitz nicht mehr, übernimmt der am längsten anwesende Mensch die Rolle dauerhaft. */
+  private normalizeHost(): void {
+    if (this.seats.some((s) => s.sid === this.hostSid)) return;
+    const next = [...this.seats].filter((s) => !s.isBot).sort((a, b) => a.sid - b.sid)[0] ?? this.seats[0];
+    if (next) this.hostSid = next.sid;
   }
 
   // ------------------------------------------------------------ Lobby
@@ -146,7 +225,7 @@ export class Room {
     const unique = this.nameFor(clean, auto, (n) => this.seats.some((s) => s.name === n), this.seats.length + 1);
     const pid = this.seats.length;
     const token = makeToken(this.rng);
-    this.seats.push({ pid, name: unique, isBot: false, token, back: sanitizeBack(back), connected: true });
+    this.seats.push({ pid, sid: this.nextSid++, name: unique, isBot: false, token, back: sanitizeBack(back), connected: true });
     this.touch();
     return { pid, token };
   }
@@ -155,7 +234,7 @@ export class Room {
     if (this.started) return fail('net.alreadyStarted');
     if (this.seats.length >= MAX_PLAYERS) return fail('net.full');
     const pid = this.seats.length;
-    this.seats.push({ pid, name: `Bot ${pid}`, isBot: true, botChoice: sanitizeChoice(choice), connected: true });
+    this.seats.push({ pid, sid: this.nextSid++, name: `Bot ${pid}`, isBot: true, botChoice: sanitizeChoice(choice), connected: true });
     this.touch();
     return ok;
   }
@@ -175,7 +254,7 @@ export class Room {
     if (idx < 0) return fail('net.noSuchSeat');
     this.seats.splice(idx, 1);
     this.seats.forEach((s, i) => (s.pid = i));
-    if (this.hostPid >= this.seats.length) this.hostPid = 0;
+    this.normalizeHost();
     this.touch();
     return ok;
   }
@@ -214,6 +293,11 @@ export class Room {
     if (!seat) return;
     seat.connected = connected;
     seat.disconnectedAt = connected ? undefined : Date.now();
+    if (connected) {
+      // Wer von selbst zurückkommt, sitzt wieder an seinem Platz; der Autopilot hört auf.
+      delete seat.autopilot;
+      delete seat.autopilotSince;
+    }
     if (this.state) {
       // Ist niemand mehr da, wartet das Spiel (auch die Endauswertung), statt dass Bots allein weiterspielen.
       if (!connected && !this.paused && !this.humans().some((s) => s.connected)) this.paused = 'auto';
@@ -229,12 +313,24 @@ export class Room {
     return this.seats.filter((s) => !s.isBot);
   }
 
-  /** Spielleiter: der Einlader, solange er verbunden ist; sonst der erste verbundene Mensch. */
+  /**
+   * Spielleiter: der Gastgeber, solange er verbunden ist. Sonst vertritt ihn der am längsten anwesende verbundene Mensch
+   * (nach Beitrittsreihenfolge, nie ein Bot). Kommt der Gastgeber zurück, leitet er sofort wieder.
+   */
   effectiveHost(): number {
-    const host = this.seats[this.hostPid];
-    if (host && !host.isBot && host.connected) return this.hostPid;
-    const other = this.humans().find((s) => s.connected);
-    return other ? other.pid : this.hostPid;
+    const owner = this.seats.find((s) => s.sid === this.hostSid);
+    if (owner && !owner.isBot && owner.connected) return owner.pid;
+    const other = this.humans()
+      .filter((s) => s.connected)
+      .sort((a, b) => a.sid - b.sid)[0];
+    if (other) return other.pid;
+    return owner ? owner.pid : (this.seats[0]?.pid ?? 0);
+  }
+
+  /** Getrennte Menschen, deren Lobby-Sitz nach der Karenzzeit frei wird (nur vor dem Start). */
+  staleLobbySeats(now = Date.now()): number[] {
+    if (this.started) return [];
+    return this.seats.filter((s) => !s.isBot && !s.connected && now - (s.disconnectedAt ?? now) > LOBBY_GRACE_MS).map((s) => s.pid);
   }
 
   // ------------------------------------------------------------ Pause
@@ -264,22 +360,55 @@ export class Room {
     if (active.length > 0 && active.every((s) => this.resumeVotes.has(s.pid))) this.resume();
   }
 
+  /** Der Spielleiter beendet die Pause für alle, ohne dass jeder „Weiter“ tippen muss. */
+  forceResume(pid: number): Result {
+    if (!this.paused) return ok;
+    if (pid !== this.effectiveHost()) return fail('net.hostOnly');
+    return this.resume();
+  }
+
   resume(): Result {
     if (!this.paused) return ok;
+    const wasAuto = this.paused === 'auto';
     this.paused = null;
     this.resumeVotes.clear();
-    // Wer währenddessen weg war, bekommt die volle Wartezeit noch einmal.
+    // Wer weg ist, wird nach „Weiter“ vom Autopilot vertreten, bis er zurück ist. Eine Pause wegen Verbindungsverlust gilt für alle
+    // Abwesenden; bei einer manuellen Pause nur für die, die schon lange genug weg sind.
     const now = Date.now();
-    for (const s of this.seats) if (!s.isBot && !s.connected) s.disconnectedAt = now;
+    for (const s of this.seats) {
+      if (s.isBot || s.connected) continue;
+      if (wasAuto || now - (s.disconnectedAt ?? now) >= AUTOPILOT_AFTER_MS) {
+        s.autopilot = true;
+        s.autopilotSince = now;
+      }
+    }
     this.touch();
     return ok;
+  }
+
+  /** Ist ein Mensch länger als 45 s weg und noch nicht vom Autopilot vertreten, pausiert das Spiel. Liefert true, wenn es pausiert wurde. */
+  checkAwayPause(now = Date.now()): boolean {
+    if (!this.state || this.state.finished || this.paused) return false;
+    const lost = this.seats.some((s) => !s.isBot && !s.connected && !s.autopilot && s.disconnectedAt !== undefined && now - s.disconnectedAt >= AUTOPILOT_AFTER_MS);
+    if (!lost) return false;
+    this.paused = 'auto';
+    this.resumeVotes.clear();
+    this.touch();
+    return true;
+  }
+
+  /** Wie viele Runden noch zu spielen sind (die laufende eingerechnet). */
+  roundsLeft(): number {
+    const s = this.state;
+    return s ? Math.max(1, s.settings.rounds - s.history.length) : 0;
   }
 
   // ------------------------------------------------------------ Platz übernehmen
   private isClaimable(seat: Seat, now = Date.now()): 'bot' | 'away' | null {
     if (seat.isBot) return 'bot';
-    if (seat.connected) return null;
-    if (this.paused || now - (seat.disconnectedAt ?? 0) > AUTOPILOT_AFTER_MS) return 'away';
+    if (seat.connected || !seat.autopilot) return null;
+    // Der Platz eines Abwesenden bleibt für ihn reserviert (Sperrzeit nach verbleibenden Runden), erst danach dürfen Fremde ihn übernehmen.
+    if (now - (seat.autopilotSince ?? now) >= claimLockMs(this.roundsLeft())) return 'away';
     return null;
   }
 
@@ -305,6 +434,7 @@ export class Room {
     const unique = this.nameFor(clean, auto, taken, pid + 1);
     const token = makeToken(this.rng);
     seat.isBot = false;
+    seat.sid = this.nextSid++; // wer einen Platz übernimmt, kommt hinten in die Reihenfolge und erbt keine Rolle
     delete seat.bot;
     delete seat.botChoice;
     seat.token = token;
@@ -312,12 +442,88 @@ export class Room {
     seat.name = unique;
     seat.connected = true;
     seat.disconnectedAt = undefined;
+    delete seat.autopilot;
+    delete seat.autopilotSince;
     const info = this.state.players[pid];
     info.isBot = false;
     info.name = unique;
     delete info.bot;
+    this.normalizeHost();
     this.touch();
     return { pid, token };
+  }
+
+  // ------------------------------------------------------------ Anfragen, Entfernen, Übergabe
+  /** Legt eine Anfrage auf einen übernehmbaren Platz an. */
+  addRequest(pid: number, name: string, now = Date.now()): ClaimRequest | Result {
+    if (!this.state) return fail('net.notStarted');
+    if (this.state.finished) return fail('net.alreadyStarted');
+    const seat = this.seats[pid];
+    if (!seat) return fail('net.noSuchSeat');
+    if (!this.isClaimable(seat, now)) return fail('net.seatTaken');
+    if (this.requests.some((r) => r.pid === pid) || this.requests.length >= MAX_REQUESTS) return fail('net.seatTaken');
+    const req: ClaimRequest = { id: this.nextRequestId++, pid, name: sanitizeName(name) || `Spieler ${pid + 1}`, seatName: seat.name, at: now };
+    this.requests.push(req);
+    return req;
+  }
+
+  /** Nimmt eine Anfrage aus der Liste (beantwortet, zurückgezogen oder abgelaufen). */
+  takeRequest(id: number): ClaimRequest | undefined {
+    const i = this.requests.findIndex((r) => r.id === id);
+    return i < 0 ? undefined : this.requests.splice(i, 1)[0];
+  }
+
+  expiredRequests(now = Date.now()): ClaimRequest[] {
+    return this.requests.filter((r) => now - r.at > REQUEST_TTL_MS);
+  }
+
+  /**
+   * Der Spielleiter entfernt einen Menschen aus dem laufenden Spiel. Der Platz wird ein Bot („Botname (Max)“), das Spiel geht mit
+   * derselben Hand weiter; wer entfernt wurde, ist ab sofort ein Unbekannter (sein Token ist ungültig).
+   */
+  removePlayer(by: number, pid: number): Result {
+    if (!this.state) return fail('net.notStarted');
+    if (by !== this.effectiveHost()) return fail('net.hostOnly');
+    const seat = this.seats[pid];
+    if (!seat || seat.isBot) return fail('net.noSuchSeat');
+    // Sich selbst und den Gastgeber (den ein Vertreter nicht entfernen darf) schützt der Raum.
+    if (pid === by || (seat.sid === this.hostSid && by !== pid)) return fail('net.hostOnly');
+    const former = seat.name;
+    // Ein Bot mit eigenem Namen, der noch nicht am Tisch sitzt.
+    let bot = resolveBots([{ level: 'random', style: 'random' }], this.rng)[0];
+    for (let i = 0; i < 20 && this.seats.some((o) => o.name.startsWith(bot.name)); i++) bot = resolveBots([{ level: 'random', style: 'random' }], this.rng)[0];
+    const name = `${bot.name} (${former.slice(0, 8)})`;
+    seat.isBot = true;
+    seat.name = name;
+    seat.bot = { level: bot.level, style: bot.style };
+    seat.botChoice = { level: bot.level, style: bot.style };
+    delete seat.token;
+    delete seat.back;
+    seat.connected = true;
+    seat.disconnectedAt = undefined;
+    delete seat.autopilot;
+    delete seat.autopilotSince;
+    const info = this.state.players[pid];
+    info.isBot = true;
+    info.name = name;
+    info.bot = seat.bot;
+    this.resumeVotes.delete(pid);
+    this.requests = this.requests.filter((r) => r.pid !== pid);
+    // Wer fehlte, hält eine Pause nicht mehr auf.
+    if (this.paused === 'auto' && this.humans().every((s) => s.connected)) this.resume();
+    else this.checkResumeVotes();
+    this.touch();
+    return ok;
+  }
+
+  /** Die Gastgeber-Rolle bewusst weitergeben; nur der Gastgeber selbst, nur an einen verbundenen Menschen. */
+  handover(from: number, to: number): Result {
+    if (from !== this.hostPid) return fail('net.hostOnly');
+    const target = this.seats[to];
+    if (!target || target.isBot || !target.connected || to === from) return fail('net.noSuchSeat');
+    this.hostSid = target.sid;
+    this.touch();
+    return ok;
   }
 
   // ------------------------------------------------------------ Kopie
@@ -327,6 +533,9 @@ export class Room {
       code: this.code,
       rev: this.rev,
       hostPid: this.hostPid,
+      hostSid: this.hostSid,
+      nextSid: this.nextSid,
+      activeAt: this.activeAt,
       settings: this.settings,
       seats: this.seats,
       state: this.state,
@@ -339,14 +548,24 @@ export class Room {
     const old = this.seats;
     this.seats = snap.seats.map((s) => {
       const prev = keepConnections ? old.find((o) => o.pid === s.pid && o.token === s.token) : undefined;
-      if (prev) return { ...s, connected: prev.connected, disconnectedAt: prev.disconnectedAt };
-      return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now() };
+      if (prev) return { ...s, connected: prev.connected, disconnectedAt: prev.disconnectedAt, autopilot: prev.autopilot, autopilotSince: prev.autopilotSince };
+      // Nach dem Wiederherstellen warten alle; der Autopilot setzt erst nach einem neuen „Weiter“ ein.
+      return s.isBot ? { ...s, connected: true } : { ...s, connected: false, disconnectedAt: Date.now(), autopilot: undefined, autopilotSince: undefined };
     });
-    this.hostPid = snap.hostPid;
+    // Ältere Kopien kennen feste Sitz-Kennungen noch nicht: die Platznummer ersetzt sie.
+    this.seats.forEach((s, i) => {
+      if (typeof s.sid !== 'number') s.sid = i;
+    });
+    this.nextSid = Math.max(snap.nextSid ?? 0, ...this.seats.map((s) => s.sid + 1), 0);
+    this.hostSid = snap.hostSid ?? this.seats[snap.hostPid]?.sid ?? 0;
+    this.normalizeHost();
+    this.activeAt = snap.activeAt ?? Date.now();
     // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
     const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
+    // Ein beim Einschlafen angefangener Zug wird zurückgesetzt, damit niemand mit einer Pflichtkarte hängen bleibt.
+    if (this.state) abortTurn(this.state);
     this.rev = snap.rev;
     // Nach dem Wiederherstellen warten alle, bis die Menschen wieder verbunden sind.
     this.paused = this.state ? (this.paused ?? snap.paused ?? 'auto') : null;
@@ -386,6 +605,7 @@ export class Room {
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
     const dealer = Math.floor(this.rng() * players.length);
     this.state = newGame(players, settings, Math.floor(this.rng() * 2147483647), dealer);
+    this.activeAt = Date.now();
     this.touch();
     return ok;
   }
@@ -427,7 +647,6 @@ export class Room {
     const seats = [...this.seats];
     this.seats = seats.map((_, neu) => seats[map.indexOf(neu)]);
     this.seats.forEach((s, i) => (s.pid = i));
-    this.hostPid = map[this.hostPid] ?? 0;
   }
 
   // ------------------------------------------------------------ Spiel
@@ -436,6 +655,7 @@ export class Room {
     if (this.paused) return fail('net.paused');
     const res = applyAction(this.state, pid, action);
     if (res.ok) {
+      this.activeAt = Date.now();
       this.touch();
       this.checkFinishedConfirm();
     }
@@ -449,6 +669,7 @@ export class Room {
     if (!this.state.round.ended) return fail('net.notEnded');
     const res = applyAction(this.state, pid, { kind: 'ready' });
     if (res.ok) {
+      this.activeAt = Date.now();
       this.touch();
       this.checkFinishedConfirm();
     }
@@ -474,7 +695,10 @@ export class Room {
       const seat = this.seats[pid];
       if (!seat) return false;
       if (seat.isBot) return true;
-      return !seat.connected && seat.disconnectedAt !== undefined && now - seat.disconnectedAt > AUTOPILOT_AFTER_MS;
+      if (seat.connected) return false;
+      if (seat.autopilot) return true;
+      // Nach dem letzten Spiel gibt es keine Pause mehr: Wer die Endauswertung nicht bestätigt, wird nach der Wartezeit vertreten.
+      return s.finished && seat.disconnectedAt !== undefined && now - seat.disconnectedAt > AUTOPILOT_AFTER_MS;
     };
     if (r.ended) {
       const flags = r.nextReady ?? [];
@@ -494,6 +718,15 @@ export class Room {
     const s = this.state;
     if (!s) return null;
     const confirm = s.round.waiting || s.round.ended;
+    // Ein Mensch, den der Autopilot vertritt, hat seinen Zug vielleicht mit einer Pflichtkarte angefangen: erst zurücksetzen.
+    // Das geschieht einmal je Zug, sonst würde der Autopilot seine eigenen Schritte immer wieder zurücknehmen.
+    if (!confirm && !this.seats[pid]?.isBot && current(s) === pid) {
+      const key = `${s.round.no}:${s.round.plies ?? 0}:${pid}`;
+      if (key !== this.autoAborted) {
+        this.autoAborted = key;
+        abortTurn(s);
+      }
+    }
     const action: Action = confirm ? { kind: 'ready' } : decideAction(s, pid);
     const res = applyAction(s, pid, action);
     if (confirm) this.checkFinishedConfirm();
@@ -501,6 +734,7 @@ export class Room {
       const hand = s.round.players[pid].hand;
       if (hand.length) applyAction(s, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });
     }
+    this.activeAt = Date.now();
     this.touch();
     return action;
   }
@@ -511,15 +745,18 @@ export class Room {
     return {
       code: this.code,
       hostPid: host,
+      ownerPid: this.hostPid,
       started: this.started,
       paused: this.paused,
       resumed: [...this.resumeVotes],
+      requests: this.requests.map((r) => ({ id: r.id, name: r.name, seatName: r.seatName })),
       settings: this.settings,
       seats: this.seats.map((s) => ({
         pid: s.pid,
         name: s.name,
         isBot: s.isBot,
         connected: s.connected,
+        autopilot: s.autopilot || undefined,
         isHost: s.pid === host,
         botLabel: s.isBot && s.botChoice ? `${s.botChoice.level}/${s.botChoice.style}` : undefined,
         back: s.back,
@@ -556,6 +793,22 @@ export class Rooms {
 
   constructor(seed?: number) {
     this.rng = seed === undefined ? Math.random : makeRng(seed);
+  }
+
+  /** Raum mit Wunschcode eröffnen (z. B. ein alter Familienraum); null, wenn es ihn schon gibt, der Code ungültig oder der Server voll ist. */
+  open(code: string): Room | null {
+    if (!isRoomCode(code) || this.rooms.has(code) || this.rooms.size >= MAX_ROOMS) return null;
+    const room = new Room(code, this.rng);
+    this.rooms.set(code, room);
+    return room;
+  }
+
+  codes(): string[] {
+    return [...this.rooms.keys()];
+  }
+
+  get full(): boolean {
+    return this.rooms.size >= MAX_ROOMS;
   }
 
   create(): Room {

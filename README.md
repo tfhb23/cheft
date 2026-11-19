@@ -31,7 +31,11 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Die Hand wird zu Rundenbeginn nach Farbe sortiert ausgeteilt, gezogene Karten kommen rechts dazu; umsortieren per Drag & Drop.
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
-- Eine genommene Ablage- oder Teppichkarte ist orange markiert und lässt sich zurücklegen, solange nichts ausgelegt wurde.
+- **Keine Tipps:** Weder Stapel, Ablage und Teppichkarte noch passende Kombinationen werden hervorgehoben; die Ablage als Rommé-Spieler darf man immer nehmen und muss sie dann verwenden. Ob eine Karte nutzbar ist, sieht jeder selbst. Ziehen geht sofort (keine Vorwahl mehr). Alle drei „Karte nehmen“-Felder sind gleich groß (eine Karte im Hochformat); das der Teppichkarte ist unsichtbar und liegt links neben dem Stapel.
+- **Vorübergehende Karten** (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) sind rot umrandet und müssen im selben Zug verwendet werden. Die Mitspieler sehen sie offen: am Desktop am Ende des Fächers (untereinander), am Handy als halbe Karte am äußeren Rand der Auslage.
+- **Zug zurücksetzen** (Symbol links unten, dazu ein enttäuschter Ton): setzt den Zug auf den Anfang zurück. Eine Stapelkarte bleibt auf der Hand (verdeckte Karten gehen nie zurück), Ablage- oder Teppichkarte gehen auf ihren Platz zurück. Ist schon ausgelegt, angelegt oder geklaut worden, fragt die App erst. Eine Cheft-Ansage bleibt bestehen. Beim Laden eines Spielstands, beim Einspringen des Autopiloten und nach dem Wiederherstellen eines Raums beginnt ein angefangener Zug wieder am Rücksetzpunkt.
+- Beim Anlegen mit mehreren möglichen Stellen (auch Joker klauen) zeigt die App die Kombinations-Auswahl mit dem Namen des Spielers statt der Augen.
+- Der aktive Spieler steht in einem großen goldenen Pixel-Kreis (schon vor dem Start der Runde beim Startspieler) hinter dem Spielfeld (Durchmesser = (Breite + Höhe) ÷ 2 ÷ φ ÷ φ, Mitte auf der Spielfeldkante). Aktionsleiste: Cheft! | Auslegen | Anlegen | Abwerfen.
 - Bots haben ein Gedächtnis (Vergesslich, Normal, Scharfsinnig, Mastermind) und eine Rolle: fünf Spielweisen (Ausgewogen, Frühvogel, Gerissener, Pärchenkönig, Glücksritter) oder die Wildcard, die jede Runde eine andere Spielweise spielt (Standard für Bots, die einen Mitspieler ersetzen). Je Kombination mindestens fünf Namen (`src/bot/rolenames.ts`). Pro Bot wählbar oder „Zufall“ (verdeckt für das ganze Spiel; gewichtet: Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, der Mastermind nie). Jeder Bot hat dazu zufällige Vorlieben (z. B. Herzkarten, ungerade Zahlen, Glückszahl 7), die nur beim Abwerfen und nie gegen fertige Kombinationen wirken, und merkt sich im laufenden Spiel, wie die anderen spielen (je nach Gedächtnis). Am Spielende werden Gedächtnis, Rolle (bei der Wildcard die Rollen der Runden) und Vorlieben aufgedeckt. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“; die Rollen stehen in [docs/ROLLEN_V3.md](docs/ROLLEN_V3.md).
 - Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
@@ -79,18 +83,36 @@ Unabhängig vom Gedächtnis wägen alle Bots ab (`src/bot/strategy.ts`), auch de
 Der Server (`server/`) hält den Spielzustand je Raum, führt die Regeln aus, spielt die Bots und
 liefert zusätzlich die gebaute App aus. Die Clients sehen nur ihre eigene Hand; fremde Hände und
 der Stapel werden maskiert übertragen. Verliert ein Spieler die Verbindung, kann er über
-„Zurück in den Raum“ wieder einsteigen; nach 45 Sekunden ohne Verbindung spielt ein Bot für ihn weiter.
+„Zurück in den Raum“ wieder einsteigen. Nach 45 Sekunden ohne Verbindung pausiert das Spiel („Max hat die Verbindung verloren“); sagen die
+anderen „Weiter“, spielt ein Autopilot für ihn, bis er von selbst zurückkommt.
 
 - **Neue Runde nur mit allen:** Nach der Rundenauswertung muss jeder Mensch „Nächste Runde“ bestätigen, nach dem Austeilen
-  jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die länger als 45 Sekunden weg sind.
-- **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt oder
-  deren Spieler länger als 45 Sekunden weg ist, und spielt mit der aktuellen Hand weiter. Das gilt für alle, auch für den Gastgeber.
-  Ist der Gastgeber weg, übernimmt der nächste verbundene Spieler die Gastgeber-Rechte, bis er zurück ist.
-- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten. Es geht erst weiter, wenn alle verbundenen Spieler auf „Weiter“ getippt haben. Sind alle Menschen getrennt, pausiert das Spiel
-  von selbst (auch die Endauswertung) und läuft weiter, sobald alle wieder verbunden sind. Währenddessen spielen keine Bots für Abwesende.
+  jeder wieder „Bereit“. Bots bestätigen von selbst, ebenso Spieler, die der Autopilot vertritt.
+- **Einsteigen und übernehmen:** Wer mit dem Raumcode in ein laufendes Spiel kommt, sieht die Plätze, die ein Bot spielt, und spielt mit der aktuellen Hand weiter.
+  Der Platz eines Abwesenden bleibt für ihn reserviert (Sperrzeit: 2 Minuten je verbleibender Runde, mindestens 3, höchstens 10, gerechnet ab „Weiter“
+  nach der Pause) und erscheint erst danach in der Auswahl, mit dem Funksymbol (mit X) statt eines Textes. Wer von selbst zurückkommt, sitzt sofort wieder an seinem Platz.
+  Wer einen Platz übernehmen will, fragt an und braucht die Zustimmung des Spielleiters (Zulassen/Ablehnen, nach einer Minute ohne Antwort läuft die Anfrage ab).
+- **Spielleitung:** Der Gastgeber kann die Spielleitung bewusst und dauerhaft übergeben (Lobby und Einstellungen). Der Spielleiter sieht im Spiel die Spielerliste mit
+  einem X hinter jedem Menschen (nicht hinter sich selbst, und nicht hinter dem Gastgeber, solange der nur vertreten wird) und im Pausenmenü bei den Abwesenden.
+  Wer entfernt wird, verliert alle Raumdaten und gilt als Unbekannter; sein Platz wird ein Bot „Botname (Max)“ mit derselben Hand, den ein Neuer (mit Zustimmung) sofort übernehmen kann.
+  Ist der Gastgeber weg, leitet ihn der am längsten anwesende verbundene Mensch (nie ein Bot) vorübergehend; kommt der Gastgeber zurück,
+  leitet er sofort wieder. Plätze haben feste Kennungen, die Rolle bleibt also auch beim Entfernen und Umsortieren erhalten.
+- **Raum neu eröffnen:** Gibt es einen Raum (z. B. `/232`) nicht mehr, bietet die App an, ihn mit demselben Code neu zu eröffnen; man wird Gastgeber.
+  So bleibt ein alter Familienraum beim gleichen Link. Direkt nach dem Aufwachen des Servers wartet die App zuerst kurz (45 s), weil Mitspieler
+  ein laufendes Spiel wiederherstellen könnten.
+- **Lobby-Karenz:** Bricht in der Lobby die Verbindung ab (z. B. kurzer Wechsel in eine andere App), bleibt der Sitz 3 Minuten reserviert.
+  „Raum verlassen“ gibt ihn sofort frei. Danach geht die Gastgeber-Rolle dauerhaft an den nächsten Menschen.
+- **Verbindungsprüfung:** Der Server prüft alle 10 Sekunden; nach zwei verpassten Antworten gilt eine stille Verbindung als getrennt.
+- **Pause:** Im Zahnrad-Menü lässt sich das Spiel anhalten, und es pausiert von selbst, wenn jemand länger als 45 Sekunden die Verbindung verliert (kurze Aussetzer
+  bleiben unsichtbar, das Funksymbol am Namen erscheint nach 10 Sekunden). Es geht weiter, wenn alle verbundenen Spieler „Weiter“ getippt haben;
+  der Spielleiter hat zusätzlich „Für alle fortsetzen“. Kommt der Abwesende vorher zurück, geht es ohne Bestätigung weiter. Währenddessen spielt niemand für Abwesende,
+  danach der Autopilot, aber ohne weitere Pause für dieselbe Abwesenheit. Nach der letzten Runde gibt es keine Pause mehr.
 - **Server schläft ein:** Der Server schickt jedem Spieler eine verschlüsselte Kopie des Raums mit (Schlüssel `CHEFT_SECRET`,
   auf Render automatisch erzeugt). Schläft ein kostenloser Server nach einer langen Pause ein, stellt die erste Wiederverbindung den Raum
   mit gleichem Code und gleichen Plätzen wieder her. Dann braucht der Server etwa eine Minute zum Aufwachen.
+  Wiederhergestellt werden nur laufende Spiele (nicht Lobbys, nicht die Endauswertung nach der letzten Runde), und nur bis 72 Stunden nach dem
+  letzten Spielzug; danach gibt es ein frisches Spiel ohne Historie. Ein laufendes Spiel hat Vorrang vor einem inzwischen frisch eröffneten
+  Raum, in dem noch nicht gespielt wird: Dessen Besucher bekommen die Platzauswahl.
 - **Sitzordnung und Start:** Der Gastgeber zieht die Spieler in der Lobby per Griff in die gewünschte Reihenfolge oder stellt „Sitzplätze: zufällig“ ein (auch im Solospiel). Wer die erste Runde beginnt, wird immer ausgelost. Der Einlader wählt 3, 5, 7 oder 9 Runden.
 - **Spielende:** Nach der letzten Runde muss jeder Mensch die Endauswertung bestätigen, erst dann geht es für alle zurück in die Lobby.
 - **Rückblick auf Abwürfe (nicht regelkonform, abschaltbar):** Wer an der Reihe ist, kann lange auf die Ablage drücken und sieht die letzten Abwürfe der anderen (zu viert drei, zu dritt zwei). Die Karten gleiten in Richtung des Spielers, der sie abgeworfen hat, und tragen seinen Namen. Die Ansicht bleibt nach dem Loslassen stehen, ein Tippen irgendwo beendet sie. Gastgeber und Solospieler stellen vor dem Start ein, ob das erlaubt ist.
@@ -160,9 +182,9 @@ Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die
 - Rauskommen im ersten Zug: vor jedem Spiel wählbar (Standard: gesperrt). Wer die erste Runde beginnt, wird ausgelost. Runden: 3, 5, 7 oder 9.
 - Joker als Teppichkarte: Der Startspieler bekommt den Joker (ersetzt eine seiner 14 Karten), die nächste Karte wird Teppichkarte.
 - Abwurf-Sperre nur gegenüber dem nächsten Spieler, wenn dieser draußen ist: Verboten ist jede Karte, die er anlegen oder mit der er einen ausgelegten Joker klauen könnte. Wäre jede Handkarte betroffen, darf trotzdem abgeworfen werden (sonst Sackgasse).
-- Ablage: Ein Rommé-Spieler, der noch drin ist, darf die Karte nur nehmen, wenn er damit sofort rauskommt. Wer schon draußen ist, darf sie nehmen, wenn er sie sofort anlegen, auslegen oder damit einen Joker klauen kann (es muss eine Karte zum Abwerfen bleiben). Nie, wenn ein Cheft-Spieler sie abgeworfen hat. Ein Cheft-Spieler darf sie immer nehmen. Wer die Teppichkarte nimmt, wird dadurch Cheft-Spieler.
+- Ablage: Ein Rommé-Spieler, der noch drin ist, darf die Karte nur nehmen, wenn er damit sofort rauskommt. Wer schon draußen ist, darf sie nehmen, wenn er sie sofort anlegen, auslegen oder damit einen Joker klauen kann (es muss eine Karte zum Abwerfen bleiben). Nie, wenn ein Cheft-Spieler sie abgeworfen hat. Ein Cheft-Spieler darf sie immer nehmen. Als Mensch darf man die Ablagekarte als Rommé-Spieler immer nehmen (außer gesperrt, siehe oben) und muss sie in diesem Zug verwenden (Erstmeldung, anlegen, auslegen, Joker klauen), sonst setzt man den Zug zurück; die Bots nehmen sie nur, wenn es sofort geht. „Cheft!“ nach dem Nehmen ist erlaubt: Dann ist die Karte eine normale Handkarte. Die Cheft-Ansage lässt sich nie zurücknehmen.
 - Cheft-Paare: Joker + Karte und Joker + Joker sind Paare. Joker dürfen auch aus Cheft-Paaren geklaut werden, nicht aus Joker-Joker-Paaren.
-- Die Teppichkarte ist die einzige Ausnahme: Sie bildet ihr Paar nur mit der genau gleichen Karte, nie mit einem Joker. Beim Nehmen müssen außerdem die übrigen Karten noch vier weitere Paare ergeben (hier dürfen Joker einspringen). Nur im letzten Zug bei leerem Stapel zählt sie wie eine normale Stapelkarte.
+- Die Teppichkarte ist die einzige Ausnahme: Sie bildet ihr Paar nur mit der genau gleichen Karte, nie mit einem Joker. Beim Nehmen müssen außerdem die übrigen Karten noch vier weitere Paare ergeben (hier dürfen Joker einspringen). Wer noch Rommé spielt und die Teppichkarte antippt (er hat Zwilling und vier Paare), bekommt „Cheft ansagen?“; nur mit „Cheft ansagen“ wird sie genommen. Ein Cheft-Spieler, der schon fünf Paare ausgelegt hat, darf sie nur nehmen, wenn er genau vier Handkarten hat: den Zwilling (kein Joker) und ein weiteres Paar (Joker erlaubt, vierte Karte zum Abwerfen); beide Paare müssen in diesem Zug auf einmal liegen. Ein Rommé-Spieler, der schon draußen ist, darf sie nie nehmen. Nur im letzten Zug bei leerem Stapel zählt sie wie eine normale Stapelkarte.
 - Nach 5 Paaren: Die restlichen Karten als 2 Paare auf einmal (= 7) oder als Rommé-Kombinationen/Anlegen. Ein einzelnes 6. Paar ist nicht erlaubt.
 - Stapel leer: Der Spieler, der die letzte Karte zieht, beendet seinen Zug normal. Liegt nur noch die Teppichkarte da, darf der nächste Spieler sie wie eine Stapelkarte nehmen (ohne Paar, ohne Cheft, ohne Zwang zum Rauskommen); nach seinem Zug endet die Runde ohne Gewinner. Ohne Teppichkarte endet sie sofort.
 - Weitere Kombinationen im Zug des Rauskommens zählen zur Erstmeldung, solange dazwischen nicht bei anderen angelegt wurde.

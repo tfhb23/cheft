@@ -147,10 +147,10 @@ details > * + * { margin-top: var(--gap-tight); }
 .card.selected { outline: var(--bw-mark) solid var(--accent); outline-offset: calc(-1 * var(--bw)); }
 .card.glow { outline: var(--bw-mark) solid var(--accent); outline-offset: var(--bw); box-shadow: var(--sh-halo); }
 .card.fresh { outline: var(--bw-mark) solid var(--positive); outline-offset: var(--bw); }
-/* Abgeblendet ohne Durchscheinen: Hintergrund wird hellgrau, Zeichen blasser (keine Transparenz, sonst sieht man die Karte darunter) */
+/* Abgeblendet ohne Durchscheinen (nicht gewählte Kartenrückseiten in den Einstellungen) */
 .card.dim { filter: var(--filter-dim); }
-/* Vorgewählt (erstes Tippen beim Ziehen): kräftiger Rahmen, noch einmal tippen zieht */
-.card.armed { outline: var(--bw-armed) solid var(--accent-strong); outline-offset: var(--bw); box-shadow: var(--sh-halo-armed); }
+/* Vorübergehende Karte (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker): roter Rand, dazu außen ein dünner dunkler Ring, damit er auch auf dem orangenen Kreis zu sehen ist */
+.card.temp { outline: var(--bw-mark) solid var(--mark-temp); outline-offset: 0; box-shadow: 0 0 0 calc(var(--bw-mark) + var(--bw)) var(--line); }
 .card.hidden-anim { visibility: hidden; }
 .fly { position: fixed; z-index: var(--z-fly); pointer-events: none; margin: 0; left: 0; top: 0; }
 
@@ -193,34 +193,47 @@ details > * + * { margin-top: var(--gap-tight); }
 .topbar .icons { margin-left: auto; display: flex; gap: var(--gap-tight); }
 
 /* ===== 6 Spielfeld: Tisch ===== */
-.table { position: relative; min-height: 0; overflow: auto; overflow-x: hidden; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto 1fr auto; padding: var(--sp-2); }
+/* Kreis des aktiven Spielers: ganz hinten (hinter allen Karten und Schildern), am Rand des Spielfelds abgeschnitten, nur Pixelkante */
+.turn-clip { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.turn-disc { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; }
+.table { position: relative; isolation: isolate; min-height: 0; overflow: auto; overflow-x: hidden; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto 1fr auto; padding: var(--sp-2); }
 .seat { position: relative; overflow: visible; }
 .seat-top { grid-column: 1 / 4; grid-row: 1; display: flex; justify-content: center; }
 .seat-left { grid-column: 1; grid-row: 2; }
 .seat-right { grid-column: 3; grid-row: 2; }
 .center { grid-column: 2; grid-row: 2; display: flex; align-items: center; justify-content: center; min-height: calc(var(--card-h) + var(--sp-16)); min-width: 0; overflow: visible; }
+.undo-btn { position: absolute; left: var(--sp-3); bottom: var(--sp-3); z-index: var(--z-lift); }
 .own { position: relative; grid-column: 1 / 4; grid-row: 3; padding: var(--sp-1) 0; }
 /* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
 .own.drop { outline: var(--bw-mark) dashed var(--accent); outline-offset: calc(-1 * var(--bw-mark)); background: var(--surface-highlight); }
 .own-label { margin: var(--gap-hair) auto 0; width: fit-content; }
 .own .melds { justify-content: center; }
-.seat-inner { transform-origin: top left; display: flex; flex-direction: column; gap: var(--gap-tight); }
+.seat-inner { position: relative; transform-origin: top left; display: flex; flex-direction: column; gap: var(--gap-tight); }
 .seat-top .seat-inner { align-items: center; width: 100%; }
 .seat-top .flip180 { max-width: 100%; }
 .seat-top .melds { max-width: 100%; }
 .flip180 { transform: rotate(180deg); }
 /* Texte beim gegenüberliegenden Spieler bleiben lesbar, nur die Karten stehen auf dem Kopf */
-.open-card { display: flex; flex-direction: column; align-items: center; gap: var(--gap-tight); text-align: center; }
-.seat-inner > .fan { align-self: center; }
+.open-card { display: flex; flex-direction: column; align-items: center; gap: 0; text-align: center; }
+.open-card > span { font-size: var(--fs-micro); color: var(--text-muted); line-height: 1; }
+.seat-inner > .fan, .seat-inner > .fan-wrap { align-self: center; }
+/* Offene (vorübergehende) Karten des Spielers am Zug: am Ende des Fächers untereinander, am Handy nur die obere Hälfte am äußeren Rand */
+.fan-wrap { position: relative; }
+.temp-col { position: absolute; left: calc(100% + var(--gap-tight)); bottom: 0; display: flex; flex-direction: column; }
+.temp-col .card + .card { margin-top: calc(var(--px-card-h) * var(--so) * -0.6); }
+.temp-edge { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; pointer-events: none; }
+.seat-top .temp-edge { bottom: auto; top: 0; }
+.temp-half { display: flex; gap: var(--gap-hair); }
+.temp-half .half { width: calc(var(--px-card-w) * var(--so)); height: calc(var(--px-card-h) * var(--so) / 2); overflow: hidden; outline: var(--bw-mark) solid var(--mark-temp); box-shadow: 0 0 0 calc(var(--bw-mark) + var(--bw)) var(--line); }
 .flip180 .open-card > span { display: inline-block; transform: rotate(180deg); }
 .seat-left .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(90deg) translateY(-100%); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }
 .seat-label { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); font-size: var(--fs-caption); color: var(--text-muted); white-space: nowrap; }
 .seat-label .sl-name { font-size: var(--fs-label); color: var(--text-strong); }
-.seat-label .sl-hint { color: var(--text-accent); }
-.seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-accent); color: var(--text-on-accent); }
-.seat.current .seat-label .sl-name, .own.current .seat-label .sl-name { color: var(--text-on-accent); }
+.conn-lost { display: inline-block; width: var(--size-icon-status); height: var(--size-icon-status); margin-left: var(--sp-2); vertical-align: middle; color: var(--text-muted); }
+.conn-lost svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
+.seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-gold); color: var(--text-strong); }
 .seat-inner > .seat-label { align-self: center; }
 .fan { display: flex; height: calc(var(--px-card-h) * var(--so) * 0.55); overflow: hidden; }
 .fan .card { margin-left: calc(var(--px-ov-fan) * var(--so)); }
@@ -235,16 +248,20 @@ details > * + * { margin-top: var(--gap-tight); }
 .meld .card:first-child { margin-left: 0 !important; }
 .meld.pair .card { margin-left: var(--ov-pair); }
 .meld.pair .card.o { margin-left: calc(var(--px-ov-pair) * var(--so)); }
-.meld.target { outline: var(--bw-mark) dashed var(--accent); cursor: pointer; }
-.meld.stealable { outline: var(--bw-mark) dashed var(--positive); cursor: pointer; }
 .meld.hover { background: var(--surface-highlight); }
 .meld.clickable { cursor: pointer; }
 
 /* Stapel, Teppichkarte, Ablage */
 .piles { display: grid; grid-template-columns: auto auto; align-items: start; justify-content: center; column-gap: var(--pile-gap); row-gap: var(--gap-hair); font-size: var(--fs-micro); color: var(--text-muted); }
-/* Beschriftungen in einer Reihe; "Stapel" mittig unter der Stapelkarte, nicht unter Stapel und Teppichkarte zusammen */
-.pile-label { text-align: center; }
-.pile-label.stock-label { width: var(--card-w); margin-left: var(--stock-shift); justify-self: start; }
+/* Beschriftungen alle in derselben Schrift, ganz nah an der Karte: „Stapel“ unter dem Stapel, „Ablage“ unter dem leeren Ablagefeld
+   (später von Karten verdeckt, das stört nicht), „Teppich“ gedreht links neben der Teppichkarte, zentriert zu ihrer Mitte */
+.pile-label { position: absolute; text-align: center; white-space: nowrap; line-height: 1; }
+.stock-label { left: 0; bottom: 100%; width: var(--card-w); } /* über der Karte */
+.discard-label { z-index: 0; left: var(--discard-x); top: var(--discard-y); transform: translateY(-100%); width: var(--card-w); }
+.carpet-label { writing-mode: vertical-rl; top: calc(var(--card-h) / 2); right: calc(100% - var(--carpet-shift) - (var(--card-w) - var(--card-h)) / 2); transform: translateY(-50%) rotate(180deg); }
+/* Tippfläche der Teppichkarte: unsichtbar, so groß wie eine Karte im Hochformat, direkt links neben dem Stapel (nur beim Ziehen aktiv) */
+.carpet-hit { position: absolute; top: 0; right: 100%; width: var(--card-w); height: var(--card-h); z-index: 1; pointer-events: none; }
+.carpet-hit.active { pointer-events: auto; cursor: pointer; }
 .stock-wrap { position: relative; margin-left: var(--stock-shift); margin-top: var(--discard-y); } /* Stapelkarte und Ablage-Platz beginnen auf gleicher Höhe, egal wie dick der Stapel ist */
 .stock-wrap .count-on-card { pointer-events: none; position: absolute; left: var(--count-x); top: var(--count-y); width: var(--count-size); height: var(--count-size); background: var(--surface-field); border: var(--bw) solid var(--line); color: var(--text-strong); font-size: var(--fs-body); line-height: calc(var(--count-size) - 2 * var(--bw)); text-align: center; z-index: 2; }
 .carpet { position: absolute; top: 0; left: var(--carpet-shift); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
@@ -265,7 +282,6 @@ details > * + * { margin-top: var(--gap-tight); }
 .hand.two-rows { height: calc(var(--card-h) * 2 + var(--hand-row-gap)); }
 .hand .card { position: absolute; transition: left var(--dur-hand), top var(--dur-hand); touch-action: none; }
 .hand .card.selected { transform: translateY(calc(-1 * var(--lift-selected))); }
-.hand .card.must { outline: var(--bw-mark) solid var(--accent); outline-offset: var(--bw); box-shadow: var(--sh-halo); }
 .hand .card.dragging { transition: none; z-index: var(--z-drag) !important; opacity: var(--op-drag); transform: scale(var(--scale-drag)); pointer-events: none; }
 .hand.dealing { visibility: hidden; }
 .drag-badge { position: absolute; right: calc(-1 * var(--sp-3)); top: calc(-1 * var(--sp-3)); background: var(--surface-accent); color: var(--text-on-accent); font-size: var(--fs-caption); padding: 0 var(--sp-2); border: var(--bw) solid var(--line); }
