@@ -121,3 +121,7 @@ Zum Zeitpunkt der Übergabe: `npx tsc --noEmit` ohne Fehler, `npx vitest run` 30
 ## 11. Entwürfe für die 7 offenen zweiten Personen
 
 Siehe `ENTWUERFE_PAARE.md` und `images/entw/`. Noch nicht ausgewählt, nichts live.
+
+## 12. Abschluss: alle 24 Personen fertig
+
+Alle zwölf Bildkarten haben zwei verschiedene, freigegebene Personen. Die zweiten Personen stehen in `code/zwillinge.py` (Entwurf-Skripte `entw*.py`, Hilfen in `paare.py`), `export_ts.py` schreibt sie nach `src/ui/face-art.ts`. Zuletzt: Herz König Person 2 = Dreibogen-Goldkrone mit grauem Haar und kleinem Schnurrbart. Der Abschnitt 2 (Tabelle) zeigt den früheren Zwischenstand.

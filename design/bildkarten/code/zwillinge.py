@@ -2,7 +2,7 @@
 Neue Freigabe: hier eine Zeile `reg(...)` ergänzen (Entwurf-Funktion aus entw*.py)."""
 import final_auswahl as FA
 from paare import twin_spec
-import entw3, entw4, entw5, entw6, entw8
+import entw3, entw4, entw5, entw6, entw8, entw10
 def reg(key,suit,rank,first,fn,pal=None,extra=None):
     FA.PERSONEN[key]=twin_spec(first,fn,pal,extra)
     for (s,r,keys) in FA.KARTEN:
@@ -13,3 +13,4 @@ reg('karo_koenig_b','D',13,'karo_koenig',entw5.KF[4][1],entw5.KF[4][2])         
 reg('karo_dame_b','D',12,'karo_dame',entw5.KD[7][1],entw5.KD[7][2],entw5.KD[7][3])                # Sonnenscheibe, wellig mit Goldbändern (freigegeben)
 reg('kreuz_koenig_b','C',13,'kreuz_koenig',entw8.KG[9][1],entw8.KG[9][2])                      # Glatze, runder Bart, Goldspange, Mund 3 breit (freigegeben)
 reg('pik_bube_b','S',11,'pik_bube',entw6.PB[8][1],entw6.PB[8][2],entw6.PB[8][3])                # Dach 12 + links 6, rechts 12 (freigegeben)
+reg('herz_koenig_b','H',13,'herz_koenig',entw10.HK[1][1],entw10.HK[1][2])                  # Dreibogen-Goldkrone, graues Haar, kleiner Schnurrbart (freigegeben)

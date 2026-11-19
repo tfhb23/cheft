@@ -1,7 +1,7 @@
 """Exportiert die 12 Bildkarten (je 2 Personen) als Pixeldaten nach src/ui/face-art.ts.
 
 Aufruf: python3 design/bildkarten/code/export_ts.py
-- Karten ohne zweite Person verwenden die erste Person doppelt (Platzhalter, später austauschen).
+- Alle 12 Karten haben zwei Personen (zweite Personen aus zwillinge.py). Fehlt eine, steht die erste doppelt.
 - Farben, die einem Guide-Token (tokens.ts, Palette 1.xx) entsprechen, werden als Token-Name geschrieben, alle anderen
   (per Formel abgeleitete Töne wie Schatten, Lippen, Nase) als Hex-Wert. Ändert sich ein Token: dieses Skript neu ausführen.
 """
@@ -36,7 +36,7 @@ def main():
     assert len(order)<=len(CHARS),len(order)
     ch={h:CHARS[i] for i,h in enumerate(order)}
     refs=[by_hex.get(h,h) for h in order]
-    L=['/**','* Bildkarten-Figuren (12 Karten × 2 Personen) als fertige 32 × 44-Pixelbilder.','* ERZEUGT von design/bildkarten/code/export_ts.py – nicht von Hand ändern.','* Schlüssel: Farbe + Rang (H11 = Herz Bube, S13 = Pik König). Wert: [Person Deck 1, Person Deck 2].','* Zeichen "." = transparent; alle anderen Zeichen stehen in FACE_CHARS und zeigen auf FACE_REFS (Token-Name aus tokens.ts oder Hex-Wert).','* Karten ohne zweite Person verwenden die erste Person doppelt (Platzhalter).','*/'.replace('*/','*/')]
+    L=['/**','* Bildkarten-Figuren (12 Karten × 2 Personen) als fertige 32 × 44-Pixelbilder.','* ERZEUGT von design/bildkarten/code/export_ts.py – nicht von Hand ändern.','* Schlüssel: Farbe + Rang (H11 = Herz Bube, S13 = Pik König). Wert: [Person Deck 1, Person Deck 2].','* Zeichen "." = transparent; alle anderen Zeichen stehen in FACE_CHARS und zeigen auf FACE_REFS (Token-Name aus tokens.ts oder Hex-Wert).','* Alle 12 Karten haben zwei verschiedene Personen (zweite Personen: design/bildkarten/code/zwillinge.py).','*/'.replace('*/','*/')]
     L=[x if x.startswith('/**') or x=='*/' else ' '+x for x in L]
     L.append("export const FACE_CHARS = %s;"%repr(CHARS[:len(order)]).replace("'",'"') if '"' not in CHARS else "export const FACE_CHARS = %r;"%CHARS[:len(order)])
     L.append('export const FACE_REFS: string[] = [%s];'%', '.join("'%s'"%r for r in refs))
