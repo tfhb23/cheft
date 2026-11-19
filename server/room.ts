@@ -598,7 +598,7 @@ export class Room {
       if (!s.isBot) return { id: s.pid, name: s.name, isBot: false };
       const b = resolved[bi++];
       s.name = b.name;
-      s.bot = { level: b.level, style: b.style };
+      s.bot = { level: b.level, style: b.style, reveal: this.settings.seating !== 'random' ? b.fixed : undefined };
       return { id: s.pid, name: b.name, isBot: true, bot: s.bot };
     });
     const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw', peekDiscards: this.settings.peekDiscards, sortedDeal: this.settings.sortedDeal };

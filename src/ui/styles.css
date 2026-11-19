@@ -321,7 +321,8 @@ table.scores th { color: var(--text-accent); font-weight: var(--fw-regular); }
 table.scores td.num, table.scores th.num { text-align: right; }
 table.scores tr.winner td { color: var(--text-accent); font-weight: var(--fw-bold); }
 .factors { font-size: var(--fs-micro); color: var(--text-muted); font-weight: var(--fw-regular); }
-.btn.name-info { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; font: inherit; color: inherit; text-align: left; white-space: normal; text-decoration: underline; text-decoration-style: dotted; }
+.btn.name-info { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; font: inherit; color: inherit; text-align: left; white-space: normal; display: inline-flex; align-items: center; gap: var(--sp-2); }
+.btn.name-info svg { width: var(--size-icon-glyph); height: var(--size-icon-glyph); shape-rendering: crispEdges; flex: none; }
 .dialog p { white-space: pre-line; }
 .rest { display: flex; flex-wrap: wrap; gap: var(--gap-hair); margin-top: var(--gap-hair); }
 .rest.backs { flex-wrap: nowrap; }

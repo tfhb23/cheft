@@ -34,7 +34,7 @@ import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
-import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
+import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { ScaleStep, deviceClass, tableLadder } from './tablescale';
@@ -375,6 +375,14 @@ export class App {
     const role = roleOfStyle(bot.style);
     const roleText = role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`);
     return h('div', { class: 'factors accent reveal' }, `${t(`level.${bot.level}`)} · ${roleText}`);
+  }
+
+  /** Zwischen den Runden: nur die Werte, die in der Lobby fest gewählt waren (und nur bei fester Sitzordnung). */
+  private botPartialReveal(bot: BotProfile): HTMLElement | null {
+    const parts: string[] = [];
+    if (bot.reveal?.level) parts.push(t(`level.${bot.level}`));
+    if (bot.reveal?.style) parts.push(t(`style.${roleOfStyle(bot.style)}`));
+    return parts.length ? h('div', { class: 'factors accent reveal' }, parts.join(' · ')) : null;
   }
 
   /** Infobox zum Bot (nur nach Spielende): jede Vorliebe in einer eigenen Zeile. */
@@ -953,7 +961,8 @@ export class App {
         [bots[i], bots[j]] = [bots[j], bots[i]];
       }
     }
-    bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style } }));
+    const seatFixed = this.prefs.seating !== 'random';
+    bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style, reveal: seatFixed ? b.fixed : undefined } }));
     const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
     this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length));
@@ -3152,8 +3161,8 @@ export class App {
         h(
           'td',
           null,
-          s.finished && p.bot ? btn(`${name(p.id)} ⓘ`, () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
-          s.finished && p.bot ? this.botReveal(s, p.id, p.bot) : null,
+          s.finished && p.bot ? btn([name(p.id), pixelIcon(ICON_INFO)], () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
+          p.bot ? (s.finished ? this.botReveal(s, p.id, p.bot) : this.botPartialReveal(p.bot)) : null,
           h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,

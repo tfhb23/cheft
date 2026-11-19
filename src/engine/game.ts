@@ -43,6 +43,8 @@ export type BotStyle = 'balanced' | 'early' | 'cunning' | 'pairs' | 'gambler' | 
 export interface BotProfile {
   level: BotLevel;
   style: BotStyle;
+  /** Gedächtnis / Spielweise nach jeder Runde anzeigen: nur wenn sie in der Lobby fest gewählt waren (nicht „Zufall“) und die Sitzordnung nicht zufällig war. */
+  reveal?: { level: boolean; style: boolean };
 }
 
 export interface PlayerInfo {

@@ -42,7 +42,7 @@ export function sanitizeChoice(c: Partial<BotChoice> | undefined | null): BotCho
 }
 
 /** Löst Zufallswahlen auf und vergibt eindeutige Namen. */
-export function resolveBots(choices: BotChoice[], rng: () => number): { level: BotLevel; style: BotStyle; name: string }[] {
+export function resolveBots(choices: BotChoice[], rng: () => number): { level: BotLevel; style: BotStyle; name: string; fixed: { level: boolean; style: boolean } }[] {
   const used = new Set<string>();
   return choices.map((raw) => {
     const c = sanitizeChoice(raw);
@@ -50,6 +50,6 @@ export function resolveBots(choices: BotChoice[], rng: () => number): { level: B
     const style = c.style === 'random' ? STYLES[Math.floor(rng() * STYLES.length)] : c.style;
     const name = pickRoleName(level, roleOfStyle(style), rng, used);
     used.add(name);
-    return { level, style, name };
+    return { level, style, name, fixed: { level: c.level !== 'random', style: c.style !== 'random' } };
   });
 }
