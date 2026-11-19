@@ -103,8 +103,9 @@ def sheet(name,variants,out,cols=5,S=6,title=None):
     d.text((8,6),title or name,fill=INK,font=FONTB)
     for i,(lb,im) in enumerate(tiles):
         x=8+(i%cols)*cw; y=34+(i//cols)*chh
-        d.text((x,y),lb,fill=INK,font=FONT)
-        sh.paste(im.resize((W*S,H*S),Image.NEAREST),(x,y+20))
+        import textwrap
+        for li,tl in enumerate(textwrap.wrap(lb,27)[:2]): d.text((x,y+li*13-4),tl,fill=INK,font=FONT)
+        sh.paste(im.resize((W*S,H*S),Image.NEAREST),(x,y+22))
     sh.save(out)
     Z=9; bw,bh=16*Z+10,26*Z+32; cols2=5; r2=(len(tiles)+cols2-1)//cols2
     dt=Image.new('RGB',(cols2*bw+10,r2*bh+34),BG); d2=ImageDraw.Draw(dt); d2.text((8,6),(title or name)+' (Detail)',fill=INK,font=FONTB)
