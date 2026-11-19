@@ -1353,7 +1353,7 @@ export class App {
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCardEl = (): HTMLElement | null =>
       starterCard
-        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
+        ? h('div', { class: 'pile open-card' }, h('span', null, t('wait.openCard')), this.cardEl(starterCard, { title: cardName(starterCard) }))
         : null;
     const showFan = window.innerWidth >= BREAKPOINTS.fan && window.innerHeight >= BREAKPOINTS.fanHeight;
     for (const seat of this.seats()) {

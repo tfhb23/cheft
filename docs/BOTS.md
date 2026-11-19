@@ -249,3 +249,7 @@ Namenstabelle (188 Namen) und Aufdecken am Spielende. Beide Schwächen der Grund
 - Offene Fragen: Hand und Joker-Verbrennen kommen fast nie vor (0,1 % / 0,4 % der Runden), mit Bot-Reglern nicht zu ändern; haushohe Siege des Glücksritters sind nicht häufiger als bei den anderen Rollen.
 
 **Beobachtung außerhalb der Bots:** Die Spieler-Sicht (`engine/view.ts`) schickt `seed` mit. Wer den Mischalgorithmus kennt, könnte im Mehrspielermodus daraus verdeckte Karten ableiten. Das ist unabhängig von den Bots und sollte separat geprüft werden (z. B. Seed aus der Sicht entfernen, die Vorlieben-Anzeige am Spielende bräuchte ihn dann aus einer anderen Quelle).
+
+## Zugketten (Mastermind, Scharfsinnige)
+
+Wer schon draußen ist, darf als Mensch die Ablagekarte nehmen und dann eine Kette spielen (Joker klauen, Joker und Karte anlegen). Der **Mastermind** sucht so eine Kette (bis 4 Schritte) auf einer Kopie des Spiels und nimmt die Karte nur, wenn sie aufgeht; der **Scharfsinnige** sieht sie mit einer Toleranz (60 % der Züge). Alle anderen Stufen nehmen die Ablagekarte nur, wenn sie sofort verwendbar ist. Umgesetzt in `chainSearch` (`src/bot/bot.ts`).

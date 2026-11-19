@@ -256,8 +256,8 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Beschriftungen alle in derselben Schrift, ganz nah an der Karte: „Stapel“ unter dem Stapel, „Ablage“ unter dem leeren Ablagefeld
    (später von Karten verdeckt, das stört nicht), „Teppich“ gedreht links neben der Teppichkarte, zentriert zu ihrer Mitte */
 .pile-label { position: absolute; text-align: center; white-space: nowrap; line-height: 1; }
-.stock-label { left: 0; top: 100%; width: var(--card-w); } /* direkt unter der Dicke des Stapels */
-.discard-label { z-index: 0; left: var(--discard-x); top: calc(var(--discard-y) + var(--card-h)); width: var(--card-w); }
+.stock-label { left: 0; bottom: 100%; width: var(--card-w); } /* über der Karte */
+.discard-label { z-index: 0; left: var(--discard-x); top: var(--discard-y); transform: translateY(-100%); width: var(--card-w); }
 .carpet-label { writing-mode: vertical-rl; top: calc(var(--card-h) / 2); right: calc(100% - var(--carpet-shift) - (var(--card-w) - var(--card-h)) / 2); transform: translateY(-50%) rotate(180deg); }
 /* Tippfläche der Teppichkarte: unsichtbar, so groß wie eine Karte im Hochformat, direkt links neben dem Stapel (nur beim Ziehen aktiv) */
 .carpet-hit { position: absolute; top: 0; right: 100%; width: var(--card-w); height: var(--card-h); z-index: 1; pointer-events: none; }
