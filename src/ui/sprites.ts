@@ -176,7 +176,8 @@ function drawFace(ctx: Ctx, x: number, y: number, suit: Suit, rank: number): voi
   // unten rechts: Zahl und Farbe stehen auf dem Kopf (um 180 Grad gedreht wie bei echten Karten)
   textRot(ctx, rt, x, y + CARD_H - 10, ink);
   shape(ctx, rot180(SUIT_SHAPES[suit]), x + CARD_W - 10, y + CARD_H - 18, ink);
-  shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15, ink, 2);
+  // Das Herz ist oben breit und unten spitz und wirkt bei exakter Mitte zu hoch: 2 px tiefer (optische Mitte).
+  shape(ctx, SUIT_SHAPES[suit], x + 9, y + 15 + (suit === 'H' ? 2 : 0), ink, 2);
 }
 
 function drawJoker(ctx: Ctx, x: number, y: number): void {
