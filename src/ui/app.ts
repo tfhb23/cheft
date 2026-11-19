@@ -1522,7 +1522,7 @@ export class App {
       const s = this.scale();
       const layers = Math.min(7, Math.ceil(n / 8));
       const shadows: string[] = [];
-      for (let i = 1; i <= layers; i++) shadows.push(`${i * s}px ${i * s}px 0 0 var(--cream)`, `${i * s}px ${i * s}px 0 1px var(--sand-dark)`);
+      for (let i = 1; i <= layers; i++) shadows.push(`${i * s}px ${i * s}px 0 0 var(--surface-field)`, `${i * s}px ${i * s}px 0 1px var(--line-soft)`);
       el.style.boxShadow = shadows.reverse().join(', ');
       el.style.marginBottom = `${layers * s}px`;
       el.style.marginRight = `${layers * s}px`;
