@@ -47,7 +47,7 @@ kd('4 Haar über rechte Schulter',merge(side(True,15,23,seq(2,[0,0])),side(False
 kd('5 Fall verbreitert sich, wellig',merge(side(True,15,20,lambda y:2),side(True,21,28,lambda y:2-(1 if y>=24 else 0)+[0,1,1,0,0,1,1,0][y-21],3 if False else 2),side(False,15,20,lambda y:2),side(False,21,28,lambda y:2-(1 if y>=24 else 0)+[1,0,0,1,1,0,0,1][y-21],2)))
 kd('6 gestufte Spitzen',merge(side(True,15,22,lambda y:2),pix([(2,23),(3,23),(2,24),(3,24),(2,25),(3,25),(2,26),(2,27)],'H'),side(False,15,22,lambda y:2),pix([(13,23),(14,23),(13,24),(14,24),(13,25),(14,25),(14,26),(14,27),(14,28)],'H')))
 kd('7 Seitenscheitel, links kurz',merge(side(True,15,19,lambda y:3),side(False,15,28,seq(2,[0,1,2,1,0,1]),2),pix([(5,14),(5,15),(6,15)],'H')))
-kd('8 wellig mit Goldbändern',merge(side(True,15,28,seq(2,W1)),side(False,15,28,seq(2,W2)),pix([(2,24),(3,24),(13,24),(14,24)],'G'),pix([(3,27),(13,27)],'G')))
+kd('8 wellig mit Goldbändern',merge(side(True,15,28,seq(3,W1)),side(False,15,28,seq(2,W2)),pix([(3,24),(4,24),(13,24),(14,24)],'G'),pix([(4,27),(13,27)],'G')))   # linke Strähne komplett 1 px nach rechts (symmetrisch zur rechten um Spalte 8), freigegeben
 # ======================= PIK BUBE: Mischung aus 12 (lang, Mittelscheitel) und 6 (rahmendes Haar), als Haar =======================
 PB=[]
 def pb(label,d,pal=None,extra=()): PB.append((label,art(d),pal or BK,list(extra)))

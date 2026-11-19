@@ -245,3 +245,7 @@ Neue Entwürfe (`entw6.py`): `pik_bube_4` (nur Merkmale von 12 und 6, als Haar) 
 Freigegeben und eingetragen (`zwillinge.py`, noch nicht exportiert): Kreuz König Person 2 (Mund 3 breit), Pik Bube Person 2 (Dach 12, links 6, rechts 12). Es fehlt nur noch die zweite Person beim Herz König. Übersicht: `images/final_layout_v10/uebersicht_final.png`.
 
 Licht/Schatten: `tiefe.py` hat jetzt die Option `TWO` für 2 Pixel breite Flächen (None = bisher flach, 'rechts', 'beide'), Standard bleibt None. Vergleich: `images/entw/licht_2breit.png`.
+
+# Runde 6 (live)
+
+Freigegeben und live: Karo Bube, Karo Dame, Karo König, Kreuz König (Glatze, runder Bart, Goldspange, Mund 3 breit), Pik Bube und Pik Dame Person 2 (siehe `zwillinge.py`). Schattenregel: 2 Pixel breite Flächen bekommen einen dunkleren rechten Pixel (`tiefe.TWO='rechts'`). Es fehlt nur noch Person 2 beim Herz König (bis dahin steht dort die erste Person doppelt).
