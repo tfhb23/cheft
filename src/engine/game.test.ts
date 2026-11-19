@@ -5,6 +5,7 @@ import {
   doLay,
   doDiscard,
   doLayOff,
+  layOffTargets,
   doDeclareCheft,
   doStealJoker,
   doUndoDraw,
@@ -24,6 +25,8 @@ import {
   tempCardIds,
 } from './game';
 import { viewFor } from './view';
+import { ALL_TYPES, findAllPartitions, ROMME_TYPES } from './melds';
+import { Card, makeRng } from './cards';
 import { CardPool, testGame, setHand } from './testutil';
 
 function freshTurn(state: GameState, pid: number) {
@@ -1040,5 +1043,93 @@ describe('Letzte Karte und Sortierung', () => {
     g.round.turn.mustUseId = null;
     g.round.turn.mustPairWithId = c4.id;
     expect(checkDiscard(g, a, c4.id).ok).toBe(false);
+  });
+});
+
+describe('Auslegen: gewählte Variante wird genau so gelegt', () => {
+  it('Joker bleibt dort, wo die Auswahl ihn zeigt (Q K J ≠ Q K A)', () => {
+    const g = testGame(3, 14);
+    const a = g.round.starter;
+    freshTurn(g, a);
+    g.round.players[a].opened = true;
+    const pool = new CardPool();
+    const [cq, ck, jk, x] = pool.takeAll('C12', 'C13', 'J', 'H3');
+    for (const order of [[jk, cq, ck], [cq, ck, jk]]) {
+      setHand(g, a, [cq, ck, jk, x]);
+      g.round.melds = [];
+      expect(doLay(g, a, [order.map((c) => c.id)]).ok).toBe(true);
+      expect(g.round.melds[0].cards.map((c) => c.id)).toEqual(order.map((c) => c.id));
+      expect(g.round.melds[0].startRank).toBe(order[0] === jk ? 11 : 12);
+    }
+  });
+
+  it('zufällige Auswahlen: jede angebotene Aufteilung wird exakt so ausgelegt', () => {
+    const rng = makeRng(2024);
+    let checked = 0;
+    for (let iter = 0; iter < 400; iter++) {
+      const g = testGame(3, 1 + iter);
+      const a = g.round.starter;
+      freshTurn(g, a);
+      g.round.players[a].opened = true;
+      g.round.players[a].mode = 'romme';
+      const deck = [...g.round.players[a].hand, ...g.round.players[(a + 1) % 3].hand, ...g.round.stock];
+      const pick: Card[] = [];
+      const suit = ['H', 'S', 'D', 'C'][Math.floor(rng() * 4)];
+      const start = 1 + Math.floor(rng() * 10);
+      const len = 3 + Math.floor(rng() * 3);
+      const jokers = deck.filter((c) => c.suit === 'J');
+      const nj = Math.floor(rng() * 3);
+      for (let i = 0; i < len; i++) {
+        const rank = ((start + i - 1) % 13) + 1;
+        const c = deck.find((d) => d.suit === suit && d.rank === rank && !pick.includes(d));
+        if (c && !(i > 0 && i < len && rng() < 0.2 && pick.filter(isJoker).length < nj)) pick.push(c);
+        else if (jokers[pick.filter(isJoker).length]) pick.push(jokers[pick.filter(isJoker).length]);
+      }
+      if (pick.length < 3) continue;
+      const extra = deck.find((d) => !pick.includes(d) && !isJoker(d))!;
+      setHand(g, a, [...pick, extra]);
+      const hand = g.round.players[a].hand;
+      const cards = pick.map((c) => hand.find((h) => h.id === c.id)!).filter(Boolean);
+      if (cards.length < 3) continue;
+      for (const types of [ROMME_TYPES, ALL_TYPES]) {
+        for (const part of findAllPartitions(cards, { types }, 500)) {
+          const groups = part.melds.map((m) => m.cards.map((c) => c.id));
+          const before = structuredClone(g);
+          const chk = checkLay(before, a, groups);
+          if (!chk.ok) continue;
+          expect(doLay(before, a, groups).ok).toBe(true);
+          part.melds.forEach((m, i) => {
+            const laid = before.round.melds[i];
+            expect(laid.type).toBe(m.type);
+            expect(laid.cards.map((c) => c.id)).toEqual(m.cards.map((c) => c.id));
+            expect(laid.startRank).toBe(m.startRank);
+          });
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(200);
+  });
+});
+
+describe('Anlegen: gewählte Seite wird genau so angelegt', () => {
+  it('Joker oben oder unten an eine Folge: jede angebotene Form entsteht wirklich', () => {
+    const g = testGame(3, 14);
+    const a = g.round.starter;
+    const pool = new CardPool();
+    const [c5, c6, c7, jk, x] = pool.takeAll('C5', 'C6', 'C7', 'J', 'H3');
+    for (const end of ['top', 'bottom'] as const) {
+      const h = structuredClone(g);
+      freshTurn(h, a);
+      h.round.players[a].opened = true;
+      h.round.melds = [{ id: 1, owner: (a + 1) % 3, type: 'run', cards: [c5, c6, c7], suit: 'C', startRank: 5 }];
+      setHand(h, a, [jk, x]);
+      const opts = layOffTargets(h, a, jk.id);
+      expect(opts.length).toBe(2);
+      const want = opts[end === 'top' ? 0 : 1].result;
+      expect(doLayOff(h, a, jk.id, 1, end).ok).toBe(true);
+      expect(h.round.melds[0].cards.map((c) => c.id)).toEqual(want.cards.map((c) => c.id));
+      expect(h.round.melds[0].startRank).toBe(want.startRank);
+    }
   });
 });

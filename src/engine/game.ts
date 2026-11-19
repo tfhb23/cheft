@@ -11,6 +11,7 @@ import {
   addOptions,
   asPair,
   asRun,
+  asRunAll,
   asSet,
   findPartition,
   jokerRepresents,
@@ -632,7 +633,7 @@ export function checkLay(state: GameState, pid: number, groups: number[][]): Res
   const shapes: MeldShape[] = [];
   for (const g of groups) {
     const cs = g.map((id) => all.find((c) => c.id === id)!);
-    const shape = cs.length === 2 ? asPair(cs) : pickBest(asRun(cs), asSet(cs));
+    const shape = readGroup(cs);
     if (!shape) return fail('err.invalidMeld');
     shapes.push(shape);
   }
@@ -674,6 +675,17 @@ export function checkLay(state: GameState, pid: number, groups: number[][]): Res
     return fail('err.carpetNeedsPair');
   }
   return { ok: true, plan: { shapes, cards: all, pairs, augen, isHand } };
+}
+
+/**
+ * Liest eine Gruppe in der übergebenen Reihenfolge. Ist die Reihenfolge selbst eine gültige Anordnung als Folge (Joker an
+ * genau diesen Stellen), gilt genau diese Anordnung, damit die gewählte Variante im Popup „Wie auslegen?“ wirklich gelegt
+ * wird. Nur sonst (z. B. beliebig sortierte Karten) gewinnt die augenreichste Lesart.
+ */
+function readGroup(cs: Card[]): MeldShape | null {
+  if (cs.length === 2) return asPair(cs);
+  const exact = asRunAll(cs).find((sh) => sh.cards.every((c, i) => c.id === cs[i].id));
+  return exact ?? pickBest(asRun(cs), asSet(cs));
 }
 
 function pickBest(a: MeldShape | null, b: MeldShape | null): MeldShape | null {
