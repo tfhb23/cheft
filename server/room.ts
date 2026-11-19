@@ -4,7 +4,7 @@
  */
 import { makeRng } from '../src/engine/cards';
 import { Action, applyAction } from '../src/engine/actions';
-import { BotProfile, GameState, PlayerInfo, Settings, current, newGame } from '../src/engine/game';
+import { BotProfile, GameState, PlayerInfo, Settings, abortTurn, current, newGame } from '../src/engine/game';
 import { GameView, viewFor } from '../src/engine/view';
 import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots, sanitizeChoice } from '../src/bot/names';
@@ -562,6 +562,8 @@ export class Room {
     const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
+    // Ein beim Einschlafen angefangener Zug wird zurückgesetzt, damit niemand mit einer Pflichtkarte hängen bleibt.
+    if (this.state) abortTurn(this.state);
     this.rev = snap.rev;
     // Nach dem Wiederherstellen warten alle, bis die Menschen wieder verbunden sind.
     this.paused = this.state ? (this.paused ?? snap.paused ?? 'auto') : null;
@@ -714,6 +716,8 @@ export class Room {
     const s = this.state;
     if (!s) return null;
     const confirm = s.round.waiting || s.round.ended;
+    // Ein Mensch, den der Autopilot vertritt, hat seinen Zug vielleicht mit einer Pflichtkarte angefangen: erst zurücksetzen.
+    if (!confirm && !this.seats[pid]?.isBot && current(s) === pid) abortTurn(s);
     const action: Action = confirm ? { kind: 'ready' } : decideAction(s, pid);
     const res = applyAction(s, pid, action);
     if (confirm) this.checkFinishedConfirm();

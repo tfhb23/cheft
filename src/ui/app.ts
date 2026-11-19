@@ -9,6 +9,7 @@ import {
   GameState,
   PlayerInfo,
   Settings,
+  abortTurn,
   checkDraw,
   checkDeclareCheft,
   checkLay,
@@ -382,6 +383,8 @@ export class App {
   private parseSave(raw: string): SaveFile | null {
     const s = JSON.parse(raw) as SaveFile;
     if (!s || !s.state || !s.state.round || s.state.finished) return null;
+    // Ein angefangener Zug (z. B. mit genommener Ablagekarte) beginnt nach dem Laden wieder am Rücksetzpunkt.
+    abortTurn(s.state);
     return { state: s.state, order: Array.isArray(s.order) ? s.order : [] };
   }
   private save(): void {

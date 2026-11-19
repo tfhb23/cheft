@@ -20,7 +20,10 @@ import {
   dealRound,
   scoreOrder,
   GameState,
+  abortTurn,
+  tempCardIds,
 } from './game';
+import { viewFor } from './view';
 import { CardPool, testGame, setHand } from './testutil';
 
 function freshTurn(state: GameState, pid: number) {
@@ -203,9 +206,11 @@ describe('Cheft', () => {
     doDiscard(g, a, g.round.players[a].hand[0].id); // Herz König liegt
     // b kann mit HK + SK + DK (30) und H4-5-6 (15) nur 45 -> nicht
     setHand(g, b, p.takeAll('SK', 'DK', 'H4', 'H5', 'H6', 'D2', 'D9', 'C3', 'C8', 'S2', 'S5', 'H10', 'D4', 'C5'));
-    let res = checkDraw(g, b, 'discard');
+    // Für Bots gilt die strenge Vorabprüfung, ein Mensch darf nehmen und muss danach rauskommen (sonst Zug zurücksetzen)
+    let res = checkDraw(g, b, 'discard', true);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe('err.rommeDiscardNoOpen');
+    expect(checkDraw(g, b, 'discard').ok).toBe(true);
     // mit SD-SK-SA (31) + HK DK CK? wir haben CK nicht; nutze HK+SK+DK (30) + Folge 10-B-D Herz (30) = 60
     setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
     res = doDraw(g, b, 'discard');
@@ -397,13 +402,14 @@ describe('Bereit-Phase und Ablage nach dem Rauskommen', () => {
     if (!d.ok) expect(d.error).toBe('err.mustUseTaken');
     expect(checkUndoDraw(g, b).ok).toBe(true);
     expect(doLayOff(g, b, h7.id, 50).ok).toBe(true);
-    expect(checkUndoDraw(g, b).ok).toBe(false);
+    expect(checkUndoDraw(g, b).ok).toBe(true); // zurücksetzen geht auch nach dem Anlegen
     expect(doDiscard(g, b, hb[0].id).ok).toBe(true);
-    // Unbrauchbare Karte darf nicht genommen werden
+    // Unbrauchbare Karte: Bots nehmen sie nicht (strenge Prüfung), ein Mensch darf sie nehmen und setzt dann zurück
     const c = (b + 1) % 3;
     g.round.players[c].opened = true;
     setHand(g, c, p.takeAll('S3', 'C10'));
-    expect(checkDraw(g, c, 'discard').ok).toBe(false);
+    expect(checkDraw(g, c, 'discard', true).ok).toBe(false);
+    expect(checkDraw(g, c, 'discard').ok).toBe(true);
   });
 });
 
@@ -442,7 +448,7 @@ describe('Ablagekarte nehmen, wenn man schon draußen ist', () => {
     freshTurn(g, b);
     g.round.turn.phase = 'draw';
     setHand(g, b, p.takeAll('S2', 'D9', 'J'));
-    expect(checkDraw(g, b, 'discard').ok).toBe(false);
+    expect(checkDraw(g, b, 'discard', true).ok).toBe(false);
   });
 });
 
@@ -506,7 +512,7 @@ describe('Joker eintauschen', () => {
     freshTurn(g, b);
     g.round.turn.phase = 'draw';
     setHand(g, b, p.takeAll('C2', 'D12'));
-    expect(checkDraw(g, b, 'discard').ok).toBe(false);
+    expect(checkDraw(g, b, 'discard', true).ok).toBe(false);
   });
 });
 
@@ -538,7 +544,10 @@ describe('Stapel leer: Teppichkarte im letzten Zug', () => {
     expect(g.round.players[b].mode).toBe('romme');
     expect(g.round.turn.mustPairWithId).toBeNull();
     expect(g.round.players[b].hand.some((c) => c.id === carpet.id)).toBe(true);
-    expect(checkUndoDraw(g, b).ok).toBe(false); // wie eine Stapelkarte
+    // wie eine Stapelkarte: Zurücksetzen lässt die Karte auf der Hand
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.carpet).toBeNull();
+    expect(g.round.players[b].hand.some((c) => c.id === carpet.id)).toBe(true);
     expect(doDiscard(g, b, g.round.players[b].hand[0].id).ok).toBe(true);
     expect(g.round.ended).toBe(true);
     expect(g.round.result!.reason).toBe('stock');
@@ -560,8 +569,8 @@ describe('Stapel leer: Teppichkarte im letzten Zug', () => {
   });
 });
 
-describe('Zurücklegen', () => {
-  it('Ablagekarte zurücklegen, solange nichts liegt', () => {
+describe('Zug zurücksetzen', () => {
+  it('Ablagekarte: Zurücksetzen legt sie zurück auf die Ablage und stellt alles wie vor dem Zug her', () => {
     const g = testGame(3, 21);
     const p = new CardPool();
     const a = g.round.starter;
@@ -576,11 +585,31 @@ describe('Zurücklegen', () => {
     expect(g.round.turn.phase).toBe('draw');
     expect(g.round.discard[g.round.discard.length - 1].rank).toBe(13);
     expect(g.round.players[b].hand.length).toBe(14);
-    // Vom Stapel ziehen ist kein Rückgängig-Fall
-    expect(doDraw(g, b, 'stock').ok).toBe(true);
-    expect(checkUndoDraw(g, b).ok).toBe(false);
+    expect(g.round.taken).toEqual([]);
   });
-  it('Teppichkarte zurücklegen nimmt die Cheft-Ansage zurück', () => {
+  it('Stapel: Die gezogene Karte bleibt auf der Hand, alles danach lässt sich zurücksetzen', () => {
+    const g = testGame(3, 23);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    const stockBefore = g.round.stock.length;
+    expect(checkUndoDraw(g, b).ok).toBe(false); // vor dem Ziehen gibt es nichts zurückzusetzen
+    expect(doDraw(g, b, 'stock').ok).toBe(true);
+    const drawn = g.round.turn.drawnCardId!;
+    // Danach ablegen, wieder zurücksetzen: Die Stapelkarte bleibt auf der Hand, nie wieder auf dem Stapel
+    const handBefore = g.round.players[b].hand.map((c) => c.id);
+    const ids = g.round.players[b].hand.slice(0, 3).map((c) => c.id);
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.players[b].hand.map((c) => c.id)).toEqual(handBefore);
+    expect(g.round.stock.length).toBe(stockBefore - 1);
+    expect(g.round.players[b].hand.some((c) => c.id === drawn)).toBe(true);
+    expect(g.round.turn.phase).toBe('play');
+    expect(ids.length).toBe(3);
+  });
+  it('Teppichkarte zurücksetzen: Die Karte geht zurück, die Cheft-Ansage bleibt (sie gilt für die Runde)', () => {
     const g = testGame(3, 22);
     const p = new CardPool();
     const a = g.round.starter;
@@ -594,11 +623,173 @@ describe('Zurücklegen', () => {
     setHand(g, b, [pool2.take(spec), ...pool2.takeAll('C7', 'C7', 'H2', 'H2', 'S9', 'S9', 'DK', 'DK', 'H5', 'H8', 'S3', 'S4', 'D10')]);
     expect(doDraw(g, b, 'carpet').ok).toBe(true);
     expect(g.round.players[b].mode).toBe('cheft');
-    expect(g.round.cheftAnnounced).toBe(true);
     expect(doUndoDraw(g, b).ok).toBe(true);
-    expect(g.round.players[b].mode).toBe('romme');
-    expect(g.round.cheftAnnounced).toBe(false);
+    expect(g.round.players[b].mode).toBe('cheft');
+    expect(g.round.cheftAnnounced).toBe(true);
     expect(g.round.carpet!.id).toBe(carpet.id);
+    expect(g.round.turn.phase).toBe('draw');
+    expect(g.round.players[b].hand.length).toBe(14);
+  });
+  it('Cheft ansagen mit genommener Ablagekarte: erlaubt, die Pflicht entfällt, und Zurücksetzen nimmt es nicht zurück', () => {
+    const g = testGame(3, 24);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    expect(g.round.turn.mustOpenWithId).not.toBeNull();
+    expect(tempCardIds(g.round).length).toBe(1);
+    expect(doDeclareCheft(g, b).ok).toBe(true);
+    expect(g.round.turn.mustOpenWithId).toBeNull();
+    expect(tempCardIds(g.round)).toEqual([]);
+    expect(doUndoDraw(g, b).ok).toBe(true);
+    expect(g.round.players[b].mode).toBe('cheft');
+    expect(g.round.discard[g.round.discard.length - 1].rank).toBe(13);
+  });
+  it('Beispielzug: Ablagekarte nehmen, Joker mit der Handkarte klauen, Joker als Lücke und die Ablagekarte anlegen', () => {
+    const g = testGame(3, 25);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    // a hat Kreuz 6-7-Joker (Joker = 8) ausgelegt; b ist draußen
+    g.round.players[a].opened = true;
+    g.round.players[b].opened = true;
+    g.round.melds.push({ id: 70, owner: a, type: 'run', cards: p.takeAll('C6', 'C7', 'J'), suit: 'C', startRank: 6 });
+    g.round.discard = [p.take('C10')];
+    g.round.lastDiscarderMode = 'romme';
+    freshTurn(g, b);
+    g.round.turn.phase = 'draw';
+    setHand(g, b, p.takeAll('C8', 'S2', 'D5'));
+    // Die Karte lässt sich direkt nirgends anlegen, aber ein Mensch darf sie nehmen
+    expect(checkDraw(g, b, 'discard', true).ok).toBe(false);
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    expect(tempCardIds(g.round)).toEqual([g.round.turn.mustUseId]);
+    const c8 = g.round.players[b].hand.find((c) => c.suit === 'C' && c.rank === 8)!;
+    expect(doStealJoker(g, b, 70, 2, c8.id).ok).toBe(true);
+    const joker = g.round.players[b].hand.find(isJoker)!;
+    expect(tempCardIds(g.round).length).toBe(2);
+    expect(checkDiscard(g, b, g.round.players[b].hand[0].id).ok).toBe(false);
+    expect(doLayOff(g, b, joker.id, 70, 'top').ok).toBe(true);
+    const c10 = g.round.players[b].hand.find((c) => c.suit === 'C' && c.rank === 10)!;
+    expect(doLayOff(g, b, c10.id, 70, 'top').ok).toBe(true);
+    expect(tempCardIds(g.round)).toEqual([]);
+    expect(g.round.melds[0].cards.length).toBe(5);
+    const rest = g.round.players[b].hand[0];
+    expect(doDiscard(g, b, rest.id).ok).toBe(true);
+  });
+  it('Mit einer vorübergehenden Karte auf der Hand lässt sich nicht abwerfen; nach dem Auslegen ohne sie auch nicht', () => {
+    const g = testGame(3, 26);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    expect(doDraw(g, b, 'discard').ok).toBe(true);
+    const hb = g.round.players[b].hand;
+    // Erstmeldung ohne die genommene Karte (Herz König) wird abgelehnt
+    const lay = doLay(g, b, [[hb.find((c) => c.rank === 12)!.id, hb.find((c) => c.rank === 11)!.id, hb.find((c) => c.rank === 10 && c.suit === 'H')!.id]]);
+    expect(lay.ok).toBe(false);
+  });
+  it('die Spieler-Sicht zeigt vorübergehende Karten offen, nie den Rücksetzpunkt', () => {
+    const g = testGame(3, 27);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    doDraw(g, b, 'discard');
+    const view = viewFor(g, a);
+    expect(view.round.turn.rewind).toBeUndefined();
+    expect(view.round.turn.canRewind).toBe(true);
+    const open = view.round.players[b].hand.filter((c) => c.id >= 0);
+    expect(open.length).toBe(1);
+    expect(open[0].rank).toBe(13);
+    expect(view.round.players[b].hand.filter((c) => c.id < 0).length).toBe(14);
+    expect(JSON.stringify(view)).not.toContain('"rewind":"');
+  });
+  it('abortTurn setzt einen angefangenen Zug zurück (Neuladen, Autopilot)', () => {
+    const g = testGame(3, 28);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    setHand(g, a, p.takeAll('HK', 'D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    setHand(g, b, p.takeAll('SK', 'DK', 'H10', 'HB', 'HD', 'D2', 'D9', 'C3', 'C9', 'S2', 'S5', 'H9', 'D4', 'C5'));
+    doDraw(g, b, 'discard');
+    abortTurn(g);
+    expect(g.round.turn.phase).toBe('draw');
+    expect(g.round.players[b].hand.length).toBe(14);
+    expect(g.round.discard[g.round.discard.length - 1].rank).toBe(13);
+  });
+});
+
+describe('Teppichkarte für Cheft-Spieler, die schon fünf Paare ausgelegt haben', () => {
+  /** b ist Cheft, hat fünf Paare ausgelegt und am Zug. Handkarten vor dem Ziehen: `hand`. Teppichkarte: Herz Dame. */
+  function scene(seed: number, hand: (p: CardPool) => ReturnType<CardPool['takeAll']>, laid = 5) {
+    const g = testGame(3, seed);
+    const p = new CardPool();
+    const a = g.round.starter;
+    const b = (a + 1) % 3;
+    freshTurn(g, a);
+    g.round.carpet = p.take('HD');
+    setHand(g, a, p.takeAll('D3', 'C8'));
+    doDiscard(g, a, g.round.players[a].hand[0].id);
+    const pb = g.round.players[b];
+    pb.mode = 'cheft';
+    pb.opened = true;
+    pb.pairsLaid = laid;
+    g.round.cheftAnnounced = true;
+    setHand(g, b, hand(p));
+    return { g, b };
+  }
+
+  it('genau vier Handkarten mit Zwilling und einem weiteren Paar: erlaubt; beide Paare liegen auf einmal, dann ist die Runde aus', () => {
+    const { g, b } = scene(61, (p) => p.takeAll('HD', 'C7', 'C7', 'S3'));
+    expect(checkDraw(g, b, 'carpet').ok).toBe(true);
+    expect(doDraw(g, b, 'carpet').ok).toBe(true);
+    expect(tempCardIds(g.round).length).toBe(1);
+    const h = g.round.players[b].hand;
+    expect(checkDiscard(g, b, h.find((c) => c.suit === 'S')!.id).ok).toBe(false);
+    // nur ein Paar (sechstes Paar) ist nicht erlaubt, auch nicht in Schritten
+    const twin = h.find((c) => c.rank === 12 && c.id !== g.round.turn.mustPairWithId)!;
+    const only = doLay(g, b, [[g.round.turn.mustPairWithId!, twin.id]]);
+    expect(only.ok).toBe(false);
+    const sevens = h.filter((c) => c.rank === 7).map((c) => c.id);
+    expect(doLay(g, b, [[g.round.turn.mustPairWithId!, twin.id], sevens]).ok).toBe(true);
+    expect(doDiscard(g, b, h.find((c) => c.suit === 'S')!.id).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+    expect(g.round.result!.winner).toBe(b);
+  });
+  it('das weitere Paar darf mit einem Joker gebildet werden', () => {
+    const { g, b } = scene(62, (p) => p.takeAll('HD', 'J', 'C7', 'S3'));
+    expect(checkDraw(g, b, 'carpet').ok).toBe(true);
+  });
+  it('mit Joker als einzigem Partner der Teppichkarte, anderer Handkartenzahl oder anderer Paarzahl nicht', () => {
+    const jokerOnly = scene(63, (p) => p.takeAll('J', 'C7', 'C7', 'S3'));
+    expect(checkDraw(jokerOnly.g, jokerOnly.b, 'carpet').ok).toBe(false);
+    const five = scene(64, (p) => p.takeAll('HD', 'C7', 'C7', 'S3', 'S4'));
+    expect(checkDraw(five.g, five.b, 'carpet').ok).toBe(false);
+    const three = scene(65, (p) => p.takeAll('HD', 'C7', 'C7'));
+    expect(checkDraw(three.g, three.b, 'carpet').ok).toBe(false);
+    const nopair = scene(66, (p) => p.takeAll('HD', 'C7', 'S9', 'S3'));
+    expect(checkDraw(nopair.g, nopair.b, 'carpet').ok).toBe(false);
+    const seven = scene(67, (p) => p.takeAll('HD', 'C7', 'C7', 'S3'), 7);
+    expect(checkDraw(seven.g, seven.b, 'carpet').ok).toBe(false);
+  });
+  it('ein Rommé-Spieler, der draußen ist, darf die Teppichkarte nie nehmen', () => {
+    const { g, b } = scene(68, (p) => p.takeAll('HD', 'C7', 'C7', 'S3'));
+    g.round.players[b].mode = 'romme';
+    const r = checkDraw(g, b, 'carpet');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('err.carpetOnlyCheft');
   });
 });
 

@@ -238,15 +238,15 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
       const wants = pairsAfter >= 5 || (mate && pairsAfter >= pairTake && (p.mode === 'cheft' || pairsAfter >= cheftEager || chance(state, pid, k.gamble * 0.4)));
       if (mate && wants) {
         if (p.mode === 'romme' && checkDeclareCheft(state, pid).ok) return { kind: 'declareCheft' };
-        if (checkDraw(state, pid, 'discard').ok) return { kind: 'draw', source: 'discard' };
+        if (checkDraw(state, pid, 'discard', true).ok) return { kind: 'draw', source: 'discard' };
       }
     }
-    if (top && p.opened && checkDraw(state, pid, 'discard').ok && usableAfterOpening(view, pid, top)) {
+    if (top && p.opened && checkDraw(state, pid, 'discard', true).ok && usableAfterOpening(view, pid, top)) {
       return { kind: 'draw', source: 'discard' };
     }
     const stockEmpty = r.stock.length === 0;
-    if (r.carpet && !per.carpetBlind && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
-    if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard').ok) {
+    if (r.carpet && !per.carpetBlind && !stockEmpty && !p.opened && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
+    if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard', true).ok) {
       // Die Ablagekarte zu nehmen heißt, sofort rauszukommen: Das lohnt nur, wenn Warten nicht besser wäre
       if (!(hunter && holdForHand(state, pid, hunter, k.handReach)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
     }
