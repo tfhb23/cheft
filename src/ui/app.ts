@@ -562,6 +562,7 @@ export class App {
     void this.syncWakeLock();
     this.labels.refresh(this.prefs.dsLabels);
     this.nav.sync();
+    this.refreshPeek();
   }
 
   // ------------------------------------------------------------ Eigener Dialog
@@ -1033,14 +1034,15 @@ export class App {
   // ------------------------------------------------------------ Rückblick auf Abwürfe
   private peekSuppress = false;
   private peekLayer: HTMLElement | null = null;
+  private peekShown = new Set<string>();
   private peekTimer: number | null = null;
 
-  /** Rückblick ist erlaubt (Einstellung), wenn man an der Reihe ist und schon Abwürfe vorliegen. */
+  /** Rückblick ist erlaubt (Einstellung), sobald Abwürfe vorliegen, auch wenn man nicht an der Reihe ist. */
   private canPeek(): boolean {
     const s = this.state;
     if (!s || this.screen !== 'game' || this.drag) return false;
     const r = s.round;
-    return !!s.settings.peekDiscards && current(s) === this.me && !r.ended && !r.waiting && (r.discardLog ?? []).length > 0;
+    return !!s.settings.peekDiscards && !r.ended && !r.waiting && (r.discardLog ?? []).length > 0;
   }
 
   /** Langes Drücken auf die Ablage zeigt die letzten Abwürfe, solange der Finger bleibt. */
@@ -1078,42 +1080,10 @@ export class App {
    */
   private showPeek(): void {
     if (!this.canPeek() || this.peekLayer) return;
-    const s = this.state!;
-    const r = s.round;
-    // Einmal um den Tisch, also auch die eigene zuletzt abgelegte Karte: so sieht man, ob sie inzwischen genommen wurde.
-    const entries = (r.discardLog ?? []).slice(-s.players.length);
-    const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
-    if (!entries.length || !pile) return;
+    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')));
+    if (!this.fillPeek(layer, new Set())) return;
     this.peekSuppress = true;
     vibrate(VIB.short, this.prefs.vibration);
-    const layer = h('div', { class: 'peek-layer' }, h('div', { class: 'peek-banner' }, t('peek.title')));
-    const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
-    const margin = pile.width * 0.7;
-    entries.forEach((e, i) => {
-      const seat = this.seatRect(e.player);
-      const sc = seat ? { x: seat.left + seat.width / 2, y: seat.top + seat.height / 2 } : { x: pc.x, y: pc.y - 200 };
-      // Gut die Hälfte des Wegs von der Ablage zum Sitz, aber im Bild bleiben
-      let tx = pc.x + (sc.x - pc.x) * 0.58;
-      let ty = pc.y + (sc.y - pc.y) * 0.58;
-      tx = Math.min(window.innerWidth - margin, Math.max(margin, tx));
-      ty = Math.min(window.innerHeight - margin * 1.6, Math.max(margin * 1.4, ty));
-      const len = Math.hypot(tx - pc.x, ty - pc.y);
-      const line = h('div', { class: 'peek-line' });
-      line.style.cssText = `left:${pc.x}px;top:${pc.y}px;width:${len}px;transform:rotate(${Math.atan2(ty - pc.y, tx - pc.x)}rad)`;
-      const takenBy = r.taken.find((x) => x.card.id === e.card.id);
-      const stillThere = r.discard.some((c) => c.id === e.card.id);
-      const who = s.players[e.player].name;
-      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: s.players[takenBy.player].name })) : null);
-      const card = this.cardEl(e.card, {});
-      delete card.dataset.cardId;
-      const item = h('div', { class: `peek-item${takenBy && !stillThere ? ' taken' : ''}` }, card, tag);
-      item.style.left = `${tx - pile.width / 2}px`;
-      item.style.top = `${ty - pile.height / 2}px`;
-      item.style.width = `${pile.width}px`;
-      layer.appendChild(line);
-      layer.appendChild(item);
-      item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.peekIn, delay: i * MOTION.peekStagger, easing: EASE_FLY, fill: 'backwards' });
-    });
     document.body.appendChild(layer);
     this.peekLayer = layer;
     // Nach dem Loslassen bleibt die Ansicht stehen (der Daumen ist sonst im Weg). Erst das nächste Tippen irgendwo
@@ -1140,6 +1110,66 @@ export class App {
     };
     document.addEventListener('pointerup', released);
     document.addEventListener('pointercancel', released);
+  }
+
+  /** Die zuletzt abgeworfene Karte jedes Spielers (auch die eigene: so sieht man, ob sie inzwischen genommen wurde). */
+  private lastDiscards(): { player: number; card: Card }[] {
+    const seen = new Set<number>();
+    const out: { player: number; card: Card }[] = [];
+    for (const e of [...(this.state!.round.discardLog ?? [])].reverse()) {
+      if (seen.has(e.player)) continue;
+      seen.add(e.player);
+      out.push(e);
+    }
+    return out.reverse();
+  }
+
+  /** Baut die Karten des Rückblicks neu auf; nur Karten, die nicht in `keep` stehen, fliegen animiert ein. Liefert false, wenn nichts anzuzeigen ist. */
+  private fillPeek(layer: HTMLElement, keep: Set<string>): boolean {
+    const s = this.state!;
+    const r = s.round;
+    const entries = this.lastDiscards();
+    const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
+    if (!entries.length || !pile) return false;
+    layer.querySelectorAll('.peek-line, .peek-item').forEach((n) => n.remove());
+    this.peekShown = new Set(entries.map((e) => e.card.id));
+    const pc = { x: pile.left + pile.width / 2, y: pile.top + pile.height / 2 };
+    const margin = pile.width * 0.7;
+    entries.forEach((e, i) => {
+      const seat = this.seatRect(e.player);
+      const sc = seat ? { x: seat.left + seat.width / 2, y: seat.top + seat.height / 2 } : { x: pc.x, y: pc.y - 200 };
+      // Gut die Hälfte des Wegs von der Ablage zum Sitz, aber im Bild bleiben
+      let tx = pc.x + (sc.x - pc.x) * 0.58;
+      let ty = pc.y + (sc.y - pc.y) * 0.58;
+      tx = Math.min(window.innerWidth - margin, Math.max(margin, tx));
+      ty = Math.min(window.innerHeight - margin * 1.6, Math.max(margin * 1.4, ty));
+      const len = Math.hypot(tx - pc.x, ty - pc.y);
+      const line = h('div', { class: 'peek-line' });
+      line.style.cssText = `left:${pc.x}px;top:${pc.y}px;width:${len}px;transform:rotate(${Math.atan2(ty - pc.y, tx - pc.x)}rad)`;
+      const takenBy = r.taken.find((x) => x.card.id === e.card.id);
+      const stillThere = r.discard.some((c) => c.id === e.card.id);
+      const who = s.players[e.player].name;
+      const tag = h('div', { class: 'peek-tag' }, who, takenBy && !stillThere ? h('div', { class: 'peek-taken' }, t('peek.taken', { name: s.players[takenBy.player].name })) : null);
+      const card = this.cardEl(e.card, {});
+      delete card.dataset.cardId;
+      const item = h('div', { class: `peek-item${takenBy && !stillThere ? ' taken' : ''}` }, card, tag);
+      item.style.left = `${tx - pile.width / 2}px`;
+      item.style.top = `${ty - pile.height / 2}px`;
+      item.style.width = `${pile.width}px`;
+      layer.appendChild(line);
+      layer.appendChild(item);
+      if (!keep.has(e.card.id)) item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.peekIn, delay: keep.size ? 0 : i * MOTION.peekStagger, easing: EASE_FLY, fill: 'backwards' });
+    });
+    return true;
+  }
+
+  /** Nach jedem Neuaufbau: läuft der Rückblick, zeigt er sofort die neuesten Abwürfe (nur neue Karten fliegen ein). */
+  private refreshPeek(): void {
+    const layer = this.peekLayer;
+    if (!layer) return;
+    const s = this.state;
+    if (!s || this.screen !== 'game' || s.round.ended || !s.settings.peekDiscards) return this.hidePeek();
+    this.fillPeek(layer, this.peekShown);
   }
 
   /** Eine gezogene Karte fliegt vom Stapel (verdeckt) oder von der Ablage (offen) zum Sitz des Spielers. */
