@@ -14,7 +14,7 @@ import { ICONS, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
 import { BACK_DESIGNS } from './backs';
-import { MAX_RATIO, START, tableLadder } from './tablescale';
+import { MAX_RATIO, START, deviceClass, tableLadder } from './tablescale';
 import { SOUND_CATALOG, VIBRATION_CATALOG, preview, vibrate } from './sound';
 import {
   BORDER_TOKENS,
@@ -715,14 +715,14 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'Kartengrößen am Tisch',
       where: 'Auslagen aller Sitze (--so) und Tischmitte: Stapel, Ablage, Teppichkarte (--sc). Die Handkarten bleiben bei --s',
       code: 'tablescale.ts › tableLadder() · App.layoutTable',
-      stage: () => h('div', { class: 'hint' }, 'Beispiel dieses Geräts: ' + tableLadder(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1).map((x) => `${x.a} / ${x.c}`).join(' → ')),
+      stage: () => h('div', { class: 'hint' }, 'Beispiel dieses Geräts: ' + tableLadder(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, deviceClass(typeof window === 'undefined' ? 800 : window.innerWidth, typeof window === 'undefined' ? 600 : window.innerHeight), rootScale()).map((x) => `${x.a} / ${x.c}`).join(' → ')),
       stageCls: 'flat',
       facts: [
-        ['Regel', `Die Mitte ist nie kleiner als die Auslagen und höchstens ${MAX_RATIO}-mal so groß, keine Obergrenze durch die Handkarten.`],
+        ['Regel', `Die Mitte ist nie kleiner als die Auslagen und höchstens ${MAX_RATIO}-mal so groß, nie größer als die Hand.`],
         ['Stufen', 'Ganze Geräte-Pixel je Kartenpixel: n ÷ Pixeldichte (Dichte 1: 1, 2, 3 · Dichte 2: auch Halbschritte · Dichte 3: Drittel). Fehlt eine kleine Stufe, ist 1 die Notstufe.'],
-        ['Bezugsgröße (Auslagen / Mitte)', `Handy schmal (bis 380 px) ${START.phoneNarrow.a} / ${START.phoneNarrow.c} · Handy ${START.phone.a} / ${START.phone.c} · Tablet, flacher Desktop ${START.tablet.a} / ${START.tablet.c} · großer Desktop ${START.desktop.a} / ${START.desktop.c}, jeweils auf die Stufen des Bildschirms gerundet. Darunter entfallen die Beschriftungen (6.45).`],
-        ['Verkleinern', 'Der Tisch beginnt bei der größten Stufe (bis 4) und geht bei Platzmangel schrittweise nach unten (größte Summe zuerst), innerhalb einer Runde nie wieder größer. Neu bestimmt wird bei neuer Runde, nach „Bereit“ und bei anderer Fenstergröße.'],
-        ['Beschriftungen', 'Sobald etwas kleiner ist als die Bezugsgröße, entfallen „Stapel“, „Ablage“ und „Teppich“ (6.45).'],
+        ['Start (Auslagen / Mitte)', `Handy schmal (bis 380 px) ${START.phoneNarrow.a} / ${START.phoneNarrow.c} · Handy ${START.phone.a} / ${START.phone.c} · Tablet, flacher Desktop ${START.tablet.a} / ${START.tablet.c} · großer Desktop ${START.desktop.a} / ${START.desktop.c}, jeweils auf die Stufen des Bildschirms gerundet.`],
+        ['Verkleinern', 'Bei Platzmangel schrittweise nach unten (größte Summe zuerst), innerhalb einer Runde nie wieder größer. Neu bestimmt wird bei neuer Runde, nach „Bereit“ und bei anderer Fenstergröße.'],
+        ['Beschriftungen', 'Sobald etwas kleiner ist als zum Start, entfallen „Stapel“, „Ablage“ und „Teppich“ (6.45).'],
       ],
     },
     { id: '6.50', name: 'Status-Zeile', where: 'Zwischen Tisch und Hand: Meldung links, Info rechts', code: '.status', sel: '.status', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'msg' }, t('turn.you.play')), h('span', { class: 'info' }, t('threshold', { n: 51 }))), stageCls: 'flat', live: 'box', liveSel: '.status' },

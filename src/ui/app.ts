@@ -15,6 +15,7 @@ import {
   checkDeclareCheft,
   checkLay,
   checkStealJoker,
+  checkLayOff,
   current,
   layOffTargets,
   newGame,
@@ -37,7 +38,7 @@ import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
-import { ScaleStep, baseStep, deviceClass, tableLadder } from './tablescale';
+import { ScaleStep, deviceClass, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -1719,8 +1720,8 @@ export class App {
 
   /**
    * Kartengrößen am Tisch und Sitzgrößen. Alle Auslagen (auch die eigene) haben eine Stufe, die Mitte eine eigene (höchstens 1,75-mal so groß).
-   * Es geht von der größten Stufe schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
-   * die Bezugsgröße des Geräts, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
+   * Es geht von der Startgröße des Geräts schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
+   * zum Start, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
    */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
@@ -1735,8 +1736,7 @@ export class App {
     const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
     const dpr = window.devicePixelRatio || 1;
-    const ladder = tableLadder(dpr);
-    const base = baseStep(dpr, deviceClass(window.innerWidth, window.innerHeight));
+    const ladder = tableLadder(dpr, deviceClass(window.innerWidth, window.innerHeight), s);
     const key = `${this.state?.round.no ?? 0}${this.state?.round.waiting ? 'w' : 'p'}:${this.state?.players.length ?? 0}:${window.innerWidth}x${window.innerHeight}@${dpr}`;
     if (this.tableStep.key !== key) this.tableStep = { key, index: 0 };
     const apply = (st: ScaleStep) => {
@@ -1770,8 +1770,7 @@ export class App {
       if (fits(ladder[i], layoutSides()) || i === ladder.length - 1) break;
     }
     this.tableStep.index = i;
-    // Beschriftungen der Mitte nur, solange nichts kleiner ist als die Bezugsgröße des Geräts
-    table.classList.toggle('shrunk', ladder[i].a < base.a - 1e-9 || ladder[i].c < base.c - 1e-9);
+    table.classList.toggle('shrunk', i > 0);
   }
 
   /**
@@ -1941,13 +1940,13 @@ export class App {
       if (Math.hypot(dx, dy) < 7) return;
       d.active = true;
       d.el.classList.add('dragging');
-      this.showDropAreas(true);
       this.fresh.delete(d.id);
       d.el.classList.remove('fresh');
       if (this.selected.has(d.id) && this.selected.size > 1) {
         d.group = this.order.filter((id) => this.selected.has(id));
         d.el.appendChild(h('div', { class: 'drag-badge' }, `×${d.group.length}`));
       }
+      this.showDropAreas(true, d.group.length === 1 ? d.id : null);
     }
     const handEl = this.root.querySelector('.hand') as HTMLElement;
     const hr = handEl.getBoundingClientRect();
@@ -1980,7 +1979,11 @@ export class App {
       const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       let zone = target ? (target.closest('.discard, .meld, .own') as HTMLElement | null) : null;
       // Ablage und Sätze gehen vor; sonst zählt der ganze Halbkreis (etwas größer) als Fläche zum Auslegen.
-      if (!zone || zone.classList.contains('own')) zone = this.inDiscZone(e.clientX, e.clientY) ? (this.root.querySelector('.own') as HTMLElement | null) : zone;
+      // Das Viereck um den eigenen Namen zählt nicht, nur der Halbkreis (Rückfall aufs Viereck nur, wenn es keinen Kreis gibt).
+      if (!zone || zone.classList.contains('own')) {
+        const circle = this.discZoneCircle();
+        zone = circle ? (this.inDiscZone(e.clientX, e.clientY) ? (this.root.querySelector('.own') as HTMLElement | null) : null) : zone;
+      }
       this.setOver(zone);
     }
   }
@@ -1999,9 +2002,21 @@ export class App {
   }
 
   /** Beim Ziehen: alle Flächen, auf denen man loslassen kann, hervorheben (Ablage, Sätze, Halbkreis zum Auslegen). */
-  private showDropAreas(on: boolean): void {
+  private showDropAreas(on: boolean, cardId: number | null = null): void {
     const table = this.root.querySelector('.table');
     table?.classList.toggle('drag-on', on);
+    // Nur Sätze, an die genau diese Karte wirklich angelegt werden kann (oder einen Joker austauschen), werden markiert
+    table?.querySelectorAll('.meld.can').forEach((e) => e.classList.remove('can'));
+    const st = this.state;
+    if (on && cardId !== null && st && current(st) === this.me && st.round.turn.phase === 'play' && !st.round.ended) {
+      const card = st.round.players[this.me].hand.find((c) => c.id === cardId);
+      table?.querySelectorAll<HTMLElement>('.meld').forEach((el) => {
+        const m = st.round.melds.find((x) => x.id === Number(el.dataset.meldId));
+        if (!m || !card) return;
+        const steal = !isJoker(card) && m.cards.some((mc, i) => isJoker(mc) && checkStealJoker(st, this.me, m.id, i, card.id).ok);
+        if (steal || checkLayOff(st, this.me, card.id, m.id).ok) el.classList.add('can');
+      });
+    }
     table?.querySelector('.drop-halo')?.remove();
     const c = on ? this.discZoneCircle() : null;
     const clip = table?.querySelector('.turn-clip') as HTMLElement | null;
@@ -2022,7 +2037,10 @@ export class App {
     if (d.over === zone) return;
     if (d.over) d.over.classList.remove('drop', 'hover');
     d.over = zone;
-    if (zone) zone.classList.add(zone.classList.contains('meld') ? 'hover' : 'drop');
+    if (zone) {
+      if (!zone.classList.contains('meld')) zone.classList.add('drop');
+      else if (zone.classList.contains('can')) zone.classList.add('hover');
+    }
     this.root.querySelector('.table')?.classList.toggle('drop-own', !!zone && zone.classList.contains('own'));
   }
 

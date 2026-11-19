@@ -207,10 +207,12 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
 .drop-halo { position: absolute; border: var(--bw-mark) dashed var(--accent); border-radius: 50%; box-sizing: border-box; pointer-events: none; }
-.table.drag-on .meld { outline: var(--bw-mark) dashed var(--line-soft); outline-offset: calc(-1 * var(--bw-mark)); }
-.table.drag-on .discard .card:last-child { outline: var(--bw-mark) dashed var(--line-soft); }
+.table.drag-on .meld.can { outline: var(--bw-mark) dashed var(--accent); outline-offset: calc(-1 * var(--bw-mark)); }
+/* Ablage als Ablageziel: gleiche gestrichelte Linie wie der Halbkreis zum Auslegen */
+.discard::after { content: ''; position: absolute; inset: 0; border: var(--bw-mark) dashed var(--accent); box-sizing: border-box; pointer-events: none; display: none; }
+.table.drag-on .discard::after { display: block; }
+.discard.drop::after { background: var(--surface-highlight); opacity: 0.5; }
 .table.drop-own .drop-halo { background: var(--surface-highlight); opacity: 0.5; }
-.own.drop { outline: var(--bw-mark) dashed var(--accent); outline-offset: calc(-1 * var(--bw-mark)); background: var(--surface-highlight); }
 .own-label { margin: var(--gap-hair) auto 0; width: fit-content; }
 .own .melds { justify-content: center; }
 .seat-inner { position: relative; transform-origin: top left; display: flex; flex-direction: column; gap: var(--gap-tight); }
@@ -281,7 +283,6 @@ details > * + * { margin-top: var(--gap-tight); }
 .stock-wrap > .card { position: relative; z-index: 1; box-shadow: var(--sh-card); }
 .discard { position: relative; width: calc(var(--card-w) + var(--discard-pad-x)); height: calc(var(--card-h) + var(--discard-pad-y)); }
 .discard .card { position: absolute; left: var(--discard-x); top: var(--discard-y); box-shadow: var(--sh-card); }
-.discard.drop .card:last-child { outline: var(--bw-mark) dashed var(--accent); }
 .discard .slot-hint { position: absolute; left: var(--discard-x); top: var(--discard-y); }
 .discard, .discard .card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
