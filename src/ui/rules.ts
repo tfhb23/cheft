@@ -25,7 +25,7 @@ export const RULES_DE: RuleSection[] = [
   {
     title: 'Spielablauf',
     items: [
-      'Der Startspieler wird ausgelost, bekommt eine 15. Karte und beginnt. Die Teppichkarte liegt offen unter dem Stapel. Ist sie ein Joker, bekommt der Startspieler ihn und die nächste Karte wird Teppichkarte.',
+      'Der Startspieler wird ausgelost, bekommt eine 15. Karte und beginnt. Die Teppichkarte liegt offen unter dem Stapel. Ist sie ein Joker, bekommt der Startspieler ihn und die nächste Karte wird Teppichkarte (bei zwei Jokern nacheinander bekommt er beide). Die Joker liegen bis „Bereit“ für alle sichtbar links neben der offenen Karte und wandern dann grün markiert in seine Hand.',
       'Schritt 1: Karte ziehen, verdeckt vom Stapel oder offen von der Ablage.',
       'Schritt 2 (optional): Mit Kombinationen rauskommen oder Karten an Kombinationen anlegen, auch bei Mitspielern.',
       'Schritt 3: Genau eine Karte abwerfen. Die letzte Handkarte muss immer abgeworfen werden.',

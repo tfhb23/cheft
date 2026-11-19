@@ -119,6 +119,11 @@ export interface RoundState {
   stock: Card[];
   discard: Card[];
   carpet: Card | null;
+  /**
+   * Joker, die beim Abheben als Teppichkarte aufgedeckt wurden und an den Startspieler gingen (öffentlich, jeder sieht sie am Tisch).
+   * Sie liegen bis „Bereit“ sichtbar neben der offenen Karte, danach sind sie normale Handkarten. Ältere Spielstände haben das Feld nicht.
+   */
+  carpetJokers?: Card[];
   melds: Meld[];
   nextMeldId: number;
   players: PlayerRound[];
@@ -209,8 +214,10 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
   // und die nächste Karte wird Teppichkarte.
   let carpet = deck.pop()!;
   let starterExtra = 0;
+  const carpetJokers: Card[] = [];
   while (isJoker(carpet)) {
     hands[starter].push(carpet);
+    carpetJokers.push(carpet);
     starterExtra++;
     carpet = deck.pop()!;
   }
@@ -239,6 +246,7 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     stock: deck,
     discard: [],
     carpet,
+    carpetJokers,
     melds: [],
     nextMeldId: 1,
     players,

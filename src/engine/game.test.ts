@@ -27,7 +27,7 @@ import {
 import { viewFor } from './view';
 import { ALL_TYPES, findAllPartitions, ROMME_TYPES } from './melds';
 import { Card, makeRng } from './cards';
-import { CardPool, testGame, setHand } from './testutil';
+import { CardPool, testGame, setHand, testPlayers, DEFAULT_SETTINGS } from './testutil';
 
 function freshTurn(state: GameState, pid: number) {
   state.round.turn = { ...state.round.turn, player: pid, phase: 'play', drawSource: 'stock', drawnCardId: null, mustOpenWithId: null, mustPairWithId: null, openedThisTurn: false, isHand: false, laidOffToOthers: false, pendingJokerId: null };
@@ -1131,5 +1131,54 @@ describe('Anlegen: gewählte Seite wird genau so angelegt', () => {
       expect(h.round.melds[0].cards.map((c) => c.id)).toEqual(want.cards.map((c) => c.id));
       expect(h.round.melds[0].startRank).toBe(want.startRank);
     }
+  });
+});
+
+describe('Teppich-Joker: Joker unter dem Abheben gehen an den Startspieler und sind öffentlich', () => {
+  // Seed 18: ein Joker, Seed 3413: zwei Joker nacheinander (gefunden durch Suchlauf, deterministisch)
+  const make = (seed: number) => newGame(testPlayers(4), DEFAULT_SETTINGS, seed);
+
+  it('ein Joker: Er liegt in der Hand des Startspielers, die Teppichkarte ist keiner, die Hand hat 14 plus die offene Karte', () => {
+    const g = make(18);
+    const r = g.round;
+    expect(r.carpetJokers?.length).toBe(1);
+    expect(isJoker(r.carpet!)).toBe(false);
+    const hand = r.players[r.starter].hand;
+    expect(hand.length).toBe(15);
+    expect(hand.filter(isJoker).length).toBeGreaterThanOrEqual(1);
+    for (const c of r.carpetJokers!) expect(hand.some((h) => h.id === c.id)).toBe(true);
+    // Die offene Startkarte (15.) ist die letzte Karte der Hand und kein Teppich-Joker
+    expect(r.turn.drawnCardId).toBe(hand[14].id);
+    expect(r.carpetJokers!.some((c) => c.id === hand[14].id)).toBe(false);
+  });
+
+  it('zwei Joker nacheinander: beide gehen an den Startspieler, der Rest der Hand bleibt bei 14 plus offene Karte', () => {
+    const g = make(3413);
+    const r = g.round;
+    expect(r.carpetJokers?.length).toBe(2);
+    expect(isJoker(r.carpet!)).toBe(false);
+    expect(r.players[r.starter].hand.length).toBe(15);
+    expect(r.players.filter((_, i) => i !== r.starter).every((p) => p.hand.length === 14)).toBe(true);
+    // Alle 106 Karten sind noch genau einmal da
+    const all = [...r.stock, ...r.discard, r.carpet!, ...r.players.flatMap((p) => p.hand)];
+    expect(new Set(all.map((c) => c.id)).size).toBe(106);
+  });
+
+  it('ohne Joker unter dem Abheben ist die Liste leer', () => {
+    const g = make(1);
+    expect(g.round.carpetJokers).toEqual([]);
+  });
+
+  it('jeder Betrachter sieht die Teppich-Joker offen, die übrigen Handkarten des Startspielers bleiben verdeckt', () => {
+    const g = make(3413);
+    const s = g.round.starter;
+    const other = (s + 1) % 4;
+    const v = viewFor(g, other);
+    expect(v.round.carpetJokers!.map((c) => c.id)).toEqual(g.round.carpetJokers!.map((c) => c.id));
+    expect(v.round.carpetJokers!.every(isJoker)).toBe(true);
+    expect(v.round.carpetJokers!.every((c) => c.id >= 0)).toBe(true);
+    // Die Hand des Startspielers bleibt für andere komplett verdeckt; die offene Startkarte und die Teppich-Joker kommen getrennt
+    expect(v.round.players[s].hand.every((c) => c.id < 0)).toBe(true);
+    expect(v.round.openCard).toBeDefined();
   });
 });

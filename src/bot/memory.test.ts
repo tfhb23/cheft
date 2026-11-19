@@ -1119,3 +1119,56 @@ describe('recall: Hinweise auf die Absichten der Mitspieler', () => {
     expect(count('master')).toBeGreaterThan(count('easy'));
   });
 });
+
+describe('Teppich-Joker: Bots merken sich, dass der Startspieler die Joker bekommen hat', () => {
+  it('ein Bot, der nicht Startspieler ist, zieht die offen gesehenen Joker von den unbekannten ab (genaues Gedächtnis)', () => {
+    const g = testGame(4, 7);
+    const r = g.round;
+    r.discard = [];
+    r.taken = [];
+    r.melds = [];
+    r.carpet = null;
+    r.plies = 0;
+    const joker = deck.find((c) => c.suit === 'J')!;
+    r.players.forEach((_, i) => setHand(g, i, []));
+    const bot = (r.starter + 1) % 4;
+    const before = copies(g, STEADY, bot).get('J');
+    expect(before).toBe(2);
+    r.carpetJokers = [joker];
+    const after = copies(g, STEADY, bot).get('J');
+    expect(after).toBe(1);
+  });
+
+  it('der Startspieler selbst kennt seine Karten ohnehin: kein Abzug durch das Ereignis', () => {
+    const g = testGame(4, 7);
+    const r = g.round;
+    r.discard = [];
+    r.taken = [];
+    r.melds = [];
+    r.carpet = null;
+    r.plies = 0;
+    r.players.forEach((_, i) => setHand(g, i, []));
+    const joker = deck.find((c) => c.suit === 'J')!;
+    setHand(g, r.starter, [joker]);
+    r.carpetJokers = [joker];
+    expect(copies(g, STEADY, r.starter).get('J')).toBe(1); // nur die Hand zählt, genau einmal
+  });
+
+  it('bei schwachem Gedächtnis verblasst die Erinnerung mit den Zügen (Joker doppelt so lange wie andere Karten)', () => {
+    const g = testGame(4, 7);
+    const r = g.round;
+    r.discard = [];
+    r.taken = [];
+    r.melds = [];
+    r.carpet = null;
+    r.players.forEach((_, i) => setHand(g, i, []));
+    const joker = deck.find((c) => c.suit === 'J')!;
+    r.carpetJokers = [joker];
+    const bot = (r.starter + 1) % 4;
+    const WEAK: MemoryParams = { ...STEADY, span: 0.5 };
+    r.plies = 0;
+    expect(copies(g, WEAK, bot).get('J')).toBe(1);
+    r.plies = 400;
+    expect(copies(g, WEAK, bot).get('J')).toBe(2);
+  });
+});

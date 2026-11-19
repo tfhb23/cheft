@@ -964,7 +964,7 @@ export function chapters(env: GuideEnv): Chapter[] {
             () => [
               ...SCALE_TOKENS.rules.map((r) => [idChip(SCALE_TOKENS.id), sub(r.name, r.media ?? 'Standard'), `${r.s} / ${r.so}`]),
               ...BREAKPOINT_TOKENS.map((b) => [idChip(b.id), sub(b.name, b.use), b.value]),
-              ['', sub('Jetzt aktiv', '--s: eigene Karten und alle Abstände · --so: Karten der Mitspieler'), `${rootScale()} / ${cssVar('--so')}`],
+              ['', sub('Jetzt aktiv', '--s: Handkarten und alle Abstände · --so: Startwert der Auslagen, am Tisch je Platz kleiner (tablescale.ts)'), `${rootScale()} / ${cssVar('--so')}`],
             ],
             [2],
           ),

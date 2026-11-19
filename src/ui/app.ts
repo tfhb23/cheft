@@ -37,6 +37,7 @@ import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
+import { ScaleStep, deviceClass, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -149,6 +150,29 @@ function hash(n: number): number {
   let x = (n + 1) * 2654435761;
   x = ((x >>> 13) ^ x) * 1274126177;
   return ((x >>> 16) ^ x) >>> 0;
+}
+
+/**
+ * Eine Achse der Tischmitte. `want` ist die Wunschlage der Referenz (Spielfeldmitte), [lo, hi] der Bereich, in dem die Gruppe ohne
+ * Berührung passt, `e0` der halbe Spielraum bei leerem Tisch. Je enger der Tisch, desto stärker zieht die Referenz zur Mitte des
+ * freien Platzes (weich, ab 25 % Enge), und sie bleibt immer im Bereich. Bei viel Platz ist sie exakt auf der Spielfeldmitte.
+ */
+export function placeAxis(want: number, lo: number, hi: number, e0: number): number {
+  if (hi < lo) return (lo + hi) / 2;
+  const m = (lo + hi) / 2;
+  const e = (hi - lo) / 2;
+  const soft = (v: number): number => {
+    const d = v - m;
+    if (e <= 0 || d === 0) return m;
+    const x = Math.abs(d) / e;
+    const a = 0.5;
+    const k = x <= a ? x : a + (1 - a) * (1 - Math.exp(-(x - a) / (1 - a)));
+    return m + Math.sign(d) * e * k;
+  };
+  const crowd = e0 > 0 ? Math.max(0, Math.min(1, 1 - e / e0)) : 1;
+  const t = Math.max(0, Math.min(1, (crowd - 0.25) / 0.5));
+  const tau = t * t * (3 - 2 * t);
+  return soft(m + (want - m) * (1 - tau));
 }
 
 export class App {
@@ -508,6 +532,7 @@ export class App {
         this.root.appendChild(this.renderGame());
         this.layoutHand();
         this.layoutTable();
+        this.layoutPlacement();
         this.layoutDisc();
         const nt = this.root.querySelector('.table');
         if (nt) nt.scrollTop = scroll;
@@ -1334,17 +1359,19 @@ export class App {
 
     // Handreihenfolge abgleichen
     // Die offene Startkarte liegt in der Sortierphase noch auf dem Tisch und wandert erst mit „Bereit“ in die Hand.
+    // (Auch die Teppich-Joker liegen noch offen auf dem Tisch und wandern erst mit „Bereit“ in die Hand.)
     const hiddenOpenId = r.waiting && this.me === r.starter ? r.turn.drawnCardId : null;
-    const handIds = me.hand.filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
+    const hidden = new Set<number>([...(hiddenOpenId !== null ? [hiddenOpenId] : []), ...(r.waiting && this.me === r.starter ? (r.carpetJokers ?? []).map((c) => c.id) : [])]);
+    const handIds = me.hand.filter((c) => !hidden.has(c.id)).map((c) => c.id);
     const have = new Set(handIds);
     this.order = this.order.filter((id) => have.has(id));
     const known = new Set(this.order);
     const added = handIds.filter((id) => !known.has(id));
-    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).filter((c) => c.id !== hiddenOpenId).map((c) => c.id);
+    if (this.order.length === 0) this.order = (this.state!.settings.sortedDeal === false ? me.hand : sortBySuit(me.hand)).filter((c) => !hidden.has(c.id)).map((c) => c.id);
     else this.order.push(...added);
     if (myTurn) {
       for (const id of added) {
-        if (id === r.turn.drawnCardId || id === r.turn.pendingJokerId) this.fresh.add(id);
+        if (id === r.turn.drawnCardId || id === r.turn.pendingJokerId || (r.carpetJokers ?? []).some((c) => c.id === id)) this.fresh.add(id);
       }
     }
     for (const id of [...this.fresh]) if (!have.has(id)) this.fresh.delete(id);
@@ -1391,19 +1418,24 @@ export class App {
             'div',
             { class: 'pile open-card' },
             h('span', null, t('wait.openCard')),
-            this.cardEl(starterCard, { title: cardName(starterCard), onClick: pid === this.me && !r.ready[this.me] ? () => this.act({ kind: 'ready' }) : undefined }),
+            this.cardEl(starterCard, { small: true, title: cardName(starterCard), onClick: pid === this.me && !r.ready[this.me] ? () => this.act({ kind: 'ready' }) : undefined }),
           )
         : null;
+    // Teppich-Joker: Wer beim Abheben unter der Teppichkarte lag, bekommt der Startspieler. Jeder sieht sie links neben der offenen Karte
+    // (im Stil einer Auslage, mit Titel), bis „Bereit“ gedrückt ist.
+    const carpetJk = r.waiting ? ((r as RoundView).carpetJokers ?? []) : [];
+    const carpetJokersEl = (): HTMLElement | null =>
+      carpetJk.length ? h('div', { class: 'pile open-card' }, h('span', null, t('carpet.label')), meldBox(carpetJk.map((c) => this.cardEl(c, { small: true, title: cardName(c) })))) : null;
     const showFan = window.innerWidth >= BREAKPOINTS.fan && window.innerHeight >= BREAKPOINTS.fanHeight;
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
-      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, true)), seat.pid === r.starter ? openCardEl(seat.pid) : null);
+      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, true)), seat.pid === r.starter ? [carpetJokersEl(), openCardEl(seat.pid)] : null);
       const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length, lost: seat.pid !== this.me && this.lostVisible(seat.pid) });
       // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
       const backId = this.seatBack(seat.pid);
       const temps = seat.pid === current(s) && !r.ended ? pr.hand.filter((c) => tempIds.has(c.id) && c.id >= 0) : [];
-      const fanHand = (r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand).filter((c) => !temps.includes(c));
+      const fanHand = (r.waiting && seat.pid === r.starter ? pr.hand.slice(carpetJk.length, -1) : pr.hand).filter((c) => !temps.includes(c));
       const fanEl = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
       // Vorübergehende Karten liegen offen am Ende des Fächers (untereinander); ohne Fächer (Handy) ragt von jeder nur die obere
       // Hälfte am äußeren Rand der Auslage herein.
@@ -1467,6 +1499,7 @@ export class App {
     );
     this.bindPeek(discard);
     const center = h('div', { class: 'center' }, h('div', { class: 'piles' }, stockWrap, discard));
+    center.style.setProperty('--sc', String(this.scale()));
     table.appendChild(center);
 
     // Eigene Auslage
@@ -1474,7 +1507,7 @@ export class App {
     const own = h(
       'div',
       { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
-      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, false)), this.me === r.starter ? openCardEl(this.me) : null),
+      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, true)), this.me === r.starter ? [carpetJokersEl(), openCardEl(this.me)] : null),
       seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, cls: 'own-label' }),
     );
     table.appendChild(own);
@@ -1558,13 +1591,12 @@ export class App {
     const n = r.stock.length;
     const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { onClick: clickable ? () => this.pileTap('stock') : undefined });
     if (n > 0) {
-      const s = this.scale();
       const layers = Math.min(7, Math.ceil(n / 8));
       const shadows: string[] = [];
-      for (let i = 1; i <= layers; i++) shadows.push(`${i * s}px ${i * s}px 0 0 var(--surface-field)`, `${i * s}px ${i * s}px 0 1px var(--line-soft)`);
+      for (let i = 1; i <= layers; i++) shadows.push(`calc(${i} * var(--s)) calc(${i} * var(--s)) 0 0 var(--surface-field)`, `calc(${i} * var(--s)) calc(${i} * var(--s)) 0 1px var(--line-soft)`);
       el.style.boxShadow = shadows.reverse().join(', ');
-      el.style.marginBottom = `${layers * s}px`;
-      el.style.marginRight = `${layers * s}px`;
+      el.style.marginBottom = `calc(${layers} * var(--s))`;
+      el.style.marginRight = `calc(${layers} * var(--s))`;
     }
     return el;
   }
@@ -1641,27 +1673,41 @@ export class App {
     if (url) disc.style.backgroundImage = `url(${url})`;
   }
 
-  /** Sitzgrößen: gedrehte Auslagen brauchen vertauschte Breite/Höhe; Gegnerkarten schrumpfen nur bei Platzmangel. */
+  /** Aktuelle Stufe am Tisch (Index in der Verkleinerungs-Reihenfolge); gilt für eine Runde und eine Fenstergröße, wird nur kleiner. */
+  private tableStep = { key: '', index: 0 };
+  /** Letzte Lage der Tischmitte und der seitlichen Sitze, damit Verschiebungen gleiten (nur innerhalb derselben Tischgröße). */
+  private placePrev: { key: string; piles: [number, number]; side: Record<string, number> } | null = null;
+
+  /**
+   * Kartengrößen am Tisch und Sitzgrößen. Alle Auslagen (auch die eigene) haben eine Stufe, die Mitte eine eigene (höchstens 1,75-mal so groß).
+   * Es geht von der Startgröße des Geräts schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
+   * zum Start, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
+   */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
-    if (!table) return;
+    // Ohne Größe (Bildschirm wird gerade umgeschaltet) nichts messen und nichts merken
+    if (!table || table.clientWidth < 50 || table.clientHeight < 50) return;
     const s = this.scale();
     const seats = Array.from(table.querySelectorAll<HTMLElement>('.seat'));
-    if (seats.length === 0) return;
+    const own = table.querySelector('.own') as HTMLElement | null;
+    const center = table.querySelector('.center') as HTMLElement | null;
     const sides = seats.filter((e) => e.classList.contains('seat-left') || e.classList.contains('seat-right'));
     const top = table.querySelector('.seat-top') as HTMLElement | null;
-    const own = table.querySelector('.own') as HTMLElement | null;
     const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
-    const pilesMin = (32 + 12 + 10 + 32 + 26 + 10) * s;
-    const minMid = (44 + 28) * s;
-    const small = Math.max(1, s - 1);
-    const setScale = (el: HTMLElement, v: number) => el.style.setProperty('--so', String(v));
-    seats.forEach((e) => setScale(e, s));
+    const dpr = window.devicePixelRatio || 1;
+    const ladder = tableLadder(dpr, deviceClass(window.innerWidth, window.innerHeight), s);
+    const key = `${this.state?.round.no ?? 0}${this.state?.round.waiting ? 'w' : 'p'}:${this.state?.players.length ?? 0}:${window.innerWidth}x${window.innerHeight}@${dpr}`;
+    if (this.tableStep.key !== key) this.tableStep = { key, index: 0 };
+    const apply = (st: ScaleStep) => {
+      for (const e of [...seats, ...(own ? [own] : [])]) e.style.setProperty('--so', String(st.a));
+      center?.style.setProperty('--sc', String(st.c));
+    };
     const layoutSides = () => {
       const topH = top ? top.offsetHeight : 0;
       const ownH = own ? own.offsetHeight : 0;
-      const M = Math.max(minMid, H - topH - ownH);
+      const free = H - topH - ownH;
+      const M = Math.max((44 + 28) * s, free);
       let depth = 0;
       for (const side of sides) {
         const inner = side.querySelector('.seat-inner') as HTMLElement;
@@ -1671,15 +1717,116 @@ export class App {
         side.style.height = `${M}px`;
         depth += d;
       }
-      return { M, depth, free: H - topH - ownH };
+      return { M, depth, free };
     };
-    let g = layoutSides();
-    const tooWide = sides.length > 0 && W - g.depth < pilesMin;
-    const tooHigh = !!top && g.free < minMid;
-    if (tooWide || tooHigh) {
-      seats.forEach((e) => setScale(e, small));
-      g = layoutSides();
+    const fits = (st: ScaleStep, g: { depth: number; free: number }) => {
+      const pilesMin = (32 + 12 + 10 + 32 + 26 + 10) * st.c;
+      const minMid = (44 + 28) * st.c;
+      return !(sides.length > 0 && W - g.depth < pilesMin) && !(top && g.free < minMid);
+    };
+    let i = Math.min(this.tableStep.index, ladder.length - 1);
+    for (; i < ladder.length; i++) {
+      apply(ladder[i]);
+      if (fits(ladder[i], layoutSides()) || i === ladder.length - 1) break;
     }
+    this.tableStep.index = i;
+    table.classList.toggle('shrunk', i > 0);
+  }
+
+  /**
+   * Ausrichtung: Jedes Paket aus Beschriftung und Auslage sitzt mittig auf der Achse seines Sitzes (Mitte der Spielfeldkante, dort
+   * liegt auch der Kreis). Die Tischmitte (Mitte zwischen Stapel und Ablagefeld) liegt auf der Spielfeldmitte, solange viel Platz
+   * ist, und wandert mit zunehmender Enge weich zur Mitte des freien Platzes, ohne eine Auslage zu berühren.
+   */
+  private layoutPlacement(): void {
+    const table = this.root.querySelector('.table') as HTMLElement | null;
+    if (!table || table.clientWidth < 50 || table.clientHeight < 50) return;
+    const s = this.scale();
+    const tr = table.getBoundingClientRect();
+    const W = table.clientWidth;
+    const H = table.clientHeight;
+    const gap = 4 * s;
+    const rel = (r: DOMRect) => ({ l: r.left - tr.left, r: r.right - tr.left, t: r.top - tr.top, b: r.bottom - tr.top });
+    const top = table.querySelector('.seat-top') as HTMLElement | null;
+    const own = table.querySelector('.own') as HTMLElement | null;
+    const left = table.querySelector('.seat-left') as HTMLElement | null;
+    const right = table.querySelector('.seat-right') as HTMLElement | null;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const key = this.tableStep.key;
+    const prev = this.placePrev && this.placePrev.key === key ? this.placePrev : null;
+    const next: { key: string; piles: [number, number]; side: Record<string, number> } = { key, piles: [0, 0], side: {} };
+    // Seitliche Sitze: Das Paket liegt auf der Achse H/2, nur wenn der obere oder untere Sitz im Weg ist, wird es verschoben.
+    const freeTop = top ? rel(top.getBoundingClientRect()).b + gap : 0;
+    const freeBottom = own ? rel(own.getBoundingClientRect()).t - gap : H;
+    for (const [side, name] of [[left, 'left'], [right, 'right']] as const) {
+      const inner = side?.querySelector('.seat-inner') as HTMLElement | null;
+      if (!side || !inner) continue;
+      inner.style.translate = '0 0';
+      const parts = [inner.querySelector('.seat-label'), ...Array.from(inner.querySelectorAll('.melds > *, .reveal > *'))].filter(Boolean) as Element[];
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const e of parts) {
+        const r = rel(e.getBoundingClientRect());
+        lo = Math.min(lo, r.t);
+        hi = Math.max(hi, r.b);
+      }
+      if (!isFinite(lo)) continue;
+      let dy = H / 2 - (lo + hi) / 2;
+      dy = Math.max(freeTop - lo, Math.min(freeBottom - hi, dy));
+      if (hi - lo > freeBottom - freeTop) dy = (freeTop + freeBottom) / 2 - (lo + hi) / 2;
+      dy = Math.round(dy);
+      inner.style.translate = `0 ${dy}px`;
+      next.side[name] = dy;
+      const old = prev?.side[name];
+      if (old !== undefined && old !== dy && !reduce) {
+        try {
+          inner.animate([{ translate: `0 ${old}px` }, { translate: `0 ${dy}px` }], { duration: MOTION.fly, easing: EASE_FLY });
+        } catch {
+          /* ohne Animation */
+        }
+      }
+    }
+    // Tischmitte
+    const piles = table.querySelector('.piles') as HTMLElement | null;
+    const stock = table.querySelector('.stock-wrap > .card') as HTMLElement | null;
+    const disc = table.querySelector('.discard') as HTMLElement | null;
+    if (piles && stock && disc) {
+      piles.style.transform = 'none';
+      const pr = rel(piles.getBoundingClientRect());
+      const sr = rel(stock.getBoundingClientRect());
+      const dr = rel(disc.getBoundingClientRect());
+      const refX = (sr.l + sr.r) / 4 + (dr.l + dr.r) / 4;
+      const refY = (sr.t + sr.b) / 2;
+      const freeL = (left ? rel(left.getBoundingClientRect()).r : 0) + gap;
+      const freeR = (right ? rel(right.getBoundingClientRect()).l : W) - gap;
+      // Der Teppich ragt links aus dem Kasten: Platzbedarf als Vereinigung der Kinder
+      let bl = pr.l;
+      let br = pr.r;
+      piles.querySelectorAll('.stock-wrap *').forEach((e) => {
+        const r = rel(e.getBoundingClientRect());
+        bl = Math.min(bl, r.l);
+        br = Math.max(br, r.r);
+      });
+      const nx = placeAxis(W / 2, freeL + (refX - bl), freeR - (br - refX), (W - (br - bl)) / 2 - gap);
+      const ny = placeAxis(H / 2, freeTop + (refY - pr.t), freeBottom - (pr.b - refY), (H - (pr.b - pr.t)) / 2 - gap);
+      const dx = Math.round(nx - refX);
+      const dy = Math.round(ny - refY);
+      piles.style.transform = `translate(${dx}px, ${dy}px)`;
+      next.piles = [dx, dy];
+      if (prev && (prev.piles[0] !== dx || prev.piles[1] !== dy) && !reduce) {
+        const from = prev.piles;
+        // Erst nach der Messung der Kartenflüge starten: Deren Ziel ist die endgültige Lage der Mitte.
+        requestAnimationFrame(() => {
+          if (!piles.isConnected) return;
+          try {
+            piles.animate([{ transform: `translate(${from[0]}px, ${from[1]}px)` }, { transform: `translate(${dx}px, ${dy}px)` }], { duration: MOTION.fly, easing: EASE_FLY });
+          } catch {
+            /* ohne Animation */
+          }
+        });
+      }
+    }
+    this.placePrev = next;
   }
 
   private handGeometry(): { cw: number; ch: number; W: number; step: number; rows: number; perRow: number; n: number; s: number } | null {

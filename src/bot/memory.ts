@@ -345,6 +345,8 @@ function publicEvents(state: GameState): PublicEvent[] {
   r.discard.forEach((card, idx) => put({ kind: 'discard', card, age: len - 1 - idx, by: discarder.get(card.id) ?? null }));
   const now = r.plies ?? 0;
   for (const x of r.taken) put({ kind: 'take', card: x.card, age: Math.max(0, now - (x.at ?? now)), by: x.player });
+  // Teppich-Joker: Sie lagen beim Austeilen offen neben der Startkarte, der Startspieler hat sie bekommen (Alter = bisherige Züge).
+  for (const c of r.carpetJokers ?? []) put({ kind: 'take', card: c, age: now, by: r.starter });
   return [...latest.values()];
 }
 

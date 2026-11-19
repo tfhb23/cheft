@@ -265,7 +265,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.76', css: '--px-ov-pair', name: 'Überlappung Paar (Basis)', px: -20, use: 'Cheft-Paar' },
   { id: '3.77', css: '--px-ov-fan', name: 'Überlappung Fächer (Basis)', px: -26, use: 'Verdeckte Handkarten der Mitspieler' },
   { id: '3.78', css: '--px-ov-mini-back', name: 'Überlappung Mini-Rücken', px: -22, use: 'Verdeckte Restkarten in der Auswertung' },
-  { id: '3.79', css: '--card-w', name: 'Karte Breite', of: '--px-card-w', use: 'Eigene Karten: Hand, Auslage, Stapel, Ablage (Basis × --s). Mitspieler-Karten: Basis × --so' },
+  { id: '3.79', css: '--card-w', name: 'Karte Breite', of: '--px-card-w', use: 'Handkarten (Basis × --s). Tischmitte (Stapel, Ablage, Teppichkarte): Basis × --sc, im Bereich .center neu berechnet. Alle Auslagen, auch die eigene: Basis × --so (Klasse .o)' },
   { id: '3.80', css: '--card-h', name: 'Karte Höhe', of: '--px-card-h', use: 'dito' },
   { id: '3.81', css: '--atlas-w', name: 'Atlas Breite', of: '--px-atlas-w', use: 'Hintergrundgröße der Karten (Basis × --s)' },
   { id: '3.82', css: '--atlas-h', name: 'Atlas Höhe', of: '--px-atlas-h', use: 'dito' },
@@ -406,14 +406,28 @@ export function tokenVars(): [string, string][] {
   return v;
 }
 
+/**
+ * Maße der Tischmitte (Stapel, Ablage, Teppichkarte): Sie haben eine eigene Stufe (--sc, von der Tischlogik je Bildschirm gesetzt).
+ * Im Bereich `.center` gilt darum --s = --sc, und diese Maße werden dort neu berechnet (benutzerdefinierte Variablen erben ihren
+ * berechneten Wert, sie rechnen nicht selbst nach).
+ */
+export const CENTER_VARS = ['--card-w', '--card-h', '--atlas-w', '--atlas-h', '--pile-gap', '--stock-shift', '--carpet-shift', '--discard-pad-x', '--discard-pad-y', '--discard-x', '--discard-y', '--count-size', '--count-x', '--count-y'];
+
 /** Kompletter CSS-Text mit allen Variablen (und den Umschaltpunkten, die keine Variablen können). */
 export function tokensCss(): string {
-  const vars = tokenVars()
+  const all = tokenVars();
+  const vars = all.map(([k, val]) => `  ${k}: ${val};`).join('\n');
+  const centerVars = all
+    .filter(([k]) => CENTER_VARS.includes(k))
     .map(([k, val]) => `  ${k}: ${val};`)
     .join('\n');
   return [
     ':root {',
     vars,
+    '}',
+    '.center {',
+    '  --s: var(--sc);',
+    centerVars,
     '}',
     scaleCss(),
     `@media (max-width: ${BREAKPOINTS.compact}px) { .topbar .rl { display: none; } }`,
