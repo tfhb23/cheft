@@ -245,7 +245,7 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
       return { kind: 'draw', source: 'discard' };
     }
     const stockEmpty = r.stock.length === 0;
-    if (r.carpet && !per.carpetBlind && !stockEmpty && !p.opened && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
+    if (r.carpet && !per.carpetBlind && !stockEmpty && checkDraw(state, pid, 'carpet').ok) return { kind: 'draw', source: 'carpet' };
     if (top && p.mode === 'romme' && !p.opened && k.takeDiscardToOpen && checkDraw(state, pid, 'discard', true).ok) {
       // Die Ablagekarte zu nehmen heißt, sofort rauszukommen: Das lohnt nur, wenn Warten nicht besser wäre
       if (!(hunter && holdForHand(state, pid, hunter, k.handReach)) && !holdsOpeningWith(state, pid, k, per, top)) return { kind: 'draw', source: 'discard' };
@@ -268,6 +268,22 @@ export function decideAction(state: GameState, pid: number, opts: DecideOptions 
     // Geht es nur durch Klauen, dann mit genau dieser Karte (sonst bleibt sie als letzte Karte übrig und lässt sich nicht mehr verwenden)
     const stealWith = findSteal(state, view, pid, k, per, mustUse);
     if (stealWith) return stealWith;
+  }
+
+  // Ausgelegter Cheft-Spieler mit der Teppichkarte: Zwilling und ein weiteres Paar liegen auf einmal, dann ist die Runde aus.
+  const carpetId = r.turn.mustPairWithId;
+  const carpetCard = carpetId === null ? undefined : hand.find((c) => c.id === carpetId);
+  if (p.opened && carpetCard) {
+    const twin = hand.find((c) => c.id !== carpetCard.id && !isJoker(c) && sameCard(c, carpetCard));
+    const rest = hand.filter((c) => c.id !== carpetCard.id && c.id !== twin?.id);
+    if (twin) {
+      for (let i = 0; i < rest.length; i++) {
+        for (let j = i + 1; j < rest.length; j++) {
+          const groups = [[carpetCard.id, twin.id], [rest[i].id, rest[j].id]];
+          if (checkLay(state, pid, groups).ok) return { kind: 'lay', groups };
+        }
+      }
+    }
   }
 
   if (!p.opened) {

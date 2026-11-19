@@ -56,15 +56,14 @@ export function lostIcon(): HTMLElement {
   return h('span', { class: 'conn-lost', title, role: 'img', 'aria-label': title }, pixelIcon(ICON_NOCONN));
 }
 
-/** 6.20: Beschriftung eines Sitzes: Name, Spielweise, Kartenzahl, optional Hinweis. */
-export function seatLabel(o: { name: string; mode: string; count: number; hint?: string; cls?: string; lost?: boolean }): HTMLElement {
+/** 6.20: Beschriftung eines Sitzes: Name, Spielweise, Kartenzahl (keine Zusatztexte). */
+export function seatLabel(o: { name: string; mode: string; count: number; cls?: string; lost?: boolean }): HTMLElement {
   return h(
     'div',
     { class: `seat-label${o.cls ? ' ' + o.cls : ''}` },
     h('span', { class: 'sl-name' }, o.name, o.lost ? lostIcon() : null),
     badge(t(`mode.${o.mode}`), o.mode),
     h('span', { class: 'sl-cnt' }, t('cards.count', { n: o.count })),
-    o.hint ? h('span', { class: 'sl-hint' }, o.hint) : null,
   );
 }
 

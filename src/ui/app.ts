@@ -552,12 +552,12 @@ export class App {
 
   private cardEl(
     card: Card | 'back' | 'back2' | 'slot',
-    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; temp?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
+    opts: { selected?: boolean; onClick?: () => void; temp?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
   ): HTMLElement {
     const off = atlasOffset(this.atlas.index(card));
     const sc = opts.mini ? '1' : opts.small ? 'var(--so)' : 'var(--s)';
     const el = h('div', {
-      class: `card${opts.small ? ' o' : ''}${opts.mini ? ' mini' : ''}${opts.selected ? ' selected' : ''}${opts.onClick ? ' clickable' : ''}${opts.glow ? ' glow' : ''}${opts.temp ? ' temp' : ''}${opts.fresh ? ' fresh' : ''}${opts.cls ? ' ' + opts.cls : ''}`,
+      class: `card${opts.small ? ' o' : ''}${opts.mini ? ' mini' : ''}${opts.selected ? ' selected' : ''}${opts.onClick ? ' clickable' : ''}${opts.temp ? ' temp' : ''}${opts.fresh ? ' fresh' : ''}${opts.cls ? ' ' + opts.cls : ''}`,
       style: { backgroundPosition: `calc(${-off.x}px * ${sc}) calc(${-off.y}px * ${sc})` },
       title: opts.title ?? (typeof card === 'string' ? '' : cardName(card)),
       onclick: opts.onClick,
@@ -1343,8 +1343,9 @@ export class App {
 
     // Tisch
     const table = h('div', { class: 'table' });
-    // Wer dran ist: großer orangener Pixel-Kreis hinter allem, seine Mitte liegt auf der Spielfeldkante bei diesem Spieler (layoutDisc)
-    if (!r.ended && !r.waiting) {
+    // Wer dran ist: großer goldener Pixel-Kreis hinter allem, seine Mitte liegt auf der Spielfeldkante bei diesem Spieler (layoutDisc)
+    // (auch vor dem Start der Runde: Der Kreis zeigt sofort, wer anfängt)
+    if (!r.ended) {
       const activePos = current(s) === this.me ? 'bottom' : this.seats().find((x) => x.pid === current(s))?.pos;
       if (activePos) table.appendChild(h('div', { class: 'turn-clip' }, h('div', { class: 'turn-disc', dataset: { pos: activePos } })));
     }
@@ -1352,7 +1353,7 @@ export class App {
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCardEl = (): HTMLElement | null =>
       starterCard
-        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { glow: true, title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
+        ? h('div', { class: 'pile open-card' }, this.cardEl(starterCard, { title: cardName(starterCard) }), h('span', null, t('wait.openCard')))
         : null;
     const showFan = window.innerWidth >= BREAKPOINTS.fan && window.innerHeight >= BREAKPOINTS.fanHeight;
     for (const seat of this.seats()) {
@@ -1435,7 +1436,7 @@ export class App {
       'div',
       { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
       h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, false)), this.me === r.starter ? openCardEl() : null),
-      seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, hint: playPhase && selectedCards.length >= 2 ? t('drop.lay') : undefined, cls: 'own-label' }),
+      seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, cls: 'own-label' }),
     );
     table.appendChild(own);
 
@@ -1579,7 +1580,7 @@ export class App {
       cv.height = n;
       const ctx = cv.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = colorValue('--c-orange');
+        ctx.fillStyle = colorValue('--c-gold');
         const r = n / 2;
         for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + 0.5 - r) ** 2 + (y + 0.5 - r) ** 2 <= r * r) ctx.fillRect(x, y, 1, 1);
         url = cv.toDataURL();

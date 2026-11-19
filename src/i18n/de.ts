@@ -183,7 +183,6 @@ export const de: Record<string, string> = {
   'turn.you.mustOpen': 'Karte muss in die Erstmeldung.',
   'turn.you.carpet': 'Du musst jetzt mit der Teppichkarte in einem Paar rauskommen.',
   'turn.bot': '{name} ist dran …',
-  'drop.lay': 'Hierher ziehen zum Auslegen',
   'roundEnd.rest': 'Restkarten',
 
   // Rundenende

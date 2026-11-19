@@ -576,6 +576,23 @@ describe('Teppichkarte: Bots paaren sie nur mit der genau gleichen Karte, nie mi
     expect(cards[0].rank).toBe(cards[1].rank);
     expect(applyAction(g, me, lay).ok).toBe(true);
   });
+  it('ein ausgelegter Cheft-Bot mit fünf Paaren nimmt die Teppichkarte, wenn er Zwilling und ein weiteres Paar hat, und beendet die Runde', () => {
+    const { g, me } = drawScene(['HD', 'C7', 'C7', 'S3']);
+    const pr = g.round.players[me];
+    pr.opened = true;
+    pr.pairsLaid = 5;
+    const draw = decideLegacy(g, me, { memory: PERFECT });
+    expect(draw).toEqual({ kind: 'draw', source: 'carpet' });
+    expect(applyAction(g, me, draw).ok).toBe(true);
+    const lay = decideLegacy(g, me, { memory: PERFECT });
+    expect(lay.kind).toBe('lay');
+    expect(applyAction(g, me, lay).ok).toBe(true);
+    const out = decideLegacy(g, me, { memory: PERFECT });
+    expect(out.kind).toBe('discard');
+    expect(applyAction(g, me, out).ok).toBe(true);
+    expect(g.round.ended).toBe(true);
+    expect(g.round.result!.winner).toBe(me);
+  });
   it('das gilt für jede Stufe, Spielweise und auch in einem Pflichtzug (mit Joker auf der Hand)', () => {
     for (const level of ['easy', 'normal', 'hard', 'master'] as const) {
       for (const style of ['balanced', 'pairs', 'gambler', 'cunning'] as const) {

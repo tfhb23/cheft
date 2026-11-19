@@ -147,6 +147,8 @@ details > * + * { margin-top: var(--gap-tight); }
 .card.selected { outline: var(--bw-mark) solid var(--accent); outline-offset: calc(-1 * var(--bw)); }
 .card.glow { outline: var(--bw-mark) solid var(--accent); outline-offset: var(--bw); box-shadow: var(--sh-halo); }
 .card.fresh { outline: var(--bw-mark) solid var(--positive); outline-offset: var(--bw); }
+/* Abgeblendet ohne Durchscheinen (nicht gewählte Kartenrückseiten in den Einstellungen) */
+.card.dim { filter: var(--filter-dim); }
 /* Vorübergehende Karte (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker): roter Rand, dazu außen ein dünner dunkler Ring, damit er auch auf dem orangenen Kreis zu sehen ist */
 .card.temp { outline: var(--bw-mark) solid var(--mark-temp); outline-offset: 0; box-shadow: 0 0 0 calc(var(--bw-mark) + var(--bw)) var(--line); }
 .card.hidden-anim { visibility: hidden; }
@@ -213,7 +215,8 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-top .melds { max-width: 100%; }
 .flip180 { transform: rotate(180deg); }
 /* Texte beim gegenüberliegenden Spieler bleiben lesbar, nur die Karten stehen auf dem Kopf */
-.open-card { display: flex; flex-direction: column; align-items: center; gap: var(--gap-tight); text-align: center; }
+.open-card { display: flex; flex-direction: column; align-items: center; gap: var(--gap-hair); text-align: center; }
+.open-card > span { font-size: var(--fs-micro); color: var(--text-muted); line-height: var(--lh-base); }
 .seat-inner > .fan, .seat-inner > .fan-wrap { align-self: center; }
 /* Offene (vorübergehende) Karten des Spielers am Zug: am Ende des Fächers untereinander, am Handy nur die obere Hälfte am äußeren Rand */
 .fan-wrap { position: relative; }
@@ -228,11 +231,9 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }
 .seat-label { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); font-size: var(--fs-caption); color: var(--text-muted); white-space: nowrap; }
 .seat-label .sl-name { font-size: var(--fs-label); color: var(--text-strong); }
-.seat-label .sl-hint { color: var(--text-accent); }
 .conn-lost { display: inline-block; width: var(--size-icon-status); height: var(--size-icon-status); margin-left: var(--sp-2); vertical-align: middle; color: var(--text-muted); }
 .conn-lost svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
-.seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-accent); color: var(--text-on-accent); }
-.seat.current .seat-label .sl-name, .own.current .seat-label .sl-name { color: var(--text-on-accent); }
+.seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-gold); color: var(--text-strong); }
 .seat-inner > .seat-label { align-self: center; }
 .fan { display: flex; height: calc(var(--px-card-h) * var(--so) * 0.55); overflow: hidden; }
 .fan .card { margin-left: calc(var(--px-ov-fan) * var(--so)); }
@@ -255,7 +256,7 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Beschriftungen alle in derselben Schrift, ganz nah an der Karte: „Stapel“ unter dem Stapel, „Ablage“ unter dem leeren Ablagefeld
    (später von Karten verdeckt, das stört nicht), „Teppich“ gedreht links neben der Teppichkarte, zentriert zu ihrer Mitte */
 .pile-label { position: absolute; text-align: center; white-space: nowrap; line-height: var(--lh-base); }
-.stock-label { left: 0; top: 100%; width: var(--card-w); margin-top: var(--gap-hair); }
+.stock-label { left: 0; top: calc(var(--card-h) + var(--gap-hair)); width: var(--card-w); z-index: 2; } /* auf derselben Höhe wie „Ablage“, vor der Dicke des Stapels */
 .discard-label { z-index: 0; left: var(--discard-x); top: calc(var(--discard-y) + var(--card-h) + var(--gap-hair)); width: var(--card-w); }
 .carpet-label { writing-mode: vertical-rl; top: calc(var(--card-h) / 2); right: calc(100% - var(--carpet-shift) - (var(--card-w) - var(--card-h)) / 2 + var(--gap-hair)); transform: translateY(-50%) rotate(180deg); }
 /* Tippfläche der Teppichkarte: unsichtbar, so groß wie eine Karte im Hochformat, direkt links neben dem Stapel (nur beim Ziehen aktiv) */
