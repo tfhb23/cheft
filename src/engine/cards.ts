@@ -67,17 +67,11 @@ export function cardKey(c: Card): string {
   return `${c.suit}${c.rank}`;
 }
 
+/** Sortierung der Hand: nach Farbe, darin aufsteigend; das Ass zählt als höchste Karte (nach dem König), Joker zuletzt. */
 export function sortBySuit(cards: Card[]): Card[] {
   const order: Record<string, number> = { H: 0, S: 1, D: 2, C: 3, J: 4 };
-  return [...cards].sort((a, b) => order[a.suit] - order[b.suit] || a.rank - b.rank || a.id - b.id);
-}
-
-export function sortByRank(cards: Card[]): Card[] {
-  const order: Record<string, number> = { H: 0, S: 1, D: 2, C: 3, J: 4 };
-  return [...cards].sort((a, b) => {
-    if (isJoker(a) !== isJoker(b)) return isJoker(a) ? 1 : -1;
-    return a.rank - b.rank || order[a.suit] - order[b.suit] || a.id - b.id;
-  });
+  const high = (c: Card) => (c.rank === 1 ? 14 : c.rank);
+  return [...cards].sort((a, b) => order[a.suit] - order[b.suit] || high(a) - high(b) || a.id - b.id);
 }
 
 /** Einfacher, seedbarer Zufallsgenerator (mulberry32) für reproduzierbare Tests. */

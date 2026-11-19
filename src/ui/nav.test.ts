@@ -98,4 +98,18 @@ describe('NavGuard', () => {
     nav.sync();
     expect(b.depth()).toBe(1);
   });
+
+  it('ignoriert „Zurück“, solange swallow() wahr ist, und legt den Puffer neu an', () => {
+    const b = fakeBrowser();
+    let busy = true;
+    let backs = 0;
+    const nav = new NavGuard(b.host, () => false, () => { backs++; }, () => busy);
+    nav.sync();
+    b.swipeBack();
+    expect(backs).toBe(0);
+    expect(b.depth()).toBe(1);
+    busy = false;
+    b.swipeBack();
+    expect(backs).toBe(1);
+  });
 });

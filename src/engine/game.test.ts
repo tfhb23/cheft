@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isJoker } from './cards';
+import { isJoker, sortBySuit } from './cards';
 import {
   doDraw,
   doLay,
@@ -1005,5 +1005,40 @@ describe('scoreOrder', () => {
     expect(scoreOrder(state)).toEqual([3, 0, 1, 2]);
     state.round = dealRound(state, 3, 0); // Runde 3: Startspieler 1, Reihenfolge bleibt
     expect(scoreOrder(state)).toEqual([3, 0, 1, 2]);
+  });
+});
+
+describe('Letzte Karte und Sortierung', () => {
+  it('Ass ist die höchste Karte: nach dem König, Joker zuletzt', () => {
+    const pool = new CardPool();
+    const cards = pool.takeAll('J', 'H1', 'H13', 'H2', 'S1', 'S5');
+    const sorted = sortBySuit(cards).map((c) => (isJoker(c) ? 'J' : `${c.suit}${c.rank}`));
+    expect(sorted).toEqual(['H2', 'H13', 'H1', 'S5', 'S1', 'J']);
+  });
+
+  it('geklauter Joker darf als letzte Karte abgeworfen werden (Joker verbrannt), mit mehr Karten nicht', () => {
+    const g = testGame(3, 14);
+    const a = g.round.starter;
+    freshTurn(g, a);
+    const pool = new CardPool();
+    const [jk, c4] = pool.takeAll('J', 'C4');
+    setHand(g, a, [jk]);
+    g.round.turn.pendingJokerId = jk.id;
+    expect(checkDiscard(g, a, jk.id).ok).toBe(true);
+    setHand(g, a, [jk, c4]);
+    expect(checkDiscard(g, a, c4.id).ok).toBe(false);
+  });
+
+  it('genommene Ablagekarte darf als letzte Karte weg, die Teppichkarte nicht', () => {
+    const g = testGame(3, 14);
+    const a = g.round.starter;
+    freshTurn(g, a);
+    const [c4] = new CardPool().takeAll('C4');
+    setHand(g, a, [c4]);
+    g.round.turn.mustUseId = c4.id;
+    expect(checkDiscard(g, a, c4.id).ok).toBe(true);
+    g.round.turn.mustUseId = null;
+    g.round.turn.mustPairWithId = c4.id;
+    expect(checkDiscard(g, a, c4.id).ok).toBe(false);
   });
 });

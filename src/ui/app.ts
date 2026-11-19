@@ -60,6 +60,12 @@ interface StoredOnline {
   at?: number;
 }
 const SAVE_KEY = 'cheft.save.v2';
+/** Faktor, um den die Ablagefläche größer ist als der sichtbare Kreis. */
+const DROP_ZONE_GROW = 1.15;
+
+/** So lange nach einer Berührung der Kartenhand wird ein Zurück-Wischen ignoriert. */
+const HAND_BACK_GUARD_MS = 1500;
+
 const PREFS_KEY = 'cheft.prefs.v2';
 /** Wählbare Rundenzahlen. */
 const ROUND_CHOICES = [3, 5, 7, 9];
@@ -226,7 +232,14 @@ export class App {
   private labels = new DsLabels();
   private rulesFrom: Screen = 'menu';
   /** Zurück-Geste/-Taste des Geräts: eine Ebene zurück, im Spiel und in der Lobby erst warnen, im Hauptmenü die App verlassen. */
-  private nav = new NavGuard(window, () => this.screen === 'menu', () => this.navBack());
+  /** Zeitpunkt der letzten Berührung auf der eigenen Kartenhand: Ein Zurück-Wischen kurz danach ist ein Versehen vom Rand. */
+  private lastHandTouch = 0;
+  private nav = new NavGuard(
+    window,
+    () => this.screen === 'menu',
+    () => this.navBack(),
+    () => this.screen === 'game' && (!!this.drag || Date.now() - this.lastHandTouch < HAND_BACK_GUARD_MS),
+  );
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -245,6 +258,11 @@ export class App {
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+      document.addEventListener(type, (e) => {
+        if ((e.target as HTMLElement | null)?.closest?.('.hand-wrap')) this.lastHandTouch = Date.now();
+      }, { passive: true, capture: true });
+    }
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.navBack()) e.preventDefault();
     });
@@ -328,14 +346,21 @@ export class App {
     }
   }
 
-  /** Aufdecken am Spielende: Gedächtnis und Rolle des Bots (bei der Wildcard die Rollen der Runden), dazu seine Vorlieben. */
-  private botReveal(s: GameState, pid: number, bot: BotProfile): HTMLElement[] {
+  /** Aufdecken am Spielende: Stufe und Rolle des Bots in einer Zeile (bei der Wildcard die Rollen der Runden, darf umbrechen). */
+  private botReveal(s: GameState, pid: number, bot: BotProfile): HTMLElement {
     const role = roleOfStyle(bot.style);
     const roleText = role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`);
+    return h('div', { class: 'factors accent reveal' }, `${t(`level.${bot.level}`)} · ${roleText}`);
+  }
+
+  /** Infobox zum Bot (nur nach Spielende): jede Vorliebe in einer eigenen Zeile. */
+  private botInfo(s: GameState, pid: number): void {
     const tastes = describeTasteSet(tastesFor(s.seed, pid));
-    const out: HTMLElement[] = [h('div', { class: 'factors accent' }, `${t(`level.${bot.level}`)} · ${roleText}`)];
-    if (tastes.length) out.push(h('div', { class: 'factors' }, t('gameEnd.tastes', { list: tastes.join(', ') })));
-    return out;
+    this.askDialog({
+      title: s.players[pid].name,
+      text: tastes.length ? `${t('gameEnd.tastes')}\n${tastes.join('\n')}` : t('gameEnd.noTastes'),
+      back: true,
+    });
   }
 
   // ------------------------------------------------------------ Persistenz
@@ -746,6 +771,11 @@ export class App {
     this.prefs.name = v;
     this.savePrefs();
     this.net?.rename(v);
+    if (!this.online && this.state?.players[this.me]) {
+      // Einzelspiel: Name direkt im laufenden Spiel und im Speicherstand ändern
+      this.state.players[this.me].name = v;
+      this.save();
+    }
   }
 
   /** Zwei gleich breite Knöpfe nebeneinander (Stufe und Spielweise), Überschrift darüber. Bricht nie um. */
@@ -905,6 +935,7 @@ export class App {
     this.order = [];
     this.fresh.clear();
     this.selected.clear();
+    this.peekTable = false;
     this.botGen++;
     this.save();
     this.screen = 'game';
@@ -975,7 +1006,7 @@ export class App {
     const s = this.state;
     if (!s || this.screen !== 'game' || this.drag) return false;
     const r = s.round;
-    return !!s.settings.peekDiscards && current(s) === this.me && !r.ended && !r.waiting && (r.discardLog ?? []).some((e) => e.player !== this.me);
+    return !!s.settings.peekDiscards && current(s) === this.me && !r.ended && !r.waiting && (r.discardLog ?? []).length > 0;
   }
 
   /** Langes Drücken auf die Ablage zeigt die letzten Abwürfe, solange der Finger bleibt. */
@@ -1015,7 +1046,8 @@ export class App {
     if (!this.canPeek() || this.peekLayer) return;
     const s = this.state!;
     const r = s.round;
-    const entries = (r.discardLog ?? []).slice(-(s.players.length - 1)).filter((e) => e.player !== this.me);
+    // Einmal um den Tisch, also auch die eigene zuletzt abgelegte Karte: so sieht man, ob sie inzwischen genommen wurde.
+    const entries = (r.discardLog ?? []).slice(-s.players.length);
     const pile = this.root.querySelector('.discard .card:last-child')?.getBoundingClientRect() ?? this.root.querySelector('.discard')?.getBoundingClientRect();
     if (!entries.length || !pile) return;
     this.peekSuppress = true;
@@ -1169,6 +1201,7 @@ export class App {
   }
 
   private onRoundEnded(): void {
+    this.peekTable = false; // Das Ergebnis-Popup geht immer auf, egal was in der Vorrunde gedrückt wurde
     const r = this.state!.round.result!;
     if (r.winner === this.me) {
       play('win');
@@ -1351,15 +1384,21 @@ export class App {
     }
     // Offene Startkarte: liegt im Auslagebereich des Startspielers (dort ist in dieser Phase noch nichts ausgelegt).
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
-    const openCardEl = (): HTMLElement | null =>
+    // Die eigene offene Startkarte antippen heißt: nehmen, also dasselbe wie „Bereit“.
+    const openCardEl = (pid: number): HTMLElement | null =>
       starterCard
-        ? h('div', { class: 'pile open-card' }, h('span', null, t('wait.openCard')), this.cardEl(starterCard, { title: cardName(starterCard) }))
+        ? h(
+            'div',
+            { class: 'pile open-card' },
+            h('span', null, t('wait.openCard')),
+            this.cardEl(starterCard, { title: cardName(starterCard), onClick: pid === this.me && !r.ready[this.me] ? () => this.act({ kind: 'ready' }) : undefined }),
+          )
         : null;
     const showFan = window.innerWidth >= BREAKPOINTS.fan && window.innerHeight >= BREAKPOINTS.fanHeight;
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
-      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, true)), seat.pid === r.starter ? openCardEl() : null);
+      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, true)), seat.pid === r.starter ? openCardEl(seat.pid) : null);
       const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length, lost: seat.pid !== this.me && this.lostVisible(seat.pid) });
       // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
       const backId = this.seatBack(seat.pid);
@@ -1435,7 +1474,7 @@ export class App {
     const own = h(
       'div',
       { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
-      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, false)), this.me === r.starter ? openCardEl() : null),
+      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, false)), this.me === r.starter ? openCardEl(this.me) : null),
       seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, cls: 'own-label' }),
     );
     table.appendChild(own);
@@ -1714,6 +1753,7 @@ export class App {
       if (Math.hypot(dx, dy) < 7) return;
       d.active = true;
       d.el.classList.add('dragging');
+      this.showDropAreas(true);
       this.fresh.delete(d.id);
       d.el.classList.remove('fresh');
       if (this.selected.has(d.id) && this.selected.size > 1) {
@@ -1750,8 +1790,41 @@ export class App {
       }
     } else {
       const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-      const zone = target ? (target.closest('.discard, .meld, .own') as HTMLElement | null) : null;
+      let zone = target ? (target.closest('.discard, .meld, .own') as HTMLElement | null) : null;
+      // Ablage und Sätze gehen vor; sonst zählt der ganze Halbkreis (etwas größer) als Fläche zum Auslegen.
+      if (!zone || zone.classList.contains('own')) zone = this.inDiscZone(e.clientX, e.clientY) ? (this.root.querySelector('.own') as HTMLElement | null) : zone;
       this.setOver(zone);
+    }
+  }
+
+  /** Ablegefläche zum Auslegen: der Kreis des aktiven Spielers, um ein Siebtel vergrößert. */
+  private discZoneCircle(): { cx: number; cy: number; r: number } | null {
+    const disc = this.root.querySelector('.turn-disc') as HTMLElement | null;
+    if (!disc || disc.dataset.pos !== 'bottom') return null;
+    const rc = disc.getBoundingClientRect();
+    return { cx: rc.left + rc.width / 2, cy: rc.top + rc.height / 2, r: (rc.width / 2) * DROP_ZONE_GROW };
+  }
+
+  private inDiscZone(x: number, y: number): boolean {
+    const c = this.discZoneCircle();
+    return !!c && Math.hypot(x - c.cx, y - c.cy) <= c.r;
+  }
+
+  /** Beim Ziehen: alle Flächen, auf denen man loslassen kann, hervorheben (Ablage, Sätze, Halbkreis zum Auslegen). */
+  private showDropAreas(on: boolean): void {
+    const table = this.root.querySelector('.table');
+    table?.classList.toggle('drag-on', on);
+    table?.querySelector('.drop-halo')?.remove();
+    const c = on ? this.discZoneCircle() : null;
+    const clip = table?.querySelector('.turn-clip') as HTMLElement | null;
+    if (c && clip && table) {
+      const tr = table.getBoundingClientRect();
+      const halo = h('div', { class: 'drop-halo' });
+      halo.style.width = `${c.r * 2}px`;
+      halo.style.height = `${c.r * 2}px`;
+      halo.style.left = `${c.cx - c.r - tr.left}px`;
+      halo.style.top = `${c.cy - c.r - tr.top}px`;
+      clip.appendChild(halo);
     }
   }
 
@@ -1762,6 +1835,7 @@ export class App {
     if (d.over) d.over.classList.remove('drop', 'hover');
     d.over = zone;
     if (zone) zone.classList.add(zone.classList.contains('meld') ? 'hover' : 'drop');
+    this.root.querySelector('.table')?.classList.toggle('drop-own', !!zone && zone.classList.contains('own'));
   }
 
   private onPointerUp(e: PointerEvent): void {
@@ -1780,6 +1854,7 @@ export class App {
     const d = this.drag;
     if (!d) return;
     d.el.classList.remove('dragging');
+    this.showDropAreas(false);
     d.el.querySelector('.drag-badge')?.remove();
     if (d.over) d.over.classList.remove('drop', 'hover');
     this.drag = null;
@@ -2225,7 +2300,7 @@ export class App {
     const general = h(
       'div',
       { class: 'menu-group' },
-      inGame && this.online && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
+      inGame && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
       this.choice(
         t('settings.vibration'),
         onOff,
@@ -2930,11 +3005,13 @@ export class App {
         h(
           'td',
           null,
-          name(p.id),
+          s.finished && p.bot ? btn(`${name(p.id)} ⓘ`, () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
+          s.finished && p.bot ? this.botReveal(s, p.id, p.bot) : null,
           h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,
-          ...(s.finished && p.bot ? this.botReveal(s, p.id, p.bot) : []),
+          // Wer fertig ist, hat keine Restkarten: leere Box, damit alle Zeilen gleich hoch sind
+          !pr.hand.length ? h('div', { class: 'rest' }, this.cardEl('slot', { mini: true })) : null,
         ),
         h('td', { class: 'num' }, String(sc.base), sc.factors.length ? h('div', { class: 'factors' }, sc.factors.map((f) => t(`factor.${f}`)).join(', ')) : null),
         h('td', { class: 'num' }, String(sc.total)),
@@ -2958,7 +3035,6 @@ export class App {
         h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
         h('tbody', null, ...rows),
       ),
-      s.finished ? this.renderRoundsTable(scoreOrder(s)) : null,
       h(
         'div',
         { class: 'btn-row' },

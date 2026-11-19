@@ -814,10 +814,13 @@ export function checkDiscard(state: GameState, pid: number, cardId: number): Res
   if (!card) return fail('err.cardNotInHand');
   // Vorübergehende Karten (Ablage als Rommé-Spieler, Teppichkarte, geklauter Joker) dürfen nicht auf der Hand bleiben.
   const held = (id: number | null) => id !== null && p.hand.some((c) => c.id === id);
-  if (held(r.turn.pendingJokerId)) return fail('err.jokerMustUse');
-  if (held(r.turn.mustOpenWithId)) return fail('err.rommeDiscardNoOpen');
+  // Die letzte Handkarte beendet die Runde: Da darf auch ein geklauter Joker (Joker verbrannt ×2) oder die genommene
+  // Ablagekarte weg, nur die Teppichkarte bleibt gesperrt.
+  const lastCard = p.hand.length === 1;
+  if (!lastCard && held(r.turn.pendingJokerId)) return fail('err.jokerMustUse');
+  if (!lastCard && held(r.turn.mustOpenWithId)) return fail('err.rommeDiscardNoOpen');
   if (held(r.turn.mustPairWithId)) return fail('err.carpetNeedsPair');
-  if (held(r.turn.mustUseId)) return fail('err.mustUseTaken');
+  if (!lastCard && held(r.turn.mustUseId)) return fail('err.mustUseTaken');
   if (p.hand.length > 1) {
     const next = nextIndex(state, pid);
     const layoffable = (c: Card) => r.melds.some((m) => addOptions(m, c).length > 0);

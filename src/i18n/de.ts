@@ -277,7 +277,8 @@ export const de: Record<string, string> = {
   'style.pairs': 'Pärchenkönig',
   'style.gambler': 'Glücksritter',
   'style.wildcard': 'Wildcard',
-  'gameEnd.tastes': 'Vorlieben: {list}',
+  'gameEnd.tastes': 'Vorlieben',
+  'gameEnd.noTastes': 'Keine besonderen Vorlieben.',
   'gameEnd.roles': 'Die Rollen am Tisch',
   'err.selectOne': 'Wähle genau eine Karte.',
 

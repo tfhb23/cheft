@@ -31,6 +31,8 @@ export class NavGuard {
     private readonly atRoot: () => boolean,
     /** Der Nutzer wollte zurück, obwohl er nicht im Hauptmenü ist. */
     private readonly onBack: () => void,
+    /** Zurück-Wischen gerade ignorieren (z. B. Finger war eben auf der eigenen Kartenhand). */
+    private readonly swallow: () => boolean = () => false,
   ) {
     host.addEventListener('popstate', () => this.onPop());
   }
@@ -62,7 +64,7 @@ export class NavGuard {
       return;
     }
     if (this.atRoot()) return;
-    this.onBack();
+    if (!this.swallow()) this.onBack();
     this.sync();
   }
 }
