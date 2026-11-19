@@ -277,7 +277,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.31', name: 'Titel (h2)', where: 'Seiten- und Fenstertitel, immer zentriert', code: 'h2', sel: 'h2', stage: () => h('h2', null, t('btn.settings')), live: 'text' },
     { id: '2.32', name: 'Zwischenüberschrift links (h3)', where: 'Regeln, Design Guide: Abschnitte', code: '.rules h3', sel: '.rules h3', stage: () => h('div', { class: 'rules' }, h('h3', null, 'Spielablauf')), live: 'text', liveSel: 'h3' },
     { id: '2.33', name: 'Zwischenüberschrift im Fenster (h3)', where: 'Punkteverlauf (Spielende)', code: '.dialog h3', sel: '.dialog h3', stage: () => h('div', { class: 'dialog' }, h('h3', null, t('gameEnd.rounds'))), stageCls: 'flat', live: 'text', liveSel: 'h3' },
-    { id: '2.34', name: 'Rückblick-Banner', where: 'Rückblick auf Abwürfe', code: '.peek-banner', sel: '.peek-banner', stage: () => h('div', { class: 'peek-banner', style: { position: 'static' } }, t('peek.title')), stageCls: 'dark', live: 'text' },
+    { id: '2.34', name: 'Rückblick-Banner', where: 'Rückblick auf Abwürfe: Banner oben', code: '.peek-banner', sel: '.peek-banner', stage: () => h('div', { class: 'peek-banner', style: { position: 'static' } }, t('peek.title')), stageCls: 'dark', live: 'text' },
     { id: '2.35', name: 'Fließtext', where: 'Meldungen im Fenster, Regeln, Bestätigungen', code: 'p / body', stage: () => h('div', { class: 'panel' }, h('p', null, t('confirm.quit'))), stageCls: 'flat', live: 'text', liveSel: 'p' },
     { id: '2.36', name: 'Feldbeschriftung', where: 'Über Auswahlzeilen und Eingabefeldern', code: '.field-label', sel: '.field-label', stage: () => fieldLabel(t('settings.speed')), live: 'text' },
     { id: '2.37', name: 'Hinweis', where: 'Erklärungen unter Einstellungen, Bot-Auswahl (Stufe, Spielweise), „Spielrichtung“', code: '.hint', sel: '.hint:not(.center)', stage: () => hint(t('setup.directionCcw')), live: 'text' },
@@ -286,14 +286,14 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.40', name: 'Gedämpfter Text', where: 'Untertitel im Menü, „Noch keine Runde beendet“, Rundenzeilen', code: '.muted', sel: '.muted', stage: () => h('div', { class: 'muted' }, t('app.subtitle')), live: 'text' },
     { id: '2.41', name: 'Status-Meldung', where: 'Status-Zeile, links', code: '.status .msg', sel: '.status .msg', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'msg' }, t('turn.you.draw'))), live: 'text', liveSel: '.msg' },
     { id: '2.42', name: 'Status-Info', where: 'Status-Zeile, rechts (Erstmeldung, gewählte Augen)', code: '.status .info', sel: '.status .info', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'info' }, t('threshold', { n: 51 }))), live: 'text', liveSel: '.info' },
-    { id: '2.43', name: 'Spielername am Sitz', where: 'Sitz-Beschriftung', code: '.sl-name', sel: '.sl-name', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-name' }, 'Emil')), live: 'text', liveSel: '.sl-name' },
-    { id: '2.44', name: 'Kartenzahl am Sitz', where: 'Sitz-Beschriftung', code: '.seat-label', sel: '.seat-label .sl-cnt', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-cnt' }, t('cards.count', { n: 14 }))), live: 'text', liveSel: '.sl-cnt' },
+    { id: '2.43', name: 'Spielername am Sitz', where: 'Sitz-Beschriftung: links vom Chip', code: '.sl-name', sel: '.sl-name', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-name' }, 'Emil')), live: 'text', liveSel: '.sl-name' },
+    { id: '2.44', name: 'Kartenzahl am Sitz', where: 'Sitz-Beschriftung: rechts vom Chip', code: '.seat-label', sel: '.seat-label .sl-cnt', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-cnt' }, t('cards.count', { n: 14 }))), live: 'text', liveSel: '.sl-cnt' },
     { id: '2.46', name: 'Zähler auf dem Stapel', where: 'Stapel mit höchstens 7 Karten', code: '.count-on-card', sel: '.count-on-card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0 } }, c('back'), h('div', { class: 'count-on-card' }, '7')), live: 'text', liveSel: '.count-on-card' },
-    { id: '2.47', name: 'Tabellenkopf', where: 'Auswertung, Punkteverlauf', code: 'table.scores th', sel: 'table.scores th', stage: () => h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('score.base'))))), live: 'text', liveSel: 'th' },
-    { id: '2.48', name: 'Tabellenzeile', where: 'Auswertung, Punkteverlauf', code: 'table.scores td', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', null, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
+    { id: '2.47', name: 'Tabellenkopf', where: 'Auswertung, Punkteverlauf: Spaltenköpfe', code: 'table.scores th', sel: 'table.scores th', stage: () => h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('score.base'))))), live: 'text', liveSel: 'th' },
+    { id: '2.48', name: 'Tabellenzeile', where: 'Auswertung, Punkteverlauf: Zellen', code: 'table.scores td', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', null, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.49', name: 'Tabellenzeile Sieger', where: 'Auswertung: Rundensieger (synthetisches Fett)', code: 'table.scores tr.winner', sel: 'table.scores tr.winner', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.50', name: 'Faktoren und Zuwachs', where: 'Auswertung: „Cheft gewonnen ×2“, Punkteverlauf: „+12“', code: '.factors / .delta', sel: '.factors, .delta', stage: () => h('div', { class: 'factors' }, t('factor.cheftWon')), live: 'text' },
-    { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
+    { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe: Schild an jeder Karte', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
   ];
 
@@ -508,7 +508,6 @@ export function chapters(env: GuideEnv): Chapter[] {
   const suitRows: Spec[] = (['H', 'D', 'C', 'S'] as const).map((su, i) => ({
     id: `5.0${i + 2}`,
     name: `Kartensatz ${suitName[su]} (13 Karten)`,
-    where: 'Alle Karten gibt es zweimal (zwei Blätter, 104 Karten)',
     code: `sprites.ts › drawFace · Atlas-Zellen ${i * 13}–${i * 13 + 12}`,
     stage: () => h('div', { class: 'card-grid' }, ...Array.from({ length: 13 }, (_, k) => c(card(su, k + 1, -200 - k), { title: `${suitName[su]} ${rankName(k + 1)}` }))),
     stageCls: 'flat' as const,
@@ -597,15 +596,13 @@ export function chapters(env: GuideEnv): Chapter[] {
       facts: [['Zellen', `H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55 · Bildkarten Deck 2: ${FACE2_CELL}–${ATLAS_CELLS - 1} (H, D, C, S je Bube, Dame, König)`]],
     },
   ];
-  const backSpecs: Spec[] = BACK_DESIGNS.map((d, i) => ({
-    id: `5.${61 + i}`,
-    name: `Rückseite „${d.name}“`,
-    where: 'Zur Auswahl in den Einstellungen (4.22); links Deck 1 (Orange), rechts Deck 2 (Dunkel)',
-    code: `backs.ts › BACK_DESIGNS['${d.id}'] (neues Design: Eintrag ergänzen)`,
-    stage: () => (['a', 'b'] as const).map((deck) => h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, deck)})`, width: 'var(--card-w)', height: 'var(--card-h)' } })),
-    stageCls: 'flat' as const,
-    facts: [['Feld', 'im Rahmen 26 × 38 Pixel; Rahmen, weiße Kontur und abgerundete Ecken sind für alle Designs gleich']],
-  }));
+  const backThumbs = (d: (typeof BACK_DESIGNS)[number]): HTMLElement[] => (['a', 'b'] as const).map((deck) => h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, deck)})`, width: 'var(--card-w)', height: 'var(--card-h)' } }));
+  const backGrid = (): HTMLElement =>
+    h(
+      'div',
+      { style: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-6) var(--sp-8)' } },
+      ...BACK_DESIGNS.map((d, i) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--gap-tight)' } }, h('div', { style: { display: 'flex', gap: 'var(--gap-hair)' } }, ...backThumbs(d)), h('div', null, idChip(`5.${61 + i}`), ` ${d.name}`))),
+    );
   const brand: Spec[] = [
     {
       id: '5.30',
@@ -730,10 +727,9 @@ export function chapters(env: GuideEnv): Chapter[] {
     },
     { id: '6.50', name: 'Status-Zeile', where: 'Zwischen Tisch und Hand: Meldung links, Info rechts', code: '.status', sel: '.status', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'msg' }, t('turn.you.play')), h('span', { class: 'info' }, t('threshold', { n: 51 }))), stageCls: 'flat', live: 'box', liveSel: '.status' },
     { id: '6.60', name: 'Hand', where: 'Eigene Karten auf der Leiste in Sand dunkel: markiert, frisch, vorübergehend (rot)', code: '.hand-wrap > .hand', sel: '.hand-wrap', stage: () => h('div', { class: 'hand-wrap', style: { width: '100%' } }, h('div', { class: 'hand', style: { display: 'flex', gap: 'var(--sp-2)', height: 'auto', paddingTop: 'var(--lift-selected)' } }, ...[card('H', 5, -601), card('S', 13, -602), card('D', 1, -603), card('C', 7, -604)].map((k, i) => { const e = c(k, i === 1 ? { selected: true } : i === 2 ? { fresh: true } : {}); e.style.position = 'static'; if (i === 1) e.style.transform = 'translateY(calc(-1 * var(--lift-selected)))'; return e; }))), stageCls: 'flat', live: 'box', liveSel: '.hand-wrap', facts: [['Raster', `Abstand ${HAND.minStep}–(Kartenbreite + ${HAND.maxOver}) u; darunter zwei Zeilen im Abstand ${HAND.rowGap} u (3.151–3.154)`]] },
-    { id: '6.62', name: 'Aktionsleiste', where: 'Unten, immer alle vier: Cheft! (dunkel, ganz links, weit weg vom oft gedrückten Abwerfen), Auslegen (primär), Anlegen, Abwerfen. Nicht Mögliches ist abgeblendet, aber nie vom Handinhalt abhängig', code: '.actions', sel: '.actions', stage: () => h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.cheft'), undefined, { variant: 'dark' }), btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.layOff')), btn(t('btn.discard'))), stageCls: 'flat', live: 'box', liveSel: '.actions' },
+    { id: '6.62', name: 'Aktionsleiste', where: 'Unten, immer alle vier: Cheft! (dunkel, ganz links, weit weg vom oft gedrückten Abwerfen), Auslegen (primär), Anlegen, Abwerfen. Nicht Mögliches ist abgeblendet, aber nie vom Handinhalt abhängig. Vor Rundenbeginn steht stattdessen ein einziger Knopf „Bereit“ über die ganze Breite', code: '.actions', sel: '.actions', stage: () => [h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.cheft'), undefined, { variant: 'dark' }), btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.layOff')), btn(t('btn.discard'))), h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.ready'), undefined, { variant: 'primary' }))], stageCls: 'flat', live: 'box', liveSel: '.actions' },
     { id: '6.64', name: 'Zug zurücksetzen', where: 'Kleines Symbol links unten auf dem Spielfeld (5.45), bewusst kein Hauptknopf; immer da, abgeblendet, solange es nichts zurückzusetzen gibt. Setzt den Zug auf den Anfang zurück (Stapelkarte bleibt auf der Hand, Ablage- oder Teppichkarte gehen zurück); wurde schon ausgelegt, angelegt oder geklaut, fragt die App erst. Spielt einen enttäuschten Ton (9.12). Cheft-Ansage bleibt bestehen', code: '.undo-btn', sel: '.undo-btn', stage: () => iconBtn(pixelIcon(ICONS[4].rows), t('btn.undoDraw')), stageCls: 'flat', live: 'box' },
     { id: '6.25', name: 'Kreis des aktiven Spielers', where: 'Wer dran ist: großer goldener Kreis mit Pixelkante ganz hinten im Spielfeld, Mitte auf der Spielfeldkante bei diesem Spieler (unten, links, oben, rechts), am Rand abgeschnitten. Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ (3.145), aufs Pixelraster gerundet. Schon vor dem Start der Runde: So ist sofort klar, wer anfängt. Das goldene Namensschild verschwindet darin, die dunkle Schrift bleibt lesbar', code: 'App.layoutDisc · .turn-disc', sel: '.turn-disc', stage: () => h('div', { class: 'hint' }, `Durchmesser = (B + H) ÷ 2 ÷ ${TURN_DISC.phi} ÷ ${TURN_DISC.phi}`), stageCls: 'flat' },
-    { id: '6.63', name: 'Aktionsleiste „Bereit“', where: 'Vor Rundenbeginn: ein Knopf über die ganze Breite', code: '.actions', stage: () => h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.ready'), undefined, { variant: 'primary' })), stageCls: 'flat' },
     {
       id: '6.70',
       name: 'Rückblick auf Abwürfe',
@@ -887,23 +883,28 @@ export function chapters(env: GuideEnv): Chapter[] {
   ];
 
   // ----- 9 Sound
-  const soundSpecs: Spec[] = SOUND_CATALOG.map((s) => ({
-    id: s.id,
-    name: `Ton ${s.label}`,
-    where: s.use,
-    code: `sound.ts › play('${s.name}')`,
-    stage: () => btn('Anhören', () => preview(s.name)),
-    stageCls: 'flat' as const,
-    facts: [['Rezept', s.recipe]],
-  }));
-  const vibSpecs: Spec[] = VIBRATION_CATALOG.map((v) => ({
+  const vibFor = (use: string) => VIBRATION_CATALOG.find((v) => v.use === use);
+  const pattern = (v: (typeof VIBRATION_CATALOG)[number]) => (Array.isArray(v.pattern) ? v.pattern.join(' · ') : String(v.pattern));
+  const soundSpecs: Spec[] = SOUND_CATALOG.map((s) => {
+    const v = vibFor(s.use);
+    return {
+      id: s.id,
+      name: `Ton ${s.label}`,
+      where: s.use,
+      code: `sound.ts › play('${s.name}')`,
+      stage: () => (v ? [btn('Anhören', () => preview(s.name)), btn('Fühlen', () => vibrate(v.pattern, true))] : btn('Anhören', () => preview(s.name))),
+      stageCls: 'flat' as const,
+      facts: [['Rezept', s.recipe], ...(v ? [['Vibration (ms)', pattern(v)] as [string, string]] : [])],
+    };
+  });
+  // Vibrationen mit eigenem Anlass; die zum Anlass eines Tons stehen schon dort
+  const vibSpecs: Spec[] = VIBRATION_CATALOG.filter((v) => !SOUND_CATALOG.some((s) => s.use === v.use)).map((v) => ({
     id: v.id,
     name: `Vibration ${v.label}`,
     where: v.use,
-    code: 'sound.ts › VIB',
     stage: () => btn('Fühlen', () => vibrate(v.pattern, true)),
     stageCls: 'flat' as const,
-    facts: [['Muster (ms)', Array.isArray(v.pattern) ? v.pattern.join(' · ') : String(v.pattern)]],
+    facts: [['Muster (ms)', pattern(v)]],
   }));
 
   // ----- 10 Navigation
@@ -1020,9 +1021,9 @@ export function chapters(env: GuideEnv): Chapter[] {
       title: 'Karten und Grafiken',
       intro: 'Alle Karten werden beim Start als Pixelbild gezeichnet (sprites.ts) und per Atlas ausgeschnitten. Alle Farben stammen aus der Palette (Kapitel 1).',
       groups: [
-        { title: 'Kartensatz', specs: [sizes, ...suitRows] },
+        { title: 'Kartensatz', note: 'Alle Karten gibt es zweimal (zwei Blätter, 104 Karten).', specs: [sizes, ...suitRows] },
         { title: 'Sonderkarten, Figuren, Glyphen', specs: cardArt },
-        { title: 'Kartenrückseiten zur Auswahl (5.61 ff.)', specs: backSpecs },
+        { title: 'Kartenrückseiten zur Auswahl (5.61 ff.)', note: 'Zur Auswahl in den Einstellungen (4.22), links Deck 1 (Orange), rechts Deck 2 (Dunkel). Das Feld liegt im Rahmen 26 × 38 Pixel; Rahmen, weiße Kontur und abgerundete Ecken sind für alle Designs gleich. Neues Design: Eintrag in backs.ts › BACK_DESIGNS ergänzen.', node: backGrid },
         { title: 'Kartenzustände', specs: cardStates },
         { title: 'Logo, App-Icon, Hintergrund', specs: brand },
         { title: 'Piktogramme', specs: iconSpecs },
@@ -1052,7 +1053,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       intro: 'Alle Töne entstehen live per WebAudio (keine Dateien). Anhören geht auch bei ausgeschalteten Sounds. Vibration geht nur auf Geräten, die sie können.',
       groups: [
         { title: 'Töne', specs: soundSpecs },
-        { title: 'Vibration', specs: vibSpecs },
+        { title: 'Vibration', note: 'Alle Muster stehen in sound.ts › VIB. Muster zu einem Anlass mit Ton (Fehler, Sieg) stehen beim Ton.', specs: vibSpecs },
         { title: 'Lautstärke', node: () => table(['Nr.', 'Name', 'Wert'], [[idChip('9.30'), 'Gesamtlautstärke', '4,5 mit Kompressor (Schwelle −16 dB) gegen Übersteuern (sound.ts › MASTER_GAIN)']]) },
       ],
     },
