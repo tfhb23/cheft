@@ -549,7 +549,8 @@ function setCheft(state: GameState, pid: number): void {
 export function checkUndoDraw(state: GameState, pid: number): Result {
   const t = requireTurn(state, pid, 'play');
   if (!t.ok) return t;
-  if (!state.round.turn.rewind) return fail('err.noUndo');
+  // Die Spieler-Sicht kennt den Rücksetzpunkt selbst nicht, nur dass es einen gibt (canRewind).
+  if (!state.round.turn.canRewind) return fail('err.noUndo');
   return OK;
 }
 
@@ -559,7 +560,8 @@ export function checkUndoDraw(state: GameState, pid: number): Result {
  */
 function restoreRewind(state: GameState, pid: number): void {
   const r = state.round;
-  const snap = r.turn.rewind!;
+  const snap = r.turn.rewind;
+  if (!snap) return;
   const restored: RoundState = JSON.parse(snap);
   restored.players[pid].mode = r.players[pid].mode;
   restored.cheftAnnounced = r.cheftAnnounced;

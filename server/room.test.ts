@@ -76,6 +76,38 @@ describe('Räume', () => {
     expect(room.started).toBe(false);
   });
 
+  it('der Autopilot beendet einen vom Menschen angefangenen Zug, ohne seine eigenen Schritte immer wieder zurückzusetzen', () => {
+    const rooms = new Rooms(9);
+    const room = rooms.create();
+    room.addHuman('A');
+    room.addBot({ level: 'random', style: 'random' });
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    const s = room.state!;
+    expect(room.act(0, { kind: 'ready' }).ok).toBe(true);
+    let guard = 0;
+    while (s.round.waiting && guard++ < 50) room.autoStep(room.autoSeat()!);
+    // Bis der Mensch in der Ziehphase dran ist
+    while (!(s.round.turn.player === 0 && s.round.turn.phase === 'draw') && guard++ < 500) {
+      if (s.round.turn.player === 0) {
+        const hand = s.round.players[0].hand;
+        expect(room.act(0, { kind: 'discard', cardId: hand[hand.length - 1].id }).ok).toBe(true);
+      } else room.autoStep(s.round.turn.player);
+    }
+    expect(s.round.turn.player).toBe(0);
+    expect(room.act(0, { kind: 'draw', source: 'stock' }).ok).toBe(true);
+    expect(s.round.turn.canRewind).toBe(true);
+    // Verbindung weg mitten im Zug: der Autopilot übernimmt und beendet den Zug
+    room.setConnected(0, false);
+    room.resume();
+    room.seats[0].disconnectedAt = Date.now() - 60000;
+    const plies = s.round.plies ?? 0;
+    let steps = 0;
+    while (s.round.turn.player === 0 && !s.round.ended && steps++ < 20) room.autoStep(0);
+    expect(steps).toBeLessThan(20);
+    expect(s.round.plies).toBe(plies + 1);
+  });
+
   it('Rejoin per Token, Aufräumen alter Räume', () => {
     const rooms = new Rooms(8);
     const room = rooms.create();

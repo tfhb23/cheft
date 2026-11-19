@@ -172,6 +172,8 @@ export class Room {
   private nextRequestId = 1;
   /** Zeitpunkt, an dem der Raum aus einer Kopie wiederhergestellt wurde. */
   restoredAt: number | null = null;
+  /** Für welchen Zug der Autopilot einen angefangenen Zug schon zurückgesetzt hat (Runde:Zugzähler:Platz). */
+  private autoAborted = '';
   readonly createdAt = Date.now();
   lastActivity = Date.now();
   private rng: () => number;
@@ -717,7 +719,14 @@ export class Room {
     if (!s) return null;
     const confirm = s.round.waiting || s.round.ended;
     // Ein Mensch, den der Autopilot vertritt, hat seinen Zug vielleicht mit einer Pflichtkarte angefangen: erst zurücksetzen.
-    if (!confirm && !this.seats[pid]?.isBot && current(s) === pid) abortTurn(s);
+    // Das geschieht einmal je Zug, sonst würde der Autopilot seine eigenen Schritte immer wieder zurücknehmen.
+    if (!confirm && !this.seats[pid]?.isBot && current(s) === pid) {
+      const key = `${s.round.no}:${s.round.plies ?? 0}:${pid}`;
+      if (key !== this.autoAborted) {
+        this.autoAborted = key;
+        abortTurn(s);
+      }
+    }
     const action: Action = confirm ? { kind: 'ready' } : decideAction(s, pid);
     const res = applyAction(s, pid, action);
     if (confirm) this.checkFinishedConfirm();

@@ -11,19 +11,20 @@ import {
   Settings,
   abortTurn,
   checkDraw,
+  checkUndoDraw,
   checkDeclareCheft,
   checkLay,
   checkStealJoker,
-  checkUndoDraw,
   current,
   layOffTargets,
   newGame,
   scoreOrder,
   startNextRound,
   tableThreshold,
+  tempCardIds,
   winnerOfGame,
 } from '../engine/game';
-import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld } from '../engine/melds';
+import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
 import { decideAction } from '../bot/bot';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
@@ -33,9 +34,9 @@ import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
-import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_X, pixelIcon } from './icons';
+import { ICON_BOOK, ICON_GEAR, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
-import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE } from './tokens';
+import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -80,7 +81,6 @@ interface Prefs {
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
   peekDiscards: boolean;
   /** Ziehen mit Bestätigung: Gibt es mehrere Möglichkeiten, wählt das erste Tippen nur aus. */
-  safeDraw: boolean;
   /** Design Guide: Nummern der Elemente über dem Spiel einblenden. */
   dsLabels: boolean;
   /** Gewählte Kartenrückseite (backs.ts), nur für die eigene Anzeige. */
@@ -168,7 +168,6 @@ export class App {
     peekDiscards: true,
     seating: 'random',
     sortedDeal: true,
-    safeDraw: true,
     dsLabels: false,
     cardDesign: DEFAULT_BACK,
   };
@@ -190,9 +189,6 @@ export class App {
   private dialog: DialogSpec | null = null;
   private dialogInput = '';
   private lastDiscardTap = 0;
-  /** Beim Ziehen vorgewählter Stapel (erstes Tippen); das zweite Tippen zieht. */
-  private armed: 'stock' | 'discard' | 'carpet' | null = null;
-  private armedTimer: number | null = null;
   /** Ersatzname, falls kein Name eingegeben wurde; bleibt während der Sitzung gleich. */
   private forgottenName = randomForgottenName();
   /** Kein Name eingegeben: der Ersatzname ist nur ein Vorschlag. */
@@ -215,7 +211,6 @@ export class App {
   private order: number[] = [];
   private fresh = new Set<number>();
   private selected = new Set<number>();
-  private targetMode = false;
   private drag: Drag | null = null;
   private botGen = 0;
   private botsRunning = false;
@@ -387,10 +382,16 @@ export class App {
     abortTurn(s.state);
     return { state: s.state, order: Array.isArray(s.order) ? s.order : [] };
   }
+  /** Gespeichert wird ein angefangener Zug immer am Rücksetzpunkt (nach dem Laden beginnt er dort), damit kein Zustand mit Pflichtkarte hängen bleibt. */
+  private persistable(state: GameState): GameState {
+    const copy = structuredClone(state);
+    abortTurn(copy);
+    return copy;
+  }
   private save(): void {
     if (this.online) return;
     try {
-      if (this.state && !this.state.finished) localStorage.setItem(SAVE_KEY, JSON.stringify({ state: this.state, order: this.order }));
+      if (this.state && !this.state.finished) localStorage.setItem(SAVE_KEY, JSON.stringify({ state: this.persistable(this.state), order: this.order }));
       else localStorage.removeItem(SAVE_KEY);
     } catch {
       /* ignorieren */
@@ -398,7 +399,7 @@ export class App {
   }
   private async exportSave(): Promise<void> {
     if (!this.state) return;
-    const code = await packSave({ state: this.state, order: this.order });
+    const code = await packSave({ state: this.persistable(this.state), order: this.order });
     const show = () => this.askDialog({ title: t('btn.exportSave'), text: t('save.show'), input: { value: code, readonly: true }, back: true });
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code).then(
@@ -482,6 +483,7 @@ export class App {
         this.root.appendChild(this.renderGame());
         this.layoutHand();
         this.layoutTable();
+        this.layoutDisc();
         const nt = this.root.querySelector('.table');
         if (nt) nt.scrollTop = scroll;
         break;
@@ -550,12 +552,12 @@ export class App {
 
   private cardEl(
     card: Card | 'back' | 'back2' | 'slot',
-    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; dim?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
+    opts: { selected?: boolean; onClick?: () => void; glow?: boolean; temp?: boolean; title?: string; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; backId?: string } = {},
   ): HTMLElement {
     const off = atlasOffset(this.atlas.index(card));
     const sc = opts.mini ? '1' : opts.small ? 'var(--so)' : 'var(--s)';
     const el = h('div', {
-      class: `card${opts.small ? ' o' : ''}${opts.mini ? ' mini' : ''}${opts.selected ? ' selected' : ''}${opts.onClick ? ' clickable' : ''}${opts.glow ? ' glow' : ''}${opts.dim ? ' dim' : ''}${opts.fresh ? ' fresh' : ''}${opts.cls ? ' ' + opts.cls : ''}`,
+      class: `card${opts.small ? ' o' : ''}${opts.mini ? ' mini' : ''}${opts.selected ? ' selected' : ''}${opts.onClick ? ' clickable' : ''}${opts.glow ? ' glow' : ''}${opts.temp ? ' temp' : ''}${opts.fresh ? ' fresh' : ''}${opts.cls ? ' ' + opts.cls : ''}`,
       style: { backgroundPosition: `calc(${-off.x}px * ${sc}) calc(${-off.y}px * ${sc})` },
       title: opts.title ?? (typeof card === 'string' ? '' : cardName(card)),
       onclick: opts.onClick,
@@ -831,7 +833,6 @@ export class App {
       if (this.chooser) this.chooser = null;
       else if (this.showScores) this.showScores = false;
       else if (this.showSettings) this.showSettings = false;
-      else if (this.targetMode) this.targetMode = false;
       else return false;
       this.render();
       return true;
@@ -904,7 +905,6 @@ export class App {
     this.order = [];
     this.fresh.clear();
     this.selected.clear();
-    this.targetMode = false;
     this.botGen++;
     this.save();
     this.screen = 'game';
@@ -915,7 +915,6 @@ export class App {
     if (!this.state) return;
     this.selected.clear();
     this.fresh.clear();
-    this.targetMode = false;
     this.botGen++;
     this.goto('game');
     this.fresh.clear();
@@ -1102,13 +1101,13 @@ export class App {
   }
 
   private act(action: Action): boolean {
-    if (action.kind === 'draw') this.disarm();
     const s = this.state!;
     const before = snapshot(this.root);
     const appearFrom = action.kind === 'draw' ? this.pileRect(action.source) : null;
     if (this.online) {
       // Lokal nur prüfen, ausführen tut der Server.
-      const probe = applyAction(structuredClone(s), this.me, action);
+      // Das Zurücksetzen prüft nur, ob es einen Rücksetzpunkt gibt; den Inhalt kennt allein der Server.
+      const probe = action.kind === 'undoDraw' ? checkUndoDraw(s, this.me) : applyAction(structuredClone(s), this.me, action);
       if (!probe.ok) {
         this.toast(t(probe.error, probe.params), true);
         this.errorFx();
@@ -1143,7 +1142,6 @@ export class App {
   private pendingAppearFrom: DOMRect | null = null;
 
   private afterOwnAction(action: Action, s: GameState): void {
-    this.targetMode = false;
     if (action.kind === 'steal' && !this.online) this.selected = new Set([s.round.turn.pendingJokerId ?? -1]);
     if (action.kind === 'discard' || action.kind === 'lay' || action.kind === 'layOff') {
       if (!this.online) {
@@ -1161,7 +1159,7 @@ export class App {
     } else if (action.kind === 'lay' || action.kind === 'layOff' || action.kind === 'steal') {
       play('lay');
       vibrate(VIB.short, this.prefs.vibration);
-    } else if (action.kind === 'ready' || action.kind === 'undoDraw') play('tick');
+    } else if (action.kind === 'ready') play('tick');
   }
 
   /** Fehler: tiefer Ton und zweimal kurz. */
@@ -1267,7 +1265,6 @@ export class App {
     this.selected.clear();
     this.fresh.clear();
     this.order = [];
-    this.targetMode = false;
     this.peekTable = false;
     this.chooser = null;
     this.save();
@@ -1300,7 +1297,6 @@ export class App {
     const me = r.players[this.me];
     const myTurn = current(s) === this.me && !r.ended;
     const drawPhase = myTurn && r.turn.phase === 'draw';
-    if (!drawPhase && this.armed) this.disarm();
     const playPhase = myTurn && r.turn.phase === 'play';
 
     // Handreihenfolge abgleichen
@@ -1339,18 +1335,19 @@ export class App {
       ),
     );
 
-    // Ziele für Anlegen / Klauen
+    // Keine Tipps: Weder Ablage-, Stapel- oder Teppichkarte noch passende Kombinationen werden hervorgehoben.
     const selectedCards = me.hand.filter((c) => this.selected.has(c.id));
     const singleSel = selectedCards.length === 1 ? selectedCards[0] : null;
-    const targets = playPhase && singleSel && this.targetMode ? layOffTargets(s, this.me, singleSel.id) : [];
-    const targetIds = new Set(targets.map((x) => x.meld.id));
-    const stealable = new Set<number>();
-    if (playPhase && singleSel && !isJoker(singleSel) && me.opened) {
-      for (const m of r.melds) m.cards.forEach((c, i) => isJoker(c) && checkStealJoker(s, this.me, m.id, i, singleSel.id).ok && stealable.add(m.id));
-    }
+    // Vorübergehende Karten des Spielers am Zug (für alle sichtbar, rot umrandet)
+    const tempIds = new Set(tempCardIds(r));
 
     // Tisch
     const table = h('div', { class: 'table' });
+    // Wer dran ist: großer orangener Pixel-Kreis hinter allem, seine Mitte liegt auf der Spielfeldkante bei diesem Spieler (layoutDisc)
+    if (!r.ended && !r.waiting) {
+      const activePos = current(s) === this.me ? 'bottom' : this.seats().find((x) => x.pid === current(s))?.pos;
+      if (activePos) table.appendChild(h('div', { class: 'turn-clip' }, h('div', { class: 'turn-disc', dataset: { pos: activePos } })));
+    }
     // Offene Startkarte: liegt im Auslagebereich des Startspielers (dort ist in dieser Phase noch nichts ausgelegt).
     const starterCard = r.waiting ? ((r as RoundView).openCard ?? r.players[r.starter].hand.find((c) => c.id === r.turn.drawnCardId)) : undefined;
     const openCardEl = (): HTMLElement | null =>
@@ -1361,32 +1358,43 @@ export class App {
     for (const seat of this.seats()) {
       const pr = r.players[seat.pid];
       const melds = r.melds.filter((m) => m.owner === seat.pid);
-      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), true)), seat.pid === r.starter ? openCardEl() : null);
+      const meldsEl = h('div', { class: 'melds' }, ...melds.map((m) => this.meldEl(m, true)), seat.pid === r.starter ? openCardEl() : null);
       const label = seatLabel({ name: s.players[seat.pid].name, mode: pr.mode, count: pr.hand.length, lost: seat.pid !== this.me && this.lostVisible(seat.pid) });
       // Die offene Startkarte liegt noch auf dem Tisch und gehört optisch nicht in den Fächer (die Zahl im Text zählt sie mit).
       const backId = this.seatBack(seat.pid);
-      const fanHand = r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand;
-      const fan = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
+      const temps = seat.pid === current(s) && !r.ended ? pr.hand.filter((c) => tempIds.has(c.id) && c.id >= 0) : [];
+      const fanHand = (r.waiting && seat.pid === r.starter ? pr.hand.slice(0, -1) : pr.hand).filter((c) => !temps.includes(c));
+      const fanEl = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
+      // Vorübergehende Karten liegen offen am Ende des Fächers (untereinander); ohne Fächer (Handy) ragt von jeder nur die obere
+      // Hälfte am äußeren Rand der Auslage herein.
+      let fan: HTMLElement | null = fanEl;
+      if (temps.length && showFan) {
+        fan = h('div', { class: 'fan-wrap' }, fanEl, h('div', { class: 'temp-col' }, ...temps.map((c) => this.cardEl(c, { small: true, temp: true }))));
+      }
+      const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true })))) : null;
       const inner =
         seat.pos === 'top'
-          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl))
-          : h('div', { class: 'seat-inner' }, meldsEl, label, fan);
+          ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl), halves ? h('div', { class: 'flip180 temp-edge' }, halves) : null)
+          : h('div', { class: 'seat-inner' }, meldsEl, label, fan, halves ? h('div', { class: 'temp-edge' }, halves) : null);
       const wrap = h('div', { class: `seat seat-${seat.pos}${current(s) === seat.pid && !r.ended ? ' current' : ''}`, dataset: { seat: String(seat.pid), pos: seat.pos } }, inner);
       table.appendChild(wrap);
     }
 
-    // Stapel in der Mitte
-    const canStock = drawPhase && checkDraw(s, this.me, 'stock').ok;
-    const canDiscardDraw = drawPhase && checkDraw(s, this.me, 'discard').ok;
-    const canCarpet = drawPhase && checkDraw(s, this.me, 'carpet').ok;
+    // Stapel in der Mitte. Alle drei „Karte nehmen“-Felder sind gleich groß (eine Karte im Hochformat) und leuchten nie:
+    // Ob eine Karte nutzbar ist, muss jeder selbst sehen.
     const stockWrap = h(
       'div',
       { class: 'stock-wrap' },
       r.carpet
-        ? h('div', { class: 'carpet' }, this.cardEl(r.carpet, { glow: canCarpet && this.armed !== 'carpet', cls: this.armed === 'carpet' ? 'armed' : undefined, dim: this.armed !== null && this.armed !== 'carpet' && canCarpet, onClick: drawPhase ? () => this.pileTap('carpet') : undefined, title: `${t('carpet')}: ${cardName(r.carpet)}` }))
+        ? [
+            h('div', { class: 'carpet' }, this.cardEl(r.carpet, { title: `${t('carpet')}: ${cardName(r.carpet)}` })),
+            h('div', { class: `carpet-hit${drawPhase ? ' active' : ''}`, onclick: drawPhase ? () => this.pileTap('carpet') : undefined, title: t('carpet') }),
+            h('span', { class: 'pile-label carpet-label' }, t('carpet.label')),
+          ]
         : null,
-      this.stockEl(canStock, drawPhase),
+      this.stockEl(drawPhase),
       r.stock.length > 0 && r.stock.length <= 7 ? h('div', { class: 'count-on-card' }, String(r.stock.length)) : null,
+      h('span', { class: 'pile-label stock-label' }, t('stock')),
     );
     // Die ganze Ablage bleibt sichtbar; ältere Karten verschwinden nicht plötzlich.
     const discardCards = r.discard;
@@ -1394,6 +1402,7 @@ export class App {
     const discard = h(
       'div',
       { class: 'discard' },
+      h('span', { class: 'pile-label discard-label' }, t('discard')),
       discardCards.length === 0 ? this.cardEl('slot', { cls: 'slot-hint', onClick: playPhase && singleSel ? () => this.act({ kind: 'discard', cardId: singleSel.id }) : undefined }) : null,
       ...discardCards.map((c, i) => {
         const top = i === discardCards.length - 1;
@@ -1402,9 +1411,6 @@ export class App {
         const dx = ((hsh >> 6) % 15) - 5;
         const dy = ((hsh >> 11) % 15) - 7;
         const el = this.cardEl(c, {
-          glow: top && canDiscardDraw && this.armed !== 'discard',
-          cls: top && this.armed === 'discard' ? 'armed' : undefined,
-          dim: top && this.armed !== null && this.armed !== 'discard' && canDiscardDraw,
           // Nach einem langen Drücken (Rückblick) löst das Loslassen keinen Klick aus.
           onClick:
             top && topClick
@@ -1415,16 +1421,12 @@ export class App {
               : undefined,
         });
         el.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`;
-        el.style.zIndex = String(i);
+        el.style.zIndex = String(i + 1);
         return el;
       }),
     );
     this.bindPeek(discard);
-    const center = h(
-      'div',
-      { class: 'center' },
-      h('div', { class: 'piles' }, stockWrap, discard, h('span', { class: 'pile-label stock-label' }, t('stock')), h('span', { class: 'pile-label' }, t('discard'))),
-    );
+    const center = h('div', { class: 'center' }, h('div', { class: 'piles' }, stockWrap, discard));
     table.appendChild(center);
 
     // Eigene Auslage
@@ -1432,12 +1434,13 @@ export class App {
     const own = h(
       'div',
       { class: `own${myTurn && !r.ended ? ' current' : ''}`, dataset: { seat: String(this.me) } },
-      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, targetIds.has(m.id), stealable.has(m.id), false)), this.me === r.starter ? openCardEl() : null),
+      h('div', { class: 'melds' }, ...myMelds.map((m) => this.meldEl(m, false)), this.me === r.starter ? openCardEl() : null),
       seatLabel({ name: s.players[this.me].name, mode: me.mode, count: me.hand.length, hint: playPhase && selectedCards.length >= 2 ? t('drop.lay') : undefined, cls: 'own-label' }),
     );
     table.appendChild(own);
 
     // Status
+    const held = (id: number | null) => id !== null && me.hand.some((c) => c.id === id);
     let msg = '';
     if (r.ended) msg = '';
     else if (r.waiting) {
@@ -1446,19 +1449,17 @@ export class App {
     } else if (!myTurn) {
       const last = r.log[r.log.length - 1];
       msg = last && last.player !== undefined ? this.logText(last) : t('turn.bot', { name: s.players[current(s)].name });
-    } else if (drawPhase) msg = this.armed ? t('turn.you.confirmDraw', { pile: t(this.armed === 'stock' ? 'stock' : this.armed === 'discard' ? 'discard' : 'carpet') }) : r.finalTurn ? t('turn.you.final') : t('turn.you.draw');
-    else if (r.turn.pendingJokerId !== null) msg = t('turn.you.joker');
-    else if (r.turn.mustOpenWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.mustOpen');
-    else if (r.turn.mustPairWithId !== null && !r.turn.openedThisTurn) msg = t('turn.you.carpet');
-    else if (r.turn.mustUseId !== null && me.hand.some((c) => c.id === r.turn.mustUseId)) msg = t('turn.you.mustUse');
-    else if (this.targetMode) msg = t('target.pick');
+    } else if (drawPhase) msg = r.finalTurn ? t('turn.you.final') : t('turn.you.draw');
+    else if (held(r.turn.pendingJokerId)) msg = t('turn.you.joker');
+    else if (held(r.turn.mustOpenWithId)) msg = t('turn.you.mustOpen');
+    else if (held(r.turn.mustPairWithId)) msg = t('turn.you.carpet');
+    else if (held(r.turn.mustUseId)) msg = t('turn.you.mustUse');
     else msg = t('turn.you.play');
     let info = t('threshold', { n: tableThreshold(s) });
     if (selectedCards.length >= 3 && !me.opened && me.mode === 'romme') {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
     }
-    if (this.armed) info = ''; // Platz für den Hinweis zum Bestätigen
     const status = h('div', { class: 'status' }, h('span', { class: 'msg' }, msg), h('span', { class: 'info' }, info));
 
     // Hand
@@ -1468,8 +1469,8 @@ export class App {
       { class: `hand${this.dealing ? ' dealing' : ''}` },
       ...this.order.map((id) => {
         const c = byId.get(id)!;
-        const mustId = myTurn ? (r.turn.mustOpenWithId ?? r.turn.mustPairWithId ?? r.turn.mustUseId) : null;
-        const el = this.cardEl(c, { selected: this.selected.has(id), fresh: this.fresh.has(id) && id !== mustId, cls: id === mustId ? 'must' : undefined });
+        const isTemp = myTurn && tempIds.has(id);
+        const el = this.cardEl(c, { selected: this.selected.has(id), fresh: this.fresh.has(id) && !isTemp, temp: isTemp });
         el.classList.add('clickable');
         el.addEventListener('pointerdown', (e) => this.onPointerDown(e, id, el));
         el.addEventListener('pointermove', (e) => this.onPointerMove(e));
@@ -1479,19 +1480,26 @@ export class App {
       }),
     );
 
-    const canCheft = myTurn && !me.opened && me.mode === 'romme' && r.turn.mustOpenWithId === null;
+    // Immer alle vier Knöpfe, damit nichts wandert; was gerade nicht geht, ist abgeblendet. Reihenfolge wie im Zug:
+    // Cheft! (die Entscheidung am Anfang, bewusst weit weg vom oft gedrückten Abwerfen), Auslegen, Anlegen, Abwerfen.
+    const canCheft = myTurn && !me.opened && me.mode === 'romme';
     const actions = r.waiting
       ? h('div', { class: 'actions' }, btn(t('btn.ready'), () => this.act({ kind: 'ready' }), { disabled: r.ready[this.me], variant: 'primary' }))
       : h(
-      'div',
-      { class: 'actions' },
-      btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, variant: 'primary' }),
-      btn(t('btn.layOff'), () => this.layOffSelected(), { disabled: !playPhase || !singleSel || !me.opened }),
-      btn(t('btn.discard'), () => singleSel && this.act({ kind: 'discard', cardId: singleSel.id }), { disabled: !playPhase || !singleSel }),
-      playPhase && checkUndoDraw(s, this.me).ok
-        ? btn(t('btn.undoDraw'), () => this.act({ kind: 'undoDraw' }), { variant: 'dark' })
-        : btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, variant: 'dark' }),
-    );
+          'div',
+          { class: 'actions' },
+          btn(t('btn.cheft'), () => this.declareCheft(), { disabled: !canCheft, variant: 'dark' }),
+          btn(t('btn.lay'), () => this.laySelected([...this.selected]), { disabled: !playPhase || selectedCards.length < 2, variant: 'primary' }),
+          btn(t('btn.layOff'), () => this.layOffSelected(), { disabled: !playPhase || !singleSel || !me.opened }),
+          btn(t('btn.discard'), () => singleSel && this.act({ kind: 'discard', cardId: singleSel.id }), { disabled: !playPhase || !singleSel }),
+        );
+    // Zug zurücksetzen: kleines Symbol links unten auf dem Spielfeld, kein Hauptknopf. Immer da, abgeblendet wenn nichts zurückzusetzen ist.
+    if (!r.waiting && !r.ended) {
+      const undo = iconBtn(pixelIcon(ICON_UNDO), t('btn.undoDraw'), () => this.undoTurn());
+      undo.classList.add('undo-btn');
+      (undo as HTMLButtonElement).disabled = !(playPhase && r.turn.canRewind);
+      table.appendChild(undo);
+    }
 
     const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
@@ -1505,10 +1513,10 @@ export class App {
   }
 
   /** Stapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
-  private stockEl(glow: boolean, clickable: boolean): HTMLElement {
+  private stockEl(clickable: boolean): HTMLElement {
     const r = this.state!.round;
     const n = r.stock.length;
-    const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { glow: glow && this.armed !== 'stock', cls: this.armed === 'stock' ? 'armed' : undefined, dim: this.armed !== null && this.armed !== 'stock' && glow, onClick: clickable ? () => this.pileTap('stock') : undefined });
+    const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { onClick: clickable ? () => this.pileTap('stock') : undefined });
     if (n > 0) {
       const s = this.scale();
       const layers = Math.min(7, Math.ceil(n / 8));
@@ -1521,7 +1529,7 @@ export class App {
     return el;
   }
 
-  private meldEl(m: Meld, isTarget: boolean, isStealable: boolean, small: boolean): HTMLElement {
+  private meldEl(m: Meld, small: boolean): HTMLElement {
     const s = this.state!;
     const playPhase = current(s) === this.me && s.round.turn.phase === 'play' && !s.round.ended;
     const onClick = playPhase ? () => this.tapMeld(m) : undefined;
@@ -1534,7 +1542,7 @@ export class App {
         }
         return this.cardEl(c, { title, small });
       }),
-      { pair: m.type === 'pair', target: isTarget, stealable: isStealable, onClick, title: `${t(`mode.${m.type === 'pair' ? 'cheft' : 'romme'}`)} · ${meldAugen(m)}`, id: m.id },
+      { pair: m.type === 'pair', onClick, title: `${t(`mode.${m.type === 'pair' ? 'cheft' : 'romme'}`)} · ${meldAugen(m)}`, id: m.id },
     );
   }
 
@@ -1547,6 +1555,50 @@ export class App {
       params.card = top ? cardName(top) : '';
     }
     return t(e.key, params);
+  }
+
+  /** Gezeichnete Kreise (Pixelraster) nach Größe in Einheiten, damit nicht bei jedem Neuzeichnen ein neues Bild entsteht. */
+  private discImages = new Map<number, string>();
+
+  /**
+   * Kreis für den aktiven Spieler: Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ, auf das Pixelraster (1 u) gerundet,
+   * Mitte genau auf der Spielfeldkante bei diesem Spieler. Gezeichnet mit scharfer Pixelkante, ohne Weichzeichnen.
+   */
+  private layoutDisc(): void {
+    const table = this.root.querySelector('.table') as HTMLElement | null;
+    const disc = table?.querySelector('.turn-disc') as HTMLElement | null;
+    if (!table || !disc) return;
+    const s = this.scale();
+    const W = table.clientWidth;
+    const H = table.clientHeight;
+    const n = Math.max(4, Math.round((W + H) / 2 / TURN_DISC.phi / TURN_DISC.phi / s));
+    let url = this.discImages.get(n);
+    if (!url) {
+      const cv = document.createElement('canvas');
+      cv.width = n;
+      cv.height = n;
+      const ctx = cv.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = colorValue('--c-orange');
+        const r = n / 2;
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + 0.5 - r) ** 2 + (y + 0.5 - r) ** 2 <= r * r) ctx.fillRect(x, y, 1, 1);
+        url = cv.toDataURL();
+        this.discImages.set(n, url);
+      }
+    }
+    const size = n * s;
+    const pos = disc.dataset.pos;
+    let left = (W - size) / 2;
+    let top = (H - size) / 2;
+    if (pos === 'bottom') top = H - size / 2;
+    else if (pos === 'top') top = -size / 2;
+    else if (pos === 'left') left = -size / 2;
+    else if (pos === 'right') left = W - size / 2;
+    disc.style.width = `${size}px`;
+    disc.style.height = `${size}px`;
+    disc.style.left = `${Math.round(left)}px`;
+    disc.style.top = `${Math.round(top)}px`;
+    if (url) disc.style.backgroundImage = `url(${url})`;
   }
 
   /** Sitzgrößen: gedrehte Auslagen brauchen vertauschte Breite/Höhe; Gegnerkarten schrumpfen nur bei Platzmangel. */
@@ -1756,7 +1808,6 @@ export class App {
     play('tick');
     if (this.selected.has(id)) this.selected.delete(id);
     else this.selected.add(id);
-    this.targetMode = false;
     this.render();
   }
 
@@ -1826,6 +1877,11 @@ export class App {
     return false;
   }
 
+  /**
+   * „Anlegen“ mit einer markierten Karte. Passt sie nur an eine Stelle, wird sie dort angelegt. Passt sie an mehrere
+   * (auch Joker klauen), fragt die App im Stil der Kombinations-Auswahl nach: Statt der Augen steht der Spieler dabei,
+   * auch man selbst (mit dem Namen). Wo die Karte hinpassen könnte, wird sonst nirgends gezeigt.
+   */
   private layOffSelected(): void {
     const s = this.state!;
     const cards = this.selectedCards([...this.selected]);
@@ -1838,17 +1894,44 @@ export class App {
       this.toast(t('err.notOpened'), true);
       return;
     }
-    const targets = layOffTargets(s, this.me, card.id);
-    if (targets.length === 0) {
+    // Eigene Auslage zuerst, danach die anderen in Spielreihenfolge
+    const n = s.players.length;
+    const rank = (owner: number) => (owner - this.me + n) % n;
+    type Target = { owner: number; shapes: MeldShape[]; run: () => boolean };
+    const found: Target[] = [];
+    if (!isJoker(card)) {
+      for (const m of s.round.melds) {
+        m.cards.forEach((c, i) => {
+          if (isJoker(c) && checkStealJoker(s, this.me, m.id, i, card.id).ok) {
+            const result = replaceJoker(m, i, card);
+            found.push({ owner: m.owner, shapes: [result], run: () => this.act({ kind: 'steal', meldId: m.id, jokerIndex: i, cardId: card.id }) });
+          }
+        });
+      }
+    }
+    const byMeld = new Map<number, Meld>();
+    for (const x of layOffTargets(s, this.me, card.id)) byMeld.set(x.meld.id, x.meld);
+    for (const m of byMeld.values()) {
+      const opts = layOffTargets(s, this.me, card.id).filter((x) => x.meld.id === m.id);
+      opts.forEach((o, i) => {
+        found.push({ owner: m.owner, shapes: [o.result], run: () => this.act({ kind: 'layOff', cardId: card.id, meldId: m.id, end: i === 0 ? 'top' : 'bottom' }) });
+      });
+    }
+    if (found.length === 0) {
       this.toast(t('err.noTarget'), true);
+      this.errorFx();
       return;
     }
-    const meldIds = new Set(targets.map((x) => x.meld.id));
-    if (meldIds.size === 1) {
-      this.layOffWithChoice(targets[0].meld, card);
+    found.sort((a, b) => rank(a.owner) - rank(b.owner));
+    if (found.length === 1) {
+      found[0].run();
       return;
     }
-    this.targetMode = true;
+    this.chooser = {
+      title: t('choose.layoff'),
+      hint: t('choose.layoff.hint'),
+      options: found.map((f) => ({ shapes: f.shapes, label: s.players[f.owner].name, onPick: () => void f.run() })),
+    };
     this.render();
   }
 
@@ -1899,8 +1982,8 @@ export class App {
     this.dropOnMeld(m, cards[0].id);
   }
 
-  /** Cheft ansagen, mit Rückfrage im App-Stil. Mit `takeDiscard` wird danach gleich die Ablagekarte genommen. */
-  private declareCheft(takeDiscard = false): void {
+  /** Cheft ansagen, mit Rückfrage im App-Stil. Mit `then` wird danach gleich die Ablage- oder Teppichkarte genommen. */
+  private declareCheft(then?: 'discard' | 'carpet'): void {
     this.askDialog({
       title: t('confirm.cheft.title'),
       text: t('confirm.cheft'),
@@ -1910,7 +1993,12 @@ export class App {
           label: t('btn.cheftConfirm'),
           primary: true,
           onClick: () => {
-            if (!takeDiscard) {
+            if (then === 'carpet') {
+              // Die Teppichkarte zu nehmen macht zum Cheft-Spieler; die Rückfrage war die offizielle Ansage.
+              this.act({ kind: 'draw', source: 'carpet' });
+              return;
+            }
+            if (then !== 'discard') {
               this.act({ kind: 'declareCheft' });
               return;
             }
@@ -1927,38 +2015,51 @@ export class App {
   }
 
   /**
-   * Tippen auf einen Stapel beim Ziehen. Gibt es nur eine Möglichkeit, zieht das Tippen sofort. Gibt es mehrere
-   * (z. B. Stapel und Ablage), wählt das erste Tippen nur aus und das zweite zieht. So landet ein zu dicker Finger
-   * oder ein kurzes Tippen statt langem Drücken nicht versehentlich auf der falschen Karte.
+   * Tippen auf einen Stapel beim Ziehen: zieht sofort. Es gibt keine Vorwahl und keine Hervorhebung, denn die Frage, ob eine
+   * Karte nutzbar ist, soll jeder selbst beantworten (bei der Ablage gilt: nehmen und dann verwenden, sonst Zug zurücksetzen).
    */
   private pileTap(source: 'stock' | 'discard' | 'carpet'): void {
-    const s = this.state!;
-    const options = (['stock', 'discard', 'carpet'] as const).filter((x) => checkDraw(s, this.me, x).ok);
-    const ambiguous = this.prefs.safeDraw && options.includes(source);
-    if (ambiguous && this.armed !== source) {
-      this.armed = source;
-      if (this.armedTimer) clearTimeout(this.armedTimer);
-      this.armedTimer = window.setTimeout(() => {
-        this.armed = null;
-        this.render();
-      }, MOTION.armed);
-      play('tick');
-      vibrate(VIB.short, this.prefs.vibration);
-      this.render();
-      return;
-    }
-    this.disarm();
     if (source === 'discard') this.onDiscardDrawTap();
+    else if (source === 'carpet') this.onCarpetTap();
     else this.act({ kind: 'draw', source });
   }
 
-  private disarm(): void {
-    this.armed = null;
-    if (this.armedTimer) clearTimeout(this.armedTimer);
-    this.armedTimer = null;
+  /** Teppichkarte: Wer noch Rommé spielt, bestätigt zuerst „Cheft ansagen?“; ob die Karte überhaupt genommen werden darf, prüft die Regel. */
+  private onCarpetTap(): void {
+    const s = this.state!;
+    const chk = checkDraw(s, this.me, 'carpet');
+    if (!chk.ok) {
+      this.toast(t(chk.error, chk.params), true);
+      this.errorFx();
+      return;
+    }
+    if (s.round.players[this.me].mode === 'romme' && s.round.stock.length > 0) this.declareCheft('carpet');
+    else this.act({ kind: 'draw', source: 'carpet' });
   }
 
-  /** Tippen auf die Ablage beim Ziehen. Zweimal kurz nacheinander (wenn die Karte als Rommé-Spieler nicht erlaubt ist) bietet Cheft an. */
+  /**
+   * Zug zurücksetzen (Ausnahme, kein Hauptknopf): Wer sich verzählt hat, setzt auf den Anfang des Zuges zurück. Nur das
+   * Nehmen der Karte allein wird ohne Rückfrage zurückgesetzt; wurde schon etwas ausgelegt, angelegt oder geklaut, fragt die App.
+   */
+  private undoTurn(): void {
+    const s = this.state!;
+    if (!checkUndoDraw(s, this.me).ok) return;
+    const turn = s.round.turn;
+    const doIt = () => {
+      play('undo');
+      vibrate(VIB.error, this.prefs.vibration);
+      this.act({ kind: 'undoDraw' });
+    };
+    if (turn.actions > 0 || turn.openedThisTurn) {
+      this.askDialog({
+        title: t('confirm.undo.title'),
+        text: t('confirm.undo'),
+        buttons: [{ label: t('btn.cancel') }, { label: t('confirm.undo.yes'), primary: true, onClick: doIt }],
+      });
+    } else doIt();
+  }
+
+  /** Tippen auf die Ablage beim Ziehen. Zweimal kurz nacheinander (wenn ein Rommé-Spieler die Karte eines Cheft-Spielers nicht nehmen darf) bietet Cheft an. */
   private onDiscardDrawTap(): void {
     const s = this.state!;
     const now = Date.now();
@@ -1973,7 +2074,7 @@ export class App {
     if (s.round.discard.length > 0 && checkDeclareCheft(s, this.me).ok) {
       if (double) {
         this.lastDiscardTap = 0;
-        this.declareCheft(true);
+        this.declareCheft('discard');
       } else {
         this.toast(`${t(draw.error, draw.params)} ${t('hint.cheftDouble')}`, true);
         this.errorFx();
@@ -2155,18 +2256,6 @@ export class App {
         (v) => {
           this.prefs.keepAwake = v as boolean;
           void this.syncWakeLock();
-        },
-      ),
-      this.choice(
-        t('settings.safeDraw'),
-        [
-          { v: true, label: t('settings.safeDraw.yes') },
-          { v: false, label: t('settings.safeDraw.no') },
-        ],
-        () => this.prefs.safeDraw,
-        (v) => {
-          this.prefs.safeDraw = v as boolean;
-          this.disarm();
         },
       ),
       this.cardBackChoice(),
@@ -2485,7 +2574,6 @@ export class App {
       this.order = [];
       this.fresh.clear();
       this.selected.clear();
-      this.targetMode = false;
       this.peekTable = false;
       this.chooser = null;
     }

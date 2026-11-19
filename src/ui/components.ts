@@ -106,11 +106,11 @@ export function viewEl(title: string, body: Child[], onBack: () => void, bodyCls
 }
 
 /** 6.30: Kombination (Auslage) aus Karten. `cardEl` liefert die Karten, damit der Baustein keinen Atlas kennen muss. */
-export function meldEl(cards: Child[], o: { pair?: boolean; target?: boolean; stealable?: boolean; onClick?: () => void; title?: string; id?: number } = {}): HTMLElement {
+export function meldEl(cards: Child[], o: { pair?: boolean; onClick?: () => void; title?: string; id?: number } = {}): HTMLElement {
   return h(
     'div',
     {
-      class: `meld${o.pair ? ' pair' : ''}${o.target ? ' target' : ''}${o.stealable ? ' stealable' : ''}${o.onClick ? ' clickable' : ''}`,
+      class: `meld${o.pair ? ' pair' : ''}${o.onClick ? ' clickable' : ''}`,
       onclick: o.onClick,
       title: o.title,
       dataset: o.id !== undefined ? { meldId: String(o.id) } : undefined,

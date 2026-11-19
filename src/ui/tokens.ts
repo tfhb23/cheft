@@ -105,10 +105,10 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.66', css: '--line-muted', name: 'Linie gedämpft', ref: '--c-ink-soft', group: 'Linie', use: 'Rahmen deaktivierter Buttons' },
   { id: '1.67', css: '--line-accent', name: 'Linie Akzent', ref: '--c-orange-dark', group: 'Linie', use: 'Cheft-Badge-Rahmen' },
   { id: '1.68', css: '--line-danger', name: 'Linie Fehler', ref: '--c-red', group: 'Linie', use: 'Toast-Rahmen bei Fehlern' },
-  { id: '1.71', css: '--accent', name: 'Akzent', ref: '--c-orange', group: 'Markierung', use: 'Ausgewählte Karte, Karte mit Pflicht, Ablagezone, Anlege-Ziel' },
-  { id: '1.72', css: '--accent-strong', name: 'Akzent stark', ref: '--c-orange-dark', group: 'Markierung', use: 'Vorgewählte Karte (zweimal tippen)' },
-  { id: '1.73', css: '--accent-halo', name: 'Leuchten', ref: '--c-orange-pale', group: 'Markierung', use: 'Leuchten um ziehbare Karten und Karten mit Pflicht' },
-  { id: '1.74', css: '--accent-gold', name: 'Gold', ref: '--c-gold', group: 'Markierung', use: 'Leuchten der Vorwahl, Rückblick-Linie und Karten-Rahmen' },
+  { id: '1.71', css: '--accent', name: 'Akzent', ref: '--c-orange', group: 'Markierung', use: 'Ausgewählte Karte, Ablagezone, Auswahl-Rahmen' },
+  { id: '1.72', css: '--mark-temp', name: 'Vorübergehende Karte', ref: '--c-red', group: 'Markierung', use: 'Roter Rand: Karte, die nur vorübergehend auf der Hand ist (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) und noch verwendet werden muss' },
+  { id: '1.73', css: '--accent-halo', name: 'Leuchten', ref: '--c-orange-pale', group: 'Markierung', use: 'Leuchten um die offene Startkarte' },
+  { id: '1.74', css: '--accent-gold', name: 'Gold', ref: '--c-gold', group: 'Markierung', use: 'Rückblick-Linie und Karten-Rahmen' },
   { id: '1.75', css: '--positive', name: 'Positiv', ref: '--c-green', group: 'Markierung', use: 'Frisch gezogene Karte, Joker zum Klauen' },
   { id: '1.76', css: '--shadow-solid', name: 'Schatten hart', ref: '--c-ink', group: 'Schatten', use: 'Schatten der Buttons' },
   { id: '1.77', css: '--shadow-soft', name: 'Schatten weich', ref: '--c-sand-dark', group: 'Schatten', use: 'Schatten von Panels, Karten, Toast, Überschrift' },
@@ -217,21 +217,18 @@ export const SPACING_ROLES: { id: string; css: string; name: string; ref: string
 /** 3.51–3.59: Rahmen, Schatten und Linien. */
 export const BORDER_TOKENS: ValueToken[] = [
   { id: '3.51', css: '--bw', name: 'Rahmenstärke', value: u(1), use: 'Rahmen aller Panels, Buttons, Felder, Karten-Rückblick (1 u)' },
-  { id: '3.52', css: '--bw-mark', name: 'Markierungsstärke', value: u(2), use: 'Auswahl, Leuchten, Ziel, Ablagezone (2 u)' },
-  { id: '3.53', css: '--bw-armed', name: 'Vorwahlstärke', value: u(3), use: 'Vorgewählte Karte beim Ziehen (3 u)' },
+  { id: '3.52', css: '--bw-mark', name: 'Markierungsstärke', value: u(2), use: 'Auswahl, Leuchten, rote Markierung vorübergehender Karten, Ablagezone (2 u)' },
   { id: '3.54', css: '--radius', name: 'Eckenradius', value: '0', use: 'Keine abgerundeten Ecken (Pixel-Look). Die Kartenecken sind in den Sprites abgerundet' },
   { id: '3.55', css: '--sh-btn', name: 'Schatten Button', value: `${u(1)} ${u(1)} 0 var(--shadow-solid)`, use: 'Buttons (gedrückt: kein Schatten, 1 u verschoben)' },
   { id: '3.56', css: '--sh-panel', name: 'Schatten Panel', value: `${u(2)} ${u(2)} 0 var(--shadow-soft)`, use: 'Panels, Dialoge, Toast, gezogener Sitz in der Lobby' },
   { id: '3.57', css: '--sh-card', name: 'Schatten Karte', value: `${u(1)} ${u(1)} 0 var(--shadow-soft)`, use: 'Stapel, Teppichkarte, Ablage' },
   { id: '3.58', css: '--sh-heading', name: 'Schatten Schrift', value: `${u(1)} ${u(1)} 0 var(--shadow-soft)`, use: 'Logo-Schriftzug (text-shadow)' },
-  { id: '3.59', css: '--sh-halo', name: 'Leuchten', value: `0 0 0 ${u(4)} var(--accent-halo)`, use: 'Ziehbare Karten und Karten mit Pflicht (4 u breit)' },
-  { id: '3.60', css: '--sh-halo-armed', name: 'Leuchten Vorwahl', value: `0 0 0 ${u(6)} var(--accent-gold)`, use: 'Vorgewählte Karte (6 u breit)' },
+  { id: '3.59', css: '--sh-halo', name: 'Leuchten', value: `0 0 0 ${u(4)} var(--accent-halo)`, use: 'Offene Startkarte (4 u breit)' },
 ];
 
 /** 3.61–3.69: Wirkung auf Karten. */
 export const EFFECT_TOKENS: ValueToken[] = [
   { id: '3.68', css: '--op-dot', name: 'Deckkraft Nummern-Punkt', value: '0.85', use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
-  { id: '3.61', css: '--filter-dim', name: 'Abblenden', value: 'grayscale(0.5) contrast(0.6) brightness(1.08)', use: 'Karten, die gerade nicht gezogen werden können (ohne Durchscheinen)' },
   { id: '3.62', css: '--op-drag', name: 'Deckkraft beim Ziehen', value: '0.92', use: 'Karte unter dem Finger' },
   { id: '3.63', css: '--scale-drag', name: 'Vergrößerung beim Ziehen', value: '1.05', use: 'Karte unter dem Finger' },
   { id: '3.64', css: '--op-taken', name: 'Deckkraft genommen', value: '0.55', use: 'Im Rückblick: Karte, die schon jemand genommen hat' },
@@ -335,8 +332,6 @@ export const MOTION = {
   peekGuard: 350,
   /** Toast bleibt stehen. */
   toast: 3200,
-  /** Vorgewählte Karte wird wieder abgewählt. */
-  armed: 5000,
   /** Zwei Tipps auf die Ablage gelten als Doppeltipp. */
   doubleTap: 500,
 };
@@ -351,9 +346,14 @@ export const MOTION_TOKENS: { id: string; key: keyof typeof MOTION; name: string
   { id: '3.138', key: 'peekOut', name: 'Rückblick: Ausblenden', use: 'Ausblenden des Rückblicks' },
   { id: '3.139', key: 'peekGuard', name: 'Rückblick: Sperre', use: 'Wartezeit nach dem Rückblick, bis wieder gezogen werden kann' },
   { id: '3.140', key: 'toast', name: 'Toast: Dauer', use: 'So lange bleibt eine Meldung stehen' },
-  { id: '3.141', key: 'armed', name: 'Vorwahl: Dauer', use: 'Vorgewählte Karte wird nach dieser Zeit abgewählt' },
   { id: '3.142', key: 'doubleTap', name: 'Doppeltipp', use: 'Zeitfenster für zwei Tipps auf die Ablage (Cheft ansagen)' },
 ];
+
+/**
+ * 3.145: Kreis des aktiven Spielers. Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ, Mitte auf der Spielfeldkante
+ * bei diesem Spieler, Farbe Cheft-Orange (--surface-accent), ganz hinten, mit Pixelkante auf dem Raster von 1 u.
+ */
+export const TURN_DISC = { phi: 1.618 };
 
 /** 3.143: Beschleunigungskurve aller Kartenflüge und des Rückblicks. */
 export const EASE_FLY = 'cubic-bezier(.2,.8,.3,1)';
@@ -461,6 +461,7 @@ export function allTokenIds(): string[] {
     ...MOTION_TOKENS.map((x) => x.id),
     '3.143',
     '3.144',
+    '3.145',
     ...HAND_TOKENS.map((x) => x.id),
   ];
 }

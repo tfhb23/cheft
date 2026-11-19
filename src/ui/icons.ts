@@ -12,6 +12,7 @@ export const ICON_TABLE = ['##########', '#...#....#', '##########', '#...#....#
 export const ICON_GEAR = ['....##....', '.#.####.#.', '.########.', '..##..##..', '###....###', '###....###', '..##..##..', '.########.', '.#.####.#.', '....##....'];
 export const ICON_ARROW_L = ['..........', '....#.....', '...##.....', '..###.....', '.####.....', '.####.....', '..###.....', '...##.....', '....#.....', '..........'];
 export const ICON_ARROW_R = ['..........', '.....#....', '.....##...', '.....###..', '.....####.', '.....####.', '.....###..', '.....##...', '.....#....', '..........'];
+export const ICON_UNDO = ['..........', '...#......', '..##......', '.#######..', '..##...##.', '...#....##', '........##', '.......##.', '...#####..', '..........'];
 export const ICON_X = ['..........', '.##....##.', '..##..##..', '...####...', '....##....', '....##....', '...####...', '..##..##..', '.##....##.', '..........'];
 /**
  * Funksymbol mit fettem X: Verbindung verloren (Variante 3b, design/icons/funk-varianten-runde2.png). 12 × 12 Pixel, also
@@ -25,6 +26,7 @@ export const ICONS: IconDef[] = [
   { id: '5.42', key: 'book', name: 'Regeln', use: 'Kopfzeile im Spiel, rechts', rows: ICON_BOOK },
   { id: '5.43', key: 'gear', name: 'Einstellungen', use: 'Kopfzeile im Spiel, rechts außen', rows: ICON_GEAR },
   { id: '5.44', key: 'x', name: 'Entfernen', use: 'Lobby: Mitspieler oder Bot entfernen (nur Gastgeber)', rows: ICON_X },
+  { id: '5.45', key: 'undo', name: 'Zug zurücksetzen', use: 'Spielfeld links unten: Zug auf den Anfang zurücksetzen (Ausnahme, kein Hauptknopf)', rows: ICON_UNDO },
 ];
 
 const NS = 'http://www.w3.org/2000/svg';
