@@ -338,7 +338,7 @@ export const MOTION = {
 };
 export const MOTION_TOKENS: { id: string; key: keyof typeof MOTION; name: string; use: string }[] = [
   { id: '3.131', key: 'handShift', name: 'Hand sortiert um', use: 'Übergang left/top der Handkarten (CSS --dur-hand)' },
-  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch' },
+  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch, auch das Gleiten der Tischmitte und der seitlichen Sitze' },
   { id: '3.133', key: 'dealFly', name: 'Austeilen: Flug', use: 'Eine Karte beim Austeilen' },
   { id: '3.134', key: 'dealStep', name: 'Austeilen: Takt', use: 'Abstand zwischen zwei Karten' },
   { id: '3.135', key: 'peekHold', name: 'Rückblick: Halten', use: 'So lange drücken, bis der Rückblick erscheint' },

@@ -14,6 +14,7 @@ import { ICONS, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
 import { BACK_DESIGNS } from './backs';
+import { MAX_RATIO, START, deviceClass, tableLadder } from './tablescale';
 import { SOUND_CATALOG, VIBRATION_CATALOG, preview, vibrate } from './sound';
 import {
   BORDER_TOKENS,
@@ -80,7 +81,7 @@ interface Group {
 interface Chapter {
   n: number;
   title: string;
-  intro: string;
+  intro?: string;
   groups: Group[];
 }
 
@@ -287,14 +288,11 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.42', name: 'Status-Info', where: 'Status-Zeile, rechts (Erstmeldung, gewählte Augen)', code: '.status .info', sel: '.status .info', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'info' }, t('threshold', { n: 51 }))), live: 'text', liveSel: '.info' },
     { id: '2.43', name: 'Spielername am Sitz', where: 'Sitz-Beschriftung', code: '.sl-name', sel: '.sl-name', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-name' }, 'Emil')), live: 'text', liveSel: '.sl-name' },
     { id: '2.44', name: 'Kartenzahl am Sitz', where: 'Sitz-Beschriftung', code: '.seat-label', sel: '.seat-label .sl-cnt', stage: () => h('div', { class: 'seat-label' }, h('span', { class: 'sl-cnt' }, t('cards.count', { n: 14 }))), live: 'text', liveSel: '.sl-cnt' },
-    { id: '2.45', name: 'Stapel-Beschriftung', where: 'Unter Stapel und Ablage', code: '.pile-label', sel: '.pile-label', stage: () => h('div', { class: 'piles' }, h('span', { class: 'pile-label' }, t('stock'))), live: 'text', liveSel: '.pile-label' },
     { id: '2.46', name: 'Zähler auf dem Stapel', where: 'Stapel mit höchstens 7 Karten', code: '.count-on-card', sel: '.count-on-card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0 } }, c('back'), h('div', { class: 'count-on-card' }, '7')), live: 'text', liveSel: '.count-on-card' },
     { id: '2.47', name: 'Tabellenkopf', where: 'Auswertung, Punkteverlauf', code: 'table.scores th', sel: 'table.scores th', stage: () => h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('score.base'))))), live: 'text', liveSel: 'th' },
     { id: '2.48', name: 'Tabellenzeile', where: 'Auswertung, Punkteverlauf', code: 'table.scores td', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', null, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.49', name: 'Tabellenzeile Sieger', where: 'Auswertung: Rundensieger (synthetisches Fett)', code: 'table.scores tr.winner', sel: 'table.scores tr.winner', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.50', name: 'Faktoren und Zuwachs', where: 'Auswertung: „Cheft gewonnen ×2“, Punkteverlauf: „+12“', code: '.factors / .delta', sel: '.factors, .delta', stage: () => h('div', { class: 'factors' }, t('factor.cheftWon')), live: 'text' },
-    { id: '2.51', name: 'Toast', where: 'Rückmeldungen unten im Bild', code: '.toast', sel: '.toast:not(.error)', stage: () => staticToast(t('save.copied')), live: 'both', liveSel: '.toast' },
-    { id: '2.52', name: 'Toast Fehler', where: 'Unerlaubte Aktion, Verbindungsfehler', code: '.toast.error', sel: '.toast.error', stage: () => staticToast(t('err.invalidMeld'), true), live: 'both', liveSel: '.toast' },
     { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
   ];
@@ -331,7 +329,6 @@ export function chapters(env: GuideEnv): Chapter[] {
   const tokenTable = (head: string[], rows: () => Child[][], num: number[] = []) => () => table(head, rows(), num);
   const spacingScaleGroup: Group = {
     title: 'Abstandsskala (3.11–3.18)',
-    note: 'Eine Stufe heißt nach ihren u. Alle Abstände im Spiel sind Stufen dieser Skala; die Rollen darunter geben ihnen Bedeutung.',
     specs: SPACING_SCALE.map((s) => ({
       id: s.id,
       name: `${s.css} = ${s.units} u`,
@@ -342,7 +339,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
   const spacingRoleGroup: Group = {
     title: 'Abstands-Rollen (3.21–3.37)',
-    note: 'Wer einen Abstand im ganzen Spiel ändern will, ändert hier den Verweis auf die Skala (tokens.ts › SPACING_ROLES).',
+    note: 'Einen Abstand im ganzen Spiel ändern: den Verweis auf die Skala ändern (tokens.ts › SPACING_ROLES).',
     node: tokenTable(
       ['Nr.', 'Rolle', 'Wert'],
       () =>
@@ -450,7 +447,7 @@ export function chapters(env: GuideEnv): Chapter[] {
 
   const sizeTable: Group = {
     title: 'Maße einzelner Elemente (3.71–3.109)',
-    note: 'Fest in u (mal --s) oder in Pixeln. Die Mitspieler-Karten rechnen aus den Basis-Pixeln (3.71–3.78) mal --so.',
+    note: 'Fest in u (mal --s) oder in Pixeln. Auslagen rechnen aus den Basis-Pixeln (3.71–3.78) mal --so, die Tischmitte mal --sc (6.18).',
     node: tokenTable(
       ['Nr.', 'Name', 'Wert'],
       () => SIZE_TOKENS.map((s) => [idChip(s.id), sub(s.name, `${s.css} · ${s.use}`), s.px !== undefined ? `${s.px} px` : s.of ? `${s.of} × s` : `${s.units} u`]),
@@ -530,7 +527,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   const sizes: Spec = {
     id: '5.10',
     name: 'Kartengrößen',
-    where: 'Eigene Karten (--s), Karten der Mitspieler (.o, --so), Mini-Karten (feste Pixel)',
+    where: 'Handkarten (--s), Auslagen aller Sitze (.o, --so), Tischmitte (--sc, 6.18), Mini-Karten (feste Pixel)',
     code: '.card · .card.o · .card.mini',
     stage: () => [c(card('S', 13)), c(card('S', 13), { small: true }), c(card('S', 13), { mini: true })],
     stageCls: 'flat',
@@ -682,26 +679,55 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
   const field: Spec[] = [
     { id: '6.01', name: 'Kopfzeile', where: 'Oben im Spiel: Punkte-Piktogramm, Rundenzähler, Regeln, Einstellungen', code: '.topbar', sel: '.topbar', stage: () => h('div', { class: 'topbar', style: { position: 'static', width: '100%' } }, iconBtn(pixelIcon(ICONS[0].rows), t('btn.scores')), h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7'), h('div', { class: 'icons' }, iconBtn(pixelIcon(ICONS[1].rows), t('btn.rules')), iconBtn(pixelIcon(ICONS[2].rows), t('btn.settings')))), stageCls: 'flat', live: 'box', liveSel: '.topbar' },
-    { id: '6.10', name: 'Aufbau des Spielfelds', where: 'Von oben nach unten; die Nummern verweisen auf die Elemente', code: 'App.renderGame', stage: () => tableLayout(), stageCls: 'flat' },
-    { id: '6.20', name: 'Sitz-Beschriftung', where: 'Bei jedem Mitspieler und über der eigenen Auslage', code: 'seatLabel({ name, mode, count })', sel: '.seat-label', stage: () => seatLabel({ name: 'Emil', mode: 'romme', count: 14 }), live: 'box' },
+    {
+      id: '6.10',
+      name: 'Aufbau und Ausrichtung des Spielfelds',
+      where: 'Von oben nach unten; die Nummern verweisen auf die Elemente',
+      code: 'App.renderGame · App.layoutPlacement · placeAxis()',
+      stage: () => tableLayout(),
+      stageCls: 'flat',
+      facts: [
+        ['Achse', 'Jeder Sitz hat eine Achse: die Mitte seiner Spielfeldkante, dort sitzt auch der Kreis (6.25). Die eigene Achse ist fest.'],
+        ['Paket', 'Beschriftung (6.20) und alles, was ausliegt (Auslage, offene Karte, Teppich-Joker, halbe Karte oben drüber) liegen mittig auf der Achse.'],
+        ['Seitliche Sitze', 'Das Paket liegt auf der Achse und wird nur verschoben, wenn der obere oder untere Sitz im Weg ist.'],
+        ['Tischmitte', 'Mitte zwischen Stapel und Ablagefeld. Sie liegt auf der Spielfeldmitte, solange viel Platz ist, und wandert bei Enge weich zur Mitte des freien Platzes, ohne eine Auslage zu berühren.'],
+        ['Bewegung', `Verschiebungen gleiten in ${MOTION.fly} ms (nicht bei reduzierter Bewegung).`],
+      ],
+    },
+    { id: '6.20', name: 'Sitz-Beschriftung', where: 'Bei jedem Mitspieler und über der eigenen Auslage: Name | Rommé/Cheft | Kartenzahl. Die Badge liegt exakt auf der Achse des Sitzes, beide Badges sind gleich breit', code: 'seatLabel({ name, mode, count })', sel: '.seat-label', stage: () => seatLabel({ name: 'Emil', mode: 'romme', count: 14 }), live: 'box' },
     { id: '6.24', name: 'Verbindung verloren', where: 'Hinter dem Namen in Sitz-Beschriftung, Lobby-Zeile und Platzauswahl (Funksymbol mit X, 12 × 12 Pixel); erscheint erst nach 10 s, damit kurze Aussetzer nicht flackern', code: 'lostIcon()', sel: '.conn-lost', stage: () => seatLabel({ name: 'Max', mode: 'romme', count: 14, lost: true }), live: 'box' },
     { id: '6.21', name: 'Sitz-Beschriftung aktiv', where: 'Wer gerade dran ist: Gold hinterlegt, dunkle Schrift (so setzt sich das orange „Cheft“ ab)', code: '.seat.current .seat-label · .own.current', sel: '.seat.current .seat-label, .own.current .seat-label', stage: () => h('div', { class: 'seat current' }, seatLabel({ name: 'Emil', mode: 'cheft', count: 13 })), liveSel: '.seat-label', live: 'box' },
-    { id: '6.23', name: 'Offene Startkarte', where: 'Vor dem Start einer Runde, im Bereich des Startspielers; ohne Rahmen, Text in der Größe der Stapel-Beschriftungen (6.45) mit gleichem Abstand', code: '.open-card', sel: '.open-card', stage: () => h('div', { class: 'open-card' }, c(card('C', 9, -510), { glow: true }), h('span', null, t('wait.openCard', { name: 'Emil' }))) },
-    { id: '6.30', name: 'Kombination Folge', where: 'Auslage (eigene Größe)', code: 'meldEl(cards)', sel: '.meld', stage: () => melds('run', false), live: 'box' },
-    { id: '6.31', name: 'Kombination Satz mit Joker', where: 'Auslage', code: 'meldEl(cards)', stage: () => melds('set', false) },
-    { id: '6.32', name: 'Cheft-Paar', where: 'Auslage: zwei gleiche Karten, enger überlappt', code: "meldEl(cards, { pair: true }) · .meld.pair", sel: '.meld.pair', stage: () => melds('pair', false) },
-    { id: '6.33', name: 'Kombination bei Mitspielern', where: 'Auslagen links, rechts, oben (kleinere Karten, --so)', code: 'cardEl(card, { small: true })', stage: () => melds('run', true) },
-    { id: '6.36', name: 'Eigene Auslage als Ablagezone', where: 'Beim Ziehen markierter Karten: orange gestrichelt, hinterlegt', code: '.own.drop', sel: '.own.drop', stage: () => h('div', { class: 'own drop', style: { width: '100%' } }, melds('run', false)), stageCls: 'flat', live: 'box' },
+    { id: '6.22', name: 'Teppich-Joker', where: 'Vor dem Start einer Runde: Lagen beim Abheben ein oder zwei Joker unter der Teppichkarte, bekommt sie der Startspieler. Sie liegen für alle sichtbar links neben der offenen Karte (6.23), im Stil einer Auslage, mit dem Titel „Teppich“. Mit „Bereit“ wandern sie grün markiert in seine Hand', code: '.open-card > .meld · RoundState.carpetJokers', sel: '.open-card .meld', stage: () => h('div', { class: 'open-card' }, h('span', null, t('carpet.label')), meldEl([c(jack, { small: true }), c({ ...jack, id: -102 }, { small: true })])) },
+    { id: '6.23', name: 'Offene Startkarte', where: 'Vor dem Start einer Runde im Bereich des Startspielers: Karte in der Stufe der Auslagen, ohne Rahmen, mit Titel (der bleibt auch, wenn die Beschriftungen der Mitte entfallen)', code: '.open-card', sel: '.open-card', stage: () => h('div', { class: 'open-card' }, c(card('C', 9, -510), { small: true }), h('span', null, t('wait.openCard', { name: 'Emil' }))) },
+    { id: '6.30', name: 'Kombination Folge', where: 'Auslage jedes Sitzes, auch der eigenen: gleiche Stufe (--so, 6.18)', code: 'meldEl(cards) · cardEl(card, { small: true })', sel: '.meld', stage: () => melds('run', true), live: 'box' },
+    { id: '6.31', name: 'Kombination Satz mit Joker', where: 'Auslage', code: 'meldEl(cards)', stage: () => melds('set', true) },
+    { id: '6.32', name: 'Cheft-Paar', where: 'Auslage: zwei gleiche Karten, enger überlappt', code: "meldEl(cards, { pair: true }) · .meld.pair", sel: '.meld.pair', stage: () => melds('pair', true) },
+    { id: '6.36', name: 'Eigene Auslage als Ablagezone', where: 'Beim Ziehen markierter Karten: orange gestrichelt, hinterlegt', code: '.own.drop', sel: '.own.drop', stage: () => h('div', { class: 'own drop', style: { width: '100%' } }, melds('run', true)), stageCls: 'flat', live: 'box' },
     { id: '6.40', name: 'Stapel', where: 'Tischmitte: Rücken mit Dicke (eine Kante je angefangene 8 Karten, höchstens 7)', code: 'App.stockEl()', sel: '.stock-wrap > .card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0, marginRight: 'calc(7 * var(--s))', marginBottom: 'calc(7 * var(--s))' } }, (() => { const e = c('back', { glow: true }); const sh: string[] = []; for (let i = 7; i >= 1; i--) sh.push(`calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 0 var(--c-cream)`, `calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 1px var(--c-sand-dark)`); e.style.boxShadow = sh.join(', '); return e; })()) },
     { id: '6.41', name: 'Teppichkarte', where: 'Quer unter dem Stapel, offen', code: '.carpet', sel: '.carpet', stage: () => h('div', { style: { position: 'relative', width: 'calc(1.4 * var(--card-h))', height: 'calc(1.2 * var(--card-w))' } }, h('div', { class: 'carpet', style: { left: 'calc(0.2 * var(--card-h))' } }, c(card('S', 11, -520), { glow: true }))) },
     { id: '6.42', name: 'Ablage', where: 'Tischmitte: Karten liegen verstreut; die oberste ist ziehbar', code: '.discard', sel: '.discard', stage: () => h('div', { class: 'discard' }, ...[[0, 0, -10], [3, -2, 14], [-2, 4, -20]].map(([dx, dy, rot], i) => { const e = c(card('C', 4 + i, -530 - i), i === 2 ? { glow: true } : {}); e.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`; e.style.zIndex = String(i); return e; })), stageCls: 'flat' },
     { id: '6.43', name: 'Ablage leer', where: 'Zu Rundenbeginn: gestrichelter Platzhalter', code: "cardEl('slot', { cls: 'slot-hint' })", stage: () => h('div', { class: 'discard' }, c('slot', { cls: 'slot-hint' })), stageCls: 'flat' },
     { id: '6.44', name: 'Ablage als Ablageziel', where: 'Beim Ziehen einer Karte über die Ablage: oberste Karte orange gestrichelt', code: '.discard.drop', sel: '.discard.drop', stage: () => h('div', { class: 'discard drop' }, c(card('C', 4, -540))), stageCls: 'flat' },
-    { id: '6.45', name: 'Stapel-Beschriftung', where: 'Alle drei in derselben kleinen Schrift, ganz nah an der Karte: „Stapel“ und „Ablage“ über der Karte (Ablage später von Karten verdeckt), „Teppich“ gedreht links neben der Teppichkarte, zentriert zu ihrer Mitte; „Offene Karte“ ebenfalls über der Karte', code: '.pile-label', sel: '.pile-label', stage: () => h('div', { class: 'piles', style: { position: 'relative', height: 'calc(2 * var(--size-btn-icon))' } }, h('span', { class: 'pile-label', style: { position: 'static' } }, `${t('stock')} · ${t('discard')} · ${t('carpet.label')}`)), stageCls: 'flat' },
+    { id: '6.45', name: 'Stapel-Beschriftung', where: 'Eine kleine Schrift ganz nah an der Karte: „Stapel“ und „Ablage“ über der Karte (die Ablage später von Karten verdeckt), „Teppich“ gedreht links neben der Teppichkarte. Entfallen, sobald am Tisch etwas kleiner ist als zum Start (6.18); die Titel der Startkarten (6.22, 6.23) bleiben', code: '.pile-label', sel: '.pile-label', stage: () => h('div', { class: 'piles', style: { position: 'relative', height: 'calc(2 * var(--size-btn-icon))' } }, h('span', { class: 'pile-label', style: { position: 'static' } }, `${t('stock')} · ${t('discard')} · ${t('carpet.label')}`)), stageCls: 'flat', live: 'text', liveSel: '.pile-label' },
     { id: '6.47', name: 'Tippfläche Teppichkarte', where: 'Unsichtbar: genau so groß wie eine Karte im Hochformat, direkt links neben dem Stapel, nur beim Ziehen aktiv. Damit sind alle drei „Karte nehmen“-Felder (Stapel, Ablage, Teppich) gleich groß. Rommé-Spieler bekommen beim Antippen die Rückfrage „Cheft ansagen?“', code: '.carpet-hit', sel: '.carpet-hit', stage: () => h('div', { class: 'hint' }, 'Unsichtbar, ohne Rahmen und ohne Leuchten'), stageCls: 'flat' },
     { id: '6.48', name: 'Offene Karten am Fächer', where: 'Ab 900 px Breite: Die vorübergehenden Karten des Spielers am Zug liegen offen und rot umrandet am Ende des Fächers, mehrere untereinander', code: '.fan-wrap > .temp-col', sel: '.temp-col', stage: () => h('div', { class: 'fan-wrap', style: { paddingRight: 'calc(var(--px-card-w) * var(--so) + var(--sp-4))', marginTop: 'calc(var(--px-card-h) * var(--so))' } }, h('div', { class: 'fan' }, ...Array.from({ length: 6 }, (_, i) => c(i % 2 ? 'back2' : 'back', { small: true }))), h('div', { class: 'temp-col' }, c(card('C', 10, -611), { small: true, temp: true }), c(jack, { small: true, temp: true }))), stageCls: 'flat' },
-    { id: '6.49', name: 'Halbe Karte am Handy', where: 'Ohne Fächer (Handy): Von jeder vorübergehenden Karte bleibt nur die obere Hälfte, am äußeren Rand der Auslage des Spielers, passend zu seiner Sitzrichtung gedreht; liegt dort schon etwas, überdeckt sie es nur vorübergehend. Beim eigenen Sitz gibt es sie nicht (die Karte ist rot in der Hand)', code: '.temp-half > .half', sel: '.temp-half', stage: () => h('div', { class: 'temp-half', style: { margin: 'var(--sp-4)' } }, h('div', { class: 'half' }, c(card('C', 10, -612), { small: true })), h('div', { class: 'half' }, c(jack, { small: true }))), stageCls: 'flat' },
+    { id: '6.49', name: 'Halbe Karte am Handy', where: 'Ohne Fächer (Handy): Von jeder vorübergehenden Karte bleibt die obere Hälfte, am äußeren Rand des Sitzes bis zum Bildschirmrand verlängert, der Rahmen fehlt an der Außenseite (die Karte wirkt abgeschnitten). Sie liegt über dem Sitz und belegt keinen Platz. Beim eigenen Sitz gibt es sie nicht (die Karte ist rot in der Hand)', code: '.temp-half > .half', sel: '.temp-half', stage: () => h('div', { class: 'temp-half', style: { margin: 'var(--sp-4)' } }, h('div', { class: 'half' }, c(card('C', 10, -612), { small: true })), h('div', { class: 'half' }, c(jack, { small: true }))), stageCls: 'flat' },
     { id: '6.46', name: 'Fächer der Mitspieler', where: 'Verdeckte Handkarten bei Mitspielern (nur ab 900 px Breite)', code: '.fan', sel: '.fan', stage: () => h('div', { class: 'fan' }, ...Array.from({ length: 8 }, (_, i) => c(i % 2 ? 'back2' : 'back', { small: true }))), stageCls: 'flat' },
+    {
+      id: '6.18',
+      name: 'Kartengrößen am Tisch',
+      where: 'Auslagen aller Sitze (--so) und Tischmitte: Stapel, Ablage, Teppichkarte (--sc). Die Handkarten bleiben bei --s',
+      code: 'tablescale.ts › tableLadder() · App.layoutTable',
+      stage: () => h('div', { class: 'hint' }, 'Beispiel dieses Geräts: ' + tableLadder(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, deviceClass(typeof window === 'undefined' ? 800 : window.innerWidth, typeof window === 'undefined' ? 600 : window.innerHeight), rootScale()).map((x) => `${x.a} / ${x.c}`).join(' → ')),
+      stageCls: 'flat',
+      facts: [
+        ['Regel', `Die Mitte ist nie kleiner als die Auslagen und höchstens ${MAX_RATIO}-mal so groß, nie größer als die Hand.`],
+        ['Stufen', 'Ganze Geräte-Pixel je Kartenpixel: n ÷ Pixeldichte (Dichte 1: 1, 2, 3 · Dichte 2: auch Halbschritte · Dichte 3: Drittel). Fehlt eine kleine Stufe, ist 1 die Notstufe.'],
+        ['Start (Auslagen / Mitte)', `Handy schmal (bis 380 px) ${START.phoneNarrow.a} / ${START.phoneNarrow.c} · Handy ${START.phone.a} / ${START.phone.c} · Tablet, flacher Desktop ${START.tablet.a} / ${START.tablet.c} · großer Desktop ${START.desktop.a} / ${START.desktop.c}, jeweils auf die Stufen des Bildschirms gerundet.`],
+        ['Verkleinern', 'Bei Platzmangel schrittweise nach unten (größte Summe zuerst), innerhalb einer Runde nie wieder größer. Neu bestimmt wird bei neuer Runde, nach „Bereit“ und bei anderer Fenstergröße.'],
+        ['Beschriftungen', 'Sobald etwas kleiner ist als zum Start, entfallen „Stapel“, „Ablage“ und „Teppich“ (6.45).'],
+      ],
+    },
     { id: '6.50', name: 'Status-Zeile', where: 'Zwischen Tisch und Hand: Meldung links, Info rechts', code: '.status', sel: '.status', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'msg' }, t('turn.you.play')), h('span', { class: 'info' }, t('threshold', { n: 51 }))), stageCls: 'flat', live: 'box', liveSel: '.status' },
     { id: '6.60', name: 'Hand', where: 'Eigene Karten auf der Leiste in Sand dunkel: markiert, frisch, vorübergehend (rot)', code: '.hand-wrap > .hand', sel: '.hand-wrap', stage: () => h('div', { class: 'hand-wrap', style: { width: '100%' } }, h('div', { class: 'hand', style: { display: 'flex', gap: 'var(--sp-2)', height: 'auto', paddingTop: 'var(--lift-selected)' } }, ...[card('H', 5, -601), card('S', 13, -602), card('D', 1, -603), card('C', 7, -604)].map((k, i) => { const e = c(k, i === 1 ? { selected: true } : i === 2 ? { fresh: true } : {}); e.style.position = 'static'; if (i === 1) e.style.transform = 'translateY(calc(-1 * var(--lift-selected)))'; return e; }))), stageCls: 'flat', live: 'box', liveSel: '.hand-wrap', facts: [['Raster', `Abstand ${HAND.minStep}–(Kartenbreite + ${HAND.maxOver}) u; darunter zwei Zeilen im Abstand ${HAND.rowGap} u (3.151–3.154)`]] },
     { id: '6.62', name: 'Aktionsleiste', where: 'Unten, immer alle vier: Cheft! (dunkel, ganz links, weit weg vom oft gedrückten Abwerfen), Auslegen (primär), Anlegen, Abwerfen. Nicht Mögliches ist abgeblendet, aber nie vom Handinhalt abhängig', code: '.actions', sel: '.actions', stage: () => h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.cheft'), undefined, { variant: 'dark' }), btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.layOff')), btn(t('btn.discard'))), stageCls: 'flat', live: 'box', liveSel: '.actions' },
@@ -812,8 +838,8 @@ export function chapters(env: GuideEnv): Chapter[] {
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',
     },
-    { id: '7.20', name: 'Toast', where: 'Kurze Rückmeldung (Kopiert, Geladen), steht 3,2 s', code: 'toastEl(msg) · showToast()', stage: () => staticToast(t('save.copied')), stageCls: 'flat', live: 'box', liveSel: '.toast' },
-    { id: '7.21', name: 'Toast Fehler', where: 'Unerlaubte Aktion, Verbindungsfehler: rot', code: 'toastEl(msg, true)', stage: () => staticToast(t('err.cannotAdd'), true), stageCls: 'flat', live: 'box', liveSel: '.toast' },
+    { id: '7.20', name: 'Toast', where: 'Kurze Rückmeldung (Kopiert, Geladen), steht 3,2 s', code: 'toastEl(msg) · showToast()', stage: () => staticToast(t('save.copied')), stageCls: 'flat', live: 'both', liveSel: '.toast' },
+    { id: '7.21', name: 'Toast Fehler', where: 'Unerlaubte Aktion, Verbindungsfehler: rot', code: 'toastEl(msg, true)', stage: () => staticToast(t('err.cannotAdd'), true), stageCls: 'flat', live: 'both', liveSel: '.toast' },
     { id: '7.30', name: 'Abdunkelung', where: 'Hinter jedem Fenster; ein Tipp daneben = „Zurück“, aber nur bei Fenstern, die nur anzeigen', code: '.overlay', stage: () => h('div', { class: 'overlay', style: { position: 'relative', width: '100%', height: 'calc(2 * var(--size-btn-icon))', inset: 'auto', padding: 0, zIndex: 'auto' } }, hint('Abdunkelung 1.18')), stageCls: 'flat', live: 'box', liveSel: '.overlay' },
   ];
 
@@ -949,13 +975,13 @@ export function chapters(env: GuideEnv): Chapter[] {
         { title: 'Schriftschnitte', specs: weightSpecs },
         { title: 'Schriftgrößen', specs: sizeSpecs },
         { title: 'Zeilenhöhe und Laufweite (2.21–2.24)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => TYPE_MISC_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), x.value]), [2]) },
-        { title: 'Textstile: Überschriften, Texte, Hinweise (2.30–2.54)', note: 'Jede Zeile zeigt Schrift, Größe, Farbe und Ausrichtung des echten Elements.', specs: typeRoles },
+        { title: 'Textstile: Überschriften, Texte, Hinweise (2.30–2.54)', specs: typeRoles },
       ],
     },
     {
       n: 3,
       title: 'Abstände, Rahmen, Maße',
-      intro: '1 u = 1 Pixel × Maßstab. Alle Abstände sind Stufen der Skala (3.11–3.18); Rollen (3.21–3.37) geben ihnen Bedeutung. Am Ende des Kapitels steht, wo im Spiel welcher Abstand wirkt.',
+      intro: '1 u = 1 Pixel × Maßstab. Abstände sind Stufen der Skala (3.11–3.18), Rollen (3.21–3.37) geben ihnen Bedeutung; am Ende steht, wo im Spiel welcher Abstand wirkt.',
       groups: [
         {
           title: 'Maßstab (3.01) und Umschaltpunkte (3.05–3.06)',
@@ -964,7 +990,7 @@ export function chapters(env: GuideEnv): Chapter[] {
             () => [
               ...SCALE_TOKENS.rules.map((r) => [idChip(SCALE_TOKENS.id), sub(r.name, r.media ?? 'Standard'), `${r.s} / ${r.so}`]),
               ...BREAKPOINT_TOKENS.map((b) => [idChip(b.id), sub(b.name, b.use), b.value]),
-              ['', sub('Jetzt aktiv', '--s: Handkarten und alle Abstände · --so: Startwert der Auslagen, am Tisch je Platz kleiner (tablescale.ts)'), `${rootScale()} / ${cssVar('--so')}`],
+              ['', sub('Jetzt aktiv', '--s: Handkarten und alle Abstände · --so: Startwert der Auslagen, am Tisch je Platz kleiner (6.18)'), `${rootScale()} / ${cssVar('--so')}`],
             ],
             [2],
           ),
@@ -983,7 +1009,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       n: 4,
       title: 'Bedienelemente',
-      intro: 'Buttons, Auswahl, Eingabe, Chips. Jeder Button kommt aus btn() in components.ts; die Variante bestimmt Farbe, der Zustand (deaktiviert, gedrückt) ist für alle gleich.',
+      intro: 'Jeder Button kommt aus btn() in components.ts; die Variante bestimmt die Farbe, der Zustand (deaktiviert, gedrückt) ist für alle gleich.',
       groups: [
         { title: 'Buttons', specs: btnSpecs },
         { title: 'Auswahl, Eingabe, Chips', specs: inputSpecs },
@@ -1005,7 +1031,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       n: 6,
       title: 'Spielfeld',
-      intro: 'Alle Elemente, die am Tisch vorkommen, von der Kopfzeile bis zur Aktionsleiste.',
+      intro: 'Jeder Sitz hat eine Achse, auf der sein Paket aus Beschriftung und Auslage mittig liegt (6.10). Die Kartengrößen am Tisch richten sich nach dem Platz (6.18).',
       groups: [{ title: 'Spielfeld-Elemente', specs: field }],
     },
     {
@@ -1033,7 +1059,6 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       n: 10,
       title: 'Navigation und Beschriftungen',
-      intro: 'Eine Logik für alles, was sich schließen lässt.',
       groups: [navTable, labelTable],
     },
   ];
@@ -1071,8 +1096,8 @@ export function renderGuide(env: GuideEnv): HTMLElement {
   const intro = h(
     'div',
     { class: 'panel guide-intro' },
-    h('p', null, 'Alle Elemente der App mit fester Nummer. Eine Nummer besteht aus Kapitel und Zähler (z. B. 4.02 = Button Primär). Damit lässt sich jede Änderung eindeutig benennen.'),
-    h('p', null, 'Maße stehen in u: 1 u = 1 Pixel × Maßstab (Handy: 1 u = 2 px). Farben, Größen und Abstände sind in tokens.ts als Parameter angelegt; styles.css verwendet nur diese Variablen. Das Spiel und dieser Guide bauen aus denselben Bausteinen.'),
+    h('p', null, 'Alle Elemente der App mit fester Nummer aus Kapitel und Zähler (z. B. 4.02 = Button Primär).'),
+    h('p', null, 'Maße stehen in u: 1 u = 1 Pixel × Maßstab (Handy: 1 u = 2 px). Farben, Größen und Abstände sind in tokens.ts als Parameter angelegt; styles.css verwendet nur diese Variablen.'),
     h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), h('div', { class: 'choices' }, btn('an', () => env.setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' }), btn('aus', () => env.setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' }))),
     hint('Zeigt an jedem Element einen kleinen gelben Punkt unten links (nicht in diesem Guide). Antippen zeigt die Nummer und kopiert sie.'),
     toc,
@@ -1080,7 +1105,7 @@ export function renderGuide(env: GuideEnv): HTMLElement {
   const body: HTMLElement[] = [intro];
   for (const ch of chs) {
     body.push(h('h2', { class: 'guide-chapter', id: `${NS}-ch${ch.n}` }, `${ch.n} ${ch.title}`));
-    body.push(h('p', { class: 'guide-chapter-intro muted' }, ch.intro));
+    if (ch.intro) body.push(h('p', { class: 'guide-chapter-intro muted' }, ch.intro));
     for (const g of ch.groups) {
       body.push(h('h3', { class: 'guide-group' }, g.title));
       if (g.note) body.push(hint(g.note));
