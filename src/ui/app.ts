@@ -29,7 +29,8 @@ import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitio
 import { decideAction } from '../bot/bot';
 import { decideForHuman } from '../bot/autoplay';
 import { fallbackMove } from '../bot/fallback';
-import { Cheats, ParseResult, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
+import { Cheats, ParseResult, activeCheatIds, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
+import { CHEAT_MESSAGES } from '../engine/cheatnames';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
 import { describeTasteSet, tastesFor } from '../bot/tastes';
@@ -498,7 +499,7 @@ export class App {
             }
             if (cheat.kind === 'ok') {
               this.pendingCheats = cheat;
-              this.toast([...cheat.messages, ...cheat.warnings.map((w) => t(w.key, w.params))].join(' '));
+              this.toast(this.cheatLines(cheat.messages, cheat.warnings.map((w) => t(w.key, w.params))));
               this.goto('setup');
               return;
             }
@@ -769,7 +770,7 @@ export class App {
       h(
         'div',
         { class: 'panel' },
-        ...(this.pendingCheats ? this.pendingCheats.messages.map((m) => hint(m)) : []),
+        ...(this.pendingCheats ? [h('div', { class: 'hint cheat-hint' }, this.cheatLines(this.pendingCheats.messages))] : []),
         h('div', { class: 'option' }, fieldLabel(t('setup.name')), nameInput),
         this.choice(t('setup.bots'), [{ v: 2, label: '2' }, { v: 3, label: '3' }], () => this.prefs.bots, (v) => (this.prefs.bots = v as number)),
         ...this.prefs.botChoices.slice(0, this.prefs.bots).map((c, i) => this.botRow(c, i)),
@@ -1606,8 +1607,7 @@ export class App {
         this.showScores = true;
         this.render();
       }),
-      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
-      this.lampInHeader() ? h('span', { class: 'cheat-lamp', title: t('cheat.tag') }, pixelIcon(ICON_LAMP)) : null,
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, this.lampInHeader() ? this.lamp(t('cheat.tag')) : null),
       h(
         'div',
         { class: 'icons' },
@@ -1824,6 +1824,16 @@ export class App {
     const request = this.online?.lobby ? this.renderRequest(this.online.lobby) : null;
     if (request) game.appendChild(request);
     return game;
+  }
+
+  /** Die Wunschlampe, inline in Schrifthöhe und im Orange der Rundenzahl. */
+  private lamp(title?: string): HTMLElement {
+    return h('span', { class: 'cheat-lamp', title }, pixelIcon(ICON_LAMP));
+  }
+
+  /** Meldungstext: "Cheats aktiv:" einmal, darunter eine Zeile je Cheat. */
+  private cheatLines(messages: string[], extra: string[] = []): string {
+    return [t('cheat.activeHead'), ...messages.map((m) => `- ${m}`), ...extra].join('\n');
   }
 
   /** Cheat-Lampe in der Kopfzeile: nur im Solospiel mit Cheats, und nur wenn die Rundenzahl kurz genug ist (bei 100+ Runden steht sie in der Punkteübersicht). */
@@ -3394,7 +3404,14 @@ export class App {
     const s = this.state!;
     return windowEl(
       [
-        !this.online && s.cheats && !this.lampInHeader() ? h('p', { class: 'cheat-note' }, h('span', { class: 'cheat-lamp' }, pixelIcon(ICON_LAMP)), t('cheat.active')) : null,
+        !this.online && s.cheats
+          ? h(
+              'div',
+              { class: 'cheat-note' },
+              h('p', { class: 'accent' }, this.lamp(), t('cheat.activeHead')),
+              h('div', { class: 'cheat-list' }, ...activeCheatIds(s.cheats).map((id) => h('div', null, `- ${CHEAT_MESSAGES[id]}`))),
+            )
+          : null,
         s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')),
         backBtn(() => this.back()),
       ],

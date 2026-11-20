@@ -27,22 +27,22 @@ export const CHEAT_NAMES: Record<CheatId, string[]> = {
   superFast: ['SUPERFAST'],
 };
 
-/** Meldung beim Aktivieren eines Cheats (Platzhalter). */
+/** Kurzbeschreibung je Cheat: eine Zeile in der Meldung beim Aktivieren und in der Punkteübersicht (Platzhalter). */
 export const CHEAT_MESSAGES: Record<CheatId, string> = {
-  jokers: 'Cheat aktiv: Joker in jeder Runde.',
-  hand: 'Cheat aktiv: Wunschhand.',
-  rounds: 'Cheat aktiv: eigene Rundenzahl.',
-  laidOut: 'Cheat aktiv: Du startest mit ausgelegter Kombination.',
-  carpet: 'Cheat aktiv: Die Teppichkarte passt zu deiner Hand.',
-  autoplay: 'Cheat aktiv: Autoplay.',
-  timeTravel: 'Cheat aktiv: Zeitreise.',
-  firstMeld: 'Cheat aktiv: niedrigere Erstmeldung.',
-  deck2: 'Cheat aktiv: doppelt so viele Karten.',
-  deck3: 'Cheat aktiv: dreimal so viele Karten.',
-  deck4: 'Cheat aktiv: viermal so viele Karten.',
-  jokerParty: 'Cheat aktiv: Jokerparty.',
-  mini: 'Cheat aktiv: Mini-Deck (7 bis Ass).',
-  superFast: 'Cheat aktiv: Bots spielen mit maximalem Tempo.',
+  jokers: 'Joker in jeder Runde',
+  hand: 'Wunschhand',
+  rounds: 'eigene Rundenzahl',
+  laidOut: 'Du startest mit ausgelegter Kombination',
+  carpet: 'Die Teppichkarte passt zu deiner Hand',
+  autoplay: 'Autoplay',
+  timeTravel: 'Zeitreise',
+  firstMeld: 'niedrigere Erstmeldung',
+  deck2: 'doppelt so viele Karten',
+  deck3: 'dreimal so viele Karten',
+  deck4: 'viermal so viele Karten',
+  jokerParty: 'Jokerparty',
+  mini: 'Mini-Deck (7 bis Ass)',
+  superFast: 'Bots spielen mit maximalem Tempo',
 };
 
 /** Testhände, die als Zeile in `HAND( … )` stehen dürfen (Platzhalter-Namen). */

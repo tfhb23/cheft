@@ -58,6 +58,24 @@ export interface Cheats {
   superFast?: boolean;
 }
 
+/** Die aktiven Cheats eines Spiels (für die Anzeige), in fester Reihenfolge. */
+export function activeCheatIds(c: Cheats): CheatId[] {
+  const out: CheatId[] = [];
+  if (c.jokers) out.push('jokers');
+  if (c.hand) out.push('hand');
+  if (c.rounds) out.push('rounds');
+  if (c.laidOut) out.push('laidOut');
+  if (c.carpet) out.push('carpet');
+  if (c.autoplay) out.push('autoplay');
+  if (c.timeTravel) out.push('timeTravel');
+  if (c.firstMeld) out.push('firstMeld');
+  if (c.deckMult) out.push(`deck${c.deckMult}` as CheatId);
+  if (c.jokerParty !== undefined) out.push('jokerParty');
+  if (c.mini) out.push('mini');
+  if (c.superFast) out.push('superFast');
+  return out;
+}
+
 /** Die Deck-Zusammensetzung dieses Spiels (ohne Cheats: das Standardspiel). */
 export function deckConfigOf(cheats?: Cheats): DeckConfig {
   if (!cheats || (!cheats.deckMult && cheats.jokerParty === undefined && !cheats.mini)) return STANDARD_DECK;

@@ -247,7 +247,7 @@ export const de: Record<string, string> = {
   'err.noUndo': 'Es gibt noch nichts zurückzusetzen: Das geht erst nach dem Ziehen.',
   'btn.undoDraw': 'Zug zurücksetzen',
   'cheat.tag': 'Cheats aktiv',
-  'cheat.active': 'Cheats aktiv in diesem Spiel',
+  'cheat.activeHead': 'Cheats aktiv:',
   'err.botStuck': 'Ein Bot-Zug ging nicht. Das Spiel wurde angehalten.',
   'cheat.gameEnd': 'Dieses Spiel lief mit Cheats.',
   'cheat.err.unknown': 'Unbekanntes Cheat-Wort: {word}',
