@@ -10,7 +10,7 @@ import { Card } from '../engine/cards';
 import { h, Child } from './dom';
 import { t } from '../i18n';
 import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
-import { ICONS, pixelArt, pixelIcon } from './icons';
+import { ICONS, ICON_INFO, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
 import { BACK_DESIGNS } from './backs';
@@ -765,12 +765,12 @@ export function chapters(env: GuideEnv): Chapter[] {
       7,
     );
   /** Zeile der Auswertung; `rest`: offene Restkarten (opened) oder verdeckte (closed). */
-  const h2row = (me: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string, place = ''): HTMLElement =>
+  const h2row = (me: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string, place = '', info = false): HTMLElement =>
     h(
       'tr',
       { class: me ? 'me' : '' },
       h('td', { class: 'place' }, place),
-      h('td', null, name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
+      h('td', null, info ? btn([name, pixelIcon(ICON_INFO)], undefined, { cls: 'name-info' }) : name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
       h('td', { class: 'num' }, base, factor ? h('div', { class: 'factors' }, factor) : null),
       h('td', { class: 'num' }, total),
       h('td', { class: 'num' }, sum),
@@ -830,7 +830,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       where: 'Nach der letzten Runde: Sieger, Auswertung mit Platz (1. 2. 3. 4.), eigene Zeile hervorgehoben, Bot-Details hinter dem (i), Punkteverlauf',
       code: 'App.renderRoundEnd() · tr.me · table.rounds',
       stage: () => dlg(h('h2', null, t('gameEnd.title')), h('p', null, t('gameEnd.winner', { name: 'Emil', n: 38 })),
-        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i], `${i + 1}.`); return r; }))),
+        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i], `${i + 1}.`, i > 0); return r; }))),
         h('div', null, h('h3', null, t('gameEnd.rounds')), roundsDemo()),
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',
