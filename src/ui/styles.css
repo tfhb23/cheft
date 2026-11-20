@@ -207,7 +207,7 @@ details > * + * { margin-top: var(--gap-tight); }
 .travel-btn { position: absolute; left: calc(var(--sp-3) + var(--size-btn-icon) + var(--sp-2)); bottom: var(--sp-3); z-index: var(--z-lift); }
 .auto-ctl { position: absolute; right: var(--sp-3); bottom: var(--sp-3); z-index: var(--z-lift); display: flex; gap: var(--gap-tight); }
 .cheat-lamp { display: inline-block; color: var(--text-accent); margin-left: var(--sp-2); }
-.cheat-lamp svg { display: inline-block; height: 0.7em; height: 1cap; width: auto; vertical-align: baseline; shape-rendering: crispEdges; }
+.cheat-lamp svg { display: inline-block; height: calc(var(--fs-label) * 0.7); height: 1cap; width: auto; vertical-align: baseline; shape-rendering: crispEdges; }
 .cheat-hint { white-space: pre-line; }
 .cheat-note { color: var(--text-accent); }
 .cheat-note .cheat-lamp { margin-left: 0; margin-right: var(--sp-2); }
