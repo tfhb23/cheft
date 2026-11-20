@@ -38,7 +38,7 @@ import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
-import { ScaleStep, deviceClass, tableLadder } from './tablescale';
+import { ScaleStep, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -1720,8 +1720,8 @@ export class App {
 
   /**
    * Kartengrößen am Tisch und Sitzgrößen. Alle Auslagen (auch die eigene) haben eine Stufe, die Mitte eine eigene (höchstens 1,75-mal so groß).
-   * Es geht von der Startgröße des Geräts schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
-   * zum Start, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
+   * Es geht von der Größe der Handkarten schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
+   * die Handkarten, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
    */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
@@ -1736,7 +1736,7 @@ export class App {
     const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
     const dpr = window.devicePixelRatio || 1;
-    const ladder = tableLadder(dpr, deviceClass(window.innerWidth, window.innerHeight), s);
+    const ladder = tableLadder(dpr, s);
     const key = `${this.state?.round.no ?? 0}${this.state?.round.waiting ? 'w' : 'p'}:${this.state?.players.length ?? 0}:${window.innerWidth}x${window.innerHeight}@${dpr}`;
     if (this.tableStep.key !== key) this.tableStep = { key, index: 0 };
     const apply = (st: ScaleStep) => {
