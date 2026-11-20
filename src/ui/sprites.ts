@@ -205,7 +205,7 @@ function drawBack(ctx: Ctx, x: number, y: number, design: BackDesign, main: stri
   }
 }
 
-/** Einzelne Rückseite als Bild (für die Auswahl in den Einstellungen und den Design Guide). deck 'a' orange, 'b' dunkel. */
+/** Einzelne Rückseite als Bild (für die Auswahl in den Einstellungen und das Familienalbum). deck 'a' orange, 'b' dunkel. */
 export function backThumb(designId: string, deck: 'a' | 'b'): string {
   const canvas = document.createElement('canvas');
   canvas.width = CARD_W;

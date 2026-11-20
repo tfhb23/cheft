@@ -3,11 +3,11 @@ export type SoundName = 'card' | 'drawStock' | 'drawDiscard' | 'drawCarpet' | 'd
 
 let ctx: AudioContext | null = null;
 let enabled = false;
-/** Nur während einer Hör-Probe im Design Guide: spielt auch bei ausgeschaltetem Sound. */
+/** Nur während einer Hör-Probe im Familienalbum: spielt auch bei ausgeschaltetem Sound. */
 let forced = false;
 let master: AudioNode | null = null;
 
-/** Alle Töne des Spiels mit Nummer, Wirkung und Rezept (Kapitel 9 im Design Guide). */
+/** Alle Töne des Spiels mit Nummer, Wirkung und Rezept (Kapitel 9 im Familienalbum). */
 export const SOUND_CATALOG: { id: string; name: SoundName; label: string; use: string; recipe: string }[] = [
   { id: '9.01', name: 'card', label: 'Austeilen', use: 'Nach dem Austeilen; bei Stapel-Zug von Mitspielern', recipe: 'Rechteck 880 Hz, 50 ms' },
   { id: '9.02', name: 'drawStock', label: 'Ziehen vom Stapel', use: 'Eigener und fremder Zug vom Stapel', recipe: 'Rechteck 880 Hz, 50 ms (wie Austeilen)' },
@@ -142,7 +142,7 @@ function crash(dur: number, gain = 0.07, delay = 0): void {
   src.start(t);
 }
 
-/** Hör-Probe für den Design Guide: spielt unabhängig von der Einstellung „Sounds“. */
+/** Hör-Probe für das Familienalbum: spielt unabhängig von der Einstellung „Sounds“. */
 export function preview(name: SoundName): void {
   forced = true;
   try {

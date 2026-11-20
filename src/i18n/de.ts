@@ -20,7 +20,7 @@ export const de: Record<string, string> = {
   'btn.quit': 'Spiel abbrechen',
   'btn.saveQuit': 'Speichern & zum Menü',
   'btn.settings': 'Einstellungen',
-  'btn.guide': 'Design Guide',
+  'btn.guide': 'Familienalbum',
   'btn.scores': 'Punkteübersicht',
   'scores.none': 'Noch keine Runde beendet.',
   'btn.exportSave': 'Spielstand-Code kopieren',

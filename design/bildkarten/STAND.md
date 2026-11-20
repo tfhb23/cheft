@@ -17,10 +17,12 @@ Cheft ist ein Kartenspiel (Pixel-Web-App). Es gibt **zwei Decks**: Jede Karte ex
 Familien-Themen:
 - **Herz** (die Guten): persische Dichtkunst, Liebe (Rot, Gold, Weiß, Braun, nicht zu bunt).
 - **Karo**: Orient, Schätze, Gold (blondes Haar, goldene Elemente). Bube mit rotem Fez.
-- **Kreuz**: klassische Königsfamilie (Schwarz, Gold, Weiß, braunes Haar). Der Kreuz König trägt als einziger König eine Krone.
+- **Kreuz**: klassische Königsfamilie (Schwarz, Gold, Weiß, braunes Haar). Der Kreuz König (Deck 1) trägt eine Goldkrone; der Herz König in Deck 2 trägt inzwischen ebenfalls eine (Dreibogen-Goldkrone).
 - **Pik** (die Bösen): weiße Haare, Brille/Monokel/Zylinder, blasse Haut, schwarz.
 
 ## 2. Stand der Karten (12 Karten × 2 Personen)
+
+> **Überholt:** Inzwischen haben alle 12 Karten zwei verschiedene Personen im Spiel (`src/ui/face-art.ts`, Freigaben in `code/zwillinge.py`). Die Spalte „fehlt“ in der Tabelle unten und der Abschnitt „Fertig sind 5 von 12 Paaren“ gelten nicht mehr. Die Figuren stehen im Familienalbum der App.
 
 Rendering aller aktuellen Personen: `images/render_aktuell/` (je `…_1x.png` und `…_10x.png`) und `images/render_aktuell/zwischenuebersicht.png`. Neu erzeugen mit `python3 design/bildkarten/code/final_auswahl.py`.
 

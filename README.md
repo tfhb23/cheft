@@ -37,7 +37,7 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Beim Anlegen mit mehreren möglichen Stellen (auch Joker klauen) zeigt die App die Kombinations-Auswahl mit dem Namen des Spielers statt der Augen.
 - Der aktive Spieler steht in einem großen goldenen Pixel-Kreis (schon vor dem Start der Runde beim Startspieler) hinter dem Spielfeld (Durchmesser = (Breite + Höhe) ÷ 2 ÷ φ ÷ φ, Mitte auf der Spielfeldkante). Aktionsleiste: Cheft! | Auslegen | Anlegen | Abwerfen.
 - Bots haben ein Gedächtnis (Vergesslich, Normal, Scharfsinnig, Mastermind) und eine Rolle: fünf Spielweisen (Ausgewogen, Frühvogel, Gerissener, Pärchenkönig, Glücksritter) oder die Wildcard, die jede Runde eine andere Spielweise spielt (Standard für Bots, die einen Mitspieler ersetzen). Je Kombination mindestens fünf Namen (`src/bot/rolenames.ts`). Pro Bot wählbar oder „Zufall“ (verdeckt für das ganze Spiel; gewichtet: Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, der Mastermind nie). Jeder Bot hat dazu zufällige Vorlieben (z. B. Herzkarten, ungerade Zahlen, Glückszahl 7), die nur beim Abwerfen und nie gegen fertige Kombinationen wirken, und merkt sich im laufenden Spiel, wie die anderen spielen (je nach Gedächtnis). Am Spielende werden Gedächtnis, Rolle (bei der Wildcard die Rollen der Runden) und Vorlieben aufgedeckt. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“; die Rollen stehen in [docs/ROLLEN_V3.md](docs/ROLLEN_V3.md).
-- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
+- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Familienalbum/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Bot-Tempo, Vibration, Sounds.
 
 ## Bot-Gedächtnis
@@ -154,21 +154,23 @@ src/ui/       Oberfläche
   icons.ts      Pixel-Piktogramme
   sprites.ts    Sprite-Atlas (Pixelkarten per Canvas)
   sound.ts      Töne und Vibration samt Katalog
-  guide.ts      Design Guide (Menü → „Design Guide“)
+  guide.ts      Familienalbum (Menü → „Familienalbum“)
   app.ts        Menü, Spielfeld, Dialoge, Einstellungen
 scripts/      Icon-Generator (liest die Farben aus tokens.ts)
 ```
 
-## Design Guide und Design-Tokens
+## Familienalbum und Design-Tokens
 
-Im Menü zwischen „Regeln“ und „Einstellungen“ liegt der **Design Guide**. Er zeigt alle Elemente der App mit fester
-Nummer (Kapitel.Zähler, z. B. `4.02` = Button Primär): Farben, Schriften, Abstände, Buttons, alle Karten und Grafiken,
-Spielfeld-Elemente, Fenster, Seiten, Töne und Vibrationen, dazu die Navigationslogik und eine Liste, welcher Abstand wo
-wirkt. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ erscheinen die
+Im Menü zwischen „Regeln“ und „Einstellungen“ liegt das **Familienalbum** (früher „Design Guide“). Es beginnt mit der Marke: die vier
+Familien mit ihren Figuren (beide Decks als Paar), alle 23 Kartenrückseiten, das Blatt mit den Kartenzuständen, Farben, Schrift
+und Pixel, Klang und Haptik. Danach kommt der Tisch (Spielfeld, Bausteine, Fenster, Seiten, Verhalten). Am Ende steht die
+Werkstatt mit Maßen, Abständen und dem Kartenatlas, eingeklappt. Jedes Element trägt eine feste Nummer (Kapitel.Zähler, z. B. `4.02`
+= Button Primär). Die Nummer ist ein Name, keine Seitenposition: Ein Element behält sie, auch wenn sein Kapitel wandert, Lücken
+bleiben. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ (in der Werkstatt) erscheinen die
 Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die Nummer), damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
 
 - **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
-  auf sie zeigen; eine Rolle (`1.4x`–`1.7x`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
+  auf sie zeigen; eine Rolle (`1.42`–`1.75`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
   der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.37` geben ihnen Bedeutung. `styles.css` enthält
   keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht.
 - **Neues Element:** Baustein in `components.ts` (oder Klasse in `styles.css`) anlegen und in `guide.ts` unter `chapters()`

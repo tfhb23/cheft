@@ -89,7 +89,7 @@ interface Prefs {
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
   peekDiscards: boolean;
   /** Ziehen mit Bestätigung: Gibt es mehrere Möglichkeiten, wählt das erste Tippen nur aus. */
-  /** Design Guide: Nummern der Elemente über dem Spiel einblenden. */
+  /** Familienalbum: Nummern der Elemente über dem Spiel einblenden. */
   dsLabels: boolean;
   /** Gewählte Kartenrückseite (backs.ts), nur für die eigene Anzeige. */
   cardDesign: string;
@@ -253,7 +253,7 @@ export class App {
   private peekTable = false;
   private chooser: { title: string; hint: string; options: { shapes: MeldShape[]; label: string; onPick: () => void }[] } | null = null;
   private toastTimer: number | null = null;
-  /** Nummern-Etiketten des Design Guides über dem Spiel. */
+  /** Nummern-Etiketten des Familienalbums über dem Spiel. */
   private labels = new DsLabels();
   private rulesFrom: Screen = 'menu';
   /** Zurück-Geste/-Taste des Geräts: eine Ebene zurück, im Spiel und in der Lobby erst warnen, im Hauptmenü die App verlassen. */
@@ -509,7 +509,7 @@ export class App {
     if (this.drag) return; // während des Ziehens nicht neu aufbauen
     const tableEl = this.root.querySelector('.table');
     const scroll = tableEl ? tableEl.scrollTop : 0;
-    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Design Guide (.view-body)
+    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Familienalbum (.view-body)
     const scrollers = ['.menu', '.view-body'].map((sel) => [sel, this.root.querySelector(sel)?.scrollTop ?? 0] as const);
     // Auch ein Fenster, das selbst scrollt (Einstellungen mit vielen Rückseiten), behält seine Scrollposition beim Neuaufbau
     const oldDialog = this.root.querySelector('.overlay > .dialog');

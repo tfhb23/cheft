@@ -1,5 +1,5 @@
 /**
- * Wiederverwendbare Bausteine. Das Spiel und der Design Guide bauen ihre Elemente aus denselben Funktionen,
+ * Wiederverwendbare Bausteine. Das Spiel und das Familienalbum baut ihre Elemente aus denselben Funktionen,
  * damit „so sieht ein Button aus“ nur an einer Stelle steht. Das Aussehen selbst kommt aus styles.css und tokens.ts.
  */
 import { h, Child } from './dom';
@@ -165,7 +165,7 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
     ...items.map((d) => {
       const on = d.id === selected;
       return h('div', {
-        class: `card clickable ${on ? 'glow' : 'dim'}`,
+        class: `card clickable ${on ? 'selected' : 'dim'}`,
         style: { backgroundImage: `url(${on ? d.orange : d.dark})`, backgroundSize: '100% 100%', backgroundPosition: '0 0' },
         title: d.name,
         onclick: () => {
@@ -178,7 +178,7 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
   const step = (dir: number) => () => strip.scrollBy({ left: dir * strip.clientWidth * 0.8, behavior: 'smooth' });
   // Die gewählte Rückseite beim Aufbau ins Bild holen (nach dem Einfügen ins Dokument, deshalb verzögert)
   requestAnimationFrame(() => {
-    const cur = strip.querySelector('.glow') as HTMLElement | null;
+    const cur = strip.querySelector('.selected') as HTMLElement | null;
     if (backScrollKeep !== null) {
       strip.scrollLeft = backScrollKeep;
       backScrollKeep = null;
