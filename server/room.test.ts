@@ -645,8 +645,11 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
   it('Raum mit Wunschcode eröffnen: nur gültige freie Codes, mit Obergrenze', () => {
     const rooms = new Rooms(59);
     expect(isRoomCode('232')).toBe(true);
-    expect(isRoomCode('0232')).toBe(false);
-    expect(isRoomCode('12')).toBe(false);
+    expect(isRoomCode('0')).toBe(true);
+    expect(isRoomCode('0232')).toBe(true);
+    expect(isRoomCode('12345')).toBe(true);
+    expect(isRoomCode('123456')).toBe(false);
+    expect(isRoomCode('')).toBe(false);
     expect(isRoomCode('abc')).toBe(false);
     const a = rooms.open('232');
     expect(a?.code).toBe('232');

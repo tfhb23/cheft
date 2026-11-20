@@ -20,8 +20,8 @@ export const ICON_STEP = ['..........', '.#.....##.', '.##....##.', '.###...##.'
 export const ICON_REWIND = ['..........', '....#...#.', '...##..##.', '..###.###.', '.####.####', '.####.####', '..###.###.', '...##..##.', '....#...#.', '..........'];
 /** Wunschlampe (Aladin), 10 × 8: Kennzeichen eines Spiels mit Cheats, steht inline in der Schrifthöhe (nur dort sichtbar, deshalb nicht in ICONS). */
 export const ICON_LAMP = ['....##....', '#..####...', '##.#####.#', '.########.', '.########.', '..######..', '...####...', '..######..'];
-/** Info „i“ im Kreis, 10 × 10 (Bot-Info in der Auswertung). */
-export const ICON_INFO = ['..######..', '.#......#.', '#...##...#', '#........#', '#...##...#', '#...##...#', '#...##...#', '.#..##..#.', '..######..', '..........'];
+/** Info „i“ im Kreis: Kreis 9 × 9 mit dünnem (1 Pixel) i, oben und unten je 1 Pixel Luft zum Kreis (Variante A, design/icons/info-varianten.png). */
+export const ICON_INFO = ['..#####...', '.#.....#..', '#...#...#.', '#.......#.', '#...#...#.', '#...#...#.', '#...#...#.', '.#.....#..', '..#####...', '..........'];
 export const ICON_X = ['..........', '.##....##.', '..##..##..', '...####...', '....##....', '....##....', '...####...', '..##..##..', '.##....##.', '..........'];
 /**
  * Funksymbol mit fettem X: Verbindung verloren (Variante 3b, design/icons/funk-varianten-runde2.png). 12 × 12 Pixel, also
@@ -36,7 +36,7 @@ export const ICONS: IconDef[] = [
   { id: '5.43', key: 'gear', name: 'Einstellungen', use: 'Kopfzeile im Spiel, rechts außen', rows: ICON_GEAR },
   { id: '5.44', key: 'x', name: 'Entfernen', use: 'Lobby: Mitspieler oder Bot entfernen (nur Gastgeber)', rows: ICON_X },
   { id: '5.45', key: 'undo', name: 'Zug zurücksetzen', use: 'Spielfeld links unten: Zug auf den Anfang zurücksetzen (Ausnahme, kein Hauptknopf)', rows: ICON_UNDO },
-  { id: '5.46', key: 'info', name: 'Bot-Info', use: 'Auswertung am Spielende: hinter dem Namen eines Bots (Vorlieben)', rows: ICON_INFO },
+  { id: '5.46', key: 'info', name: 'Bot-Info', use: 'Auswertung (Runden- und Spielende): hinter dem Namen eines Bots, öffnet Gedächtnis, Spielweise und Vorlieben', rows: ICON_INFO },
 ];
 
 const NS = 'http://www.w3.org/2000/svg';

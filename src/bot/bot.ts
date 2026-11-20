@@ -121,7 +121,7 @@ export interface DecideOptions {
 }
 
 /** Ersatz für einen abwesenden Mitspieler: Wildcard mit normalem Gedächtnis. */
-const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'wildcard' };
+export const DEFAULT_PROFILE: BotProfile = { level: 'normal', style: 'wildcard' };
 
 const ROLE_PERSONAS = new Map<RoleId, Persona>();
 /** Die Persona der Rolle des Bots (zwischengespeichert; reine Funktion der Rolle). */

@@ -329,7 +329,8 @@ table.scores { width: 100%; border-collapse: collapse; font-size: var(--fs-label
 table.scores th, table.scores td { text-align: left; padding: var(--sp-1) var(--sp-2); border-bottom: var(--bw) solid var(--line-soft); vertical-align: top; }
 table.scores th { color: var(--text-accent); font-weight: var(--fw-regular); }
 table.scores td.num, table.scores th.num { text-align: right; }
-table.scores tr.winner td { color: var(--text-accent); font-weight: var(--fw-bold); }
+table.scores tr.me td { color: var(--text-accent); font-weight: var(--fw-bold); }
+table.scores td.place, table.scores th.place { width: 1%; white-space: nowrap; padding-right: 0; }
 .factors { font-size: var(--fs-micro); color: var(--text-muted); font-weight: var(--fw-regular); }
 .btn.name-info { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; font: inherit; color: inherit; text-align: left; white-space: normal; display: inline-flex; align-items: center; gap: var(--sp-2); }
 .btn.name-info svg { width: var(--size-icon-glyph); height: var(--size-icon-glyph); shape-rendering: crispEdges; flex: none; }

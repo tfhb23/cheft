@@ -83,7 +83,7 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.41', css: '--text', name: 'Text', ref: '--c-brown', group: 'Text', use: 'Standardtext (Body, Regeln, Status)' },
   { id: '1.42', css: '--text-strong', name: 'Text stark', ref: '--c-ink', group: 'Text', use: 'Button-Text, Namen, Toast, Eingabefelder' },
   { id: '1.43', css: '--text-muted', name: 'Text gedämpft', ref: '--c-ink-soft', group: 'Text', use: 'Feldbeschriftungen, Hinweise, Stapel-Beschriftung, Badge' },
-  { id: '1.44', css: '--text-accent', name: 'Text Akzent', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Spielweise im Ergebnis' },
+  { id: '1.44', css: '--text-accent', name: 'Text Akzent', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Gedächtnis und Spielweise im Bot-Info-Fenster' },
   { id: '1.45', css: '--text-brand', name: 'Text Marke', ref: '--c-orange', group: 'Text', use: 'Logo-Schriftzug (h1)' },
   { id: '1.46', css: '--text-on-accent', name: 'Text auf Fläche', ref: '--c-cream', group: 'Text', use: 'Schrift auf Orange, Dunkel, Rot und auf dem abgedunkelten Tisch' },
   { id: '1.47', css: '--text-danger', name: 'Text Fehler', ref: '--c-red', group: 'Text', use: 'Fehlermeldung (Toast)' },
@@ -135,7 +135,7 @@ export const FONT_TOKENS: ValueToken[] = [
 export const WEIGHT_TOKENS: ValueToken[] = [
   { id: '2.03', css: '--fw-regular', name: 'Normal (400)', value: '400', use: 'VT323: alle Texte' },
   { id: '2.04', css: '--fw-head', name: 'Fett (700)', value: '700', use: 'Tiny5 Duo Bold: alle Überschriften (800 ExtraBold wäre eine Zeile hier plus Schnitt in styles.css)' },
-  { id: '2.05', css: '--fw-bold', name: 'Fett (synthetisch)', value: 'bold', use: 'Vom Browser erzeugtes Fett: Sieger-Zeile in der Auswertung (VT323 hat kein eigenes Fett)' },
+  { id: '2.05', css: '--fw-bold', name: 'Fett (synthetisch)', value: 'bold', use: 'Vom Browser erzeugtes Fett: eigene Zeile in der Auswertung (VT323 hat kein eigenes Fett)' },
 ];
 
 /** 2.11–2.16: Schriftgrößen in u. */

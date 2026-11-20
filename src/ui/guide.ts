@@ -291,7 +291,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.46', name: 'Zähler auf dem Stapel', where: 'Stapel mit höchstens 7 Karten', code: '.count-on-card', sel: '.count-on-card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0 } }, c('back'), h('div', { class: 'count-on-card' }, '7')), live: 'text', liveSel: '.count-on-card' },
     { id: '2.47', name: 'Tabellenkopf', where: 'Auswertung, Punkteverlauf: Spaltenköpfe', code: 'table.scores th', sel: 'table.scores th', stage: () => h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('score.base'))))), live: 'text', liveSel: 'th' },
     { id: '2.48', name: 'Tabellenzeile', where: 'Auswertung, Punkteverlauf: Zellen', code: 'table.scores td', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', null, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
-    { id: '2.49', name: 'Tabellenzeile Sieger', where: 'Auswertung: Rundensieger (synthetisches Fett)', code: 'table.scores tr.winner', sel: 'table.scores tr.winner', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
+    { id: '2.49', name: 'Tabellenzeile Du', where: 'Auswertung: die eigene Zeile (orange, synthetisches Fett), damit man den eigenen Platz sofort findet', code: 'table.scores tr.me', sel: 'table.scores tr.me', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'me' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.50', name: 'Faktoren und Zuwachs', where: 'Auswertung: „Cheft gewonnen ×2“, Punkteverlauf: „+12“', code: '.factors / .delta', sel: '.factors, .delta', stage: () => h('div', { class: 'factors' }, t('factor.cheftWon')), live: 'text' },
     { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe: Schild an jeder Karte', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
@@ -765,10 +765,11 @@ export function chapters(env: GuideEnv): Chapter[] {
       7,
     );
   /** Zeile der Auswertung; `rest`: offene Restkarten (opened) oder verdeckte (closed). */
-  const h2row = (winner: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string): HTMLElement =>
+  const h2row = (me: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string, place = ''): HTMLElement =>
     h(
       'tr',
-      { class: winner ? 'winner' : '' },
+      { class: me ? 'me' : '' },
+      h('td', { class: 'place' }, place),
       h('td', null, name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
       h('td', { class: 'num' }, base, factor ? h('div', { class: 'factors' }, factor) : null),
       h('td', { class: 'num' }, total),
@@ -826,10 +827,10 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       id: '7.12',
       name: 'Spielende',
-      where: 'Nach der letzten Runde: Sieger, Auswertung mit Rollen der Bots (Stufe · Spielweise, orange), Punkteverlauf',
-      code: 'App.renderRoundEnd() · .factors.accent · table.rounds',
+      where: 'Nach der letzten Runde: Sieger, Auswertung mit Platz (1. 2. 3. 4.), eigene Zeile hervorgehoben, Bot-Details hinter dem (i), Punkteverlauf',
+      code: 'App.renderRoundEnd() · tr.me · table.rounds',
       stage: () => dlg(h('h2', null, t('gameEnd.title')), h('p', null, t('gameEnd.winner', { name: 'Emil', n: 38 })),
-        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i]); r.firstElementChild!.append(h('div', { class: 'factors accent' }, n === 'Tobi' ? '' : `${t(['level.hard', 'level.easy', 'level.master'][i % 3])} · ${t(['style.early', 'style.balanced', 'style.gambler'][i % 3])}`)); return r; }))),
+        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i], `${i + 1}.`); return r; }))),
         h('div', null, h('h3', null, t('gameEnd.rounds')), roundsDemo()),
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',

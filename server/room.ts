@@ -136,7 +136,7 @@ export function snapshotUsable(snap: RoomSnapshot | null | undefined, now = Date
 }
 
 export function isRoomCode(code: unknown): code is string {
-  return typeof code === 'string' && /^[1-9]\d{2,3}$/.test(code);
+  return typeof code === 'string' && /^\d{1,5}$/.test(code);
 }
 export const MIN_PLAYERS = 3;
 /** Nach so vielen Millisekunden ohne Verbindung pausiert das Spiel („Max hat die Verbindung verloren“). */
@@ -492,7 +492,8 @@ export class Room {
     const name = `${bot.name} (${former.slice(0, 8)})`;
     seat.isBot = true;
     seat.name = name;
-    seat.bot = { level: bot.level, style: bot.style };
+    // Wer ersetzt wurde, ist als Bot gleich in der Auswertung erkennbar (i), bis jemand den Platz übernimmt.
+    seat.bot = { level: bot.level, style: bot.style, reveal: { level: true, style: true } };
     seat.botChoice = { level: bot.level, style: bot.style };
     delete seat.token;
     delete seat.back;
@@ -598,7 +599,7 @@ export class Room {
       if (!s.isBot) return { id: s.pid, name: s.name, isBot: false };
       const b = resolved[bi++];
       s.name = b.name;
-      s.bot = { level: b.level, style: b.style, reveal: this.settings.seating !== 'random' ? b.fixed : undefined };
+      s.bot = { level: b.level, style: b.style, reveal: this.settings.seating !== 'random' || resolved.length === 1 ? b.fixed : undefined };
       return { id: s.pid, name: b.name, isBot: true, bot: s.bot };
     });
     const settings: Settings = { rounds: this.settings.rounds, firstTurnOpenAllowed: this.settings.firstTurnOpenAllowed, direction: 'ccw', peekDiscards: this.settings.peekDiscards, sortedDeal: this.settings.sortedDeal };

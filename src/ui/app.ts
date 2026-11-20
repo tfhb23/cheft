@@ -26,7 +26,7 @@ import {
   winnerOfGame,
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
-import { decideAction } from '../bot/bot';
+import { DEFAULT_PROFILE, decideAction } from '../bot/bot';
 import { decideForHuman } from '../bot/autoplay';
 import { fallbackMove } from '../bot/fallback';
 import { Cheats, ParseResult, activeCheatIds, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
@@ -108,6 +108,8 @@ interface Prefs {
 interface DialogSpec {
   title: string;
   text?: string;
+  /** Statt `text`: fertig gebauter Inhalt (z. B. hervorgehobene Zeilen). */
+  body?: HTMLElement;
   /** Eingabefeld (zum Einfügen oder, schreibgeschützt, zum Kopieren). */
   input?: { value: string; readonly?: boolean; placeholder?: string };
   /** Entscheidung: Knöpfe wie „Abbrechen“ und die Aktion. */
@@ -314,7 +316,7 @@ export class App {
 
   /** Raumcode aus der Adresse, z. B. https://cheft.beigi.eu/232 */
   private pathRoomCode(): string | null {
-    const m = location.pathname.match(/^\/(\d{3,4})\/?$/);
+    const m = location.pathname.match(/^\/(\d{1,5})\/?$/);
     return m ? m[1] : null;
   }
 
@@ -385,27 +387,40 @@ export class App {
     }
   }
 
-  /** Aufdecken am Spielende: Stufe und Rolle des Bots in einer Zeile (bei der Wildcard die Rollen der Runden, darf umbrechen). */
-  private botReveal(s: GameState, pid: number, bot: BotProfile): HTMLElement {
-    const role = roleOfStyle(bot.style);
-    const roleText = role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`);
-    return h('div', { class: 'factors accent reveal' }, `${t(`level.${bot.level}`)} · ${roleText}`);
+  /**
+   * Was über einen Platz im (i) der Auswertung stehen darf: Gedächtnis und/oder Spielweise (je nachdem, was bekannt ist) und am
+   * Spielende zusätzlich die Vorlieben. `null`: kein (i). Menschen haben keins, außer der Autopilot spielt gerade für sie.
+   */
+  private botFacts(s: GameState, pid: number): { profile: BotProfile; level: boolean; style: boolean; tastes: boolean } | null {
+    const p = s.players[pid];
+    let profile = p.bot;
+    let known = p.bot?.reveal;
+    if (!p.bot) {
+      // Verbindung verloren: Der Autopilot spielt für den Menschen, solange ihn niemand übernommen hat.
+      const away = !p.isBot && this.online?.lobby?.seats.find((x) => x.pid === pid)?.autopilot;
+      if (!away) return null;
+      profile = DEFAULT_PROFILE;
+      known = { level: true, style: true };
+    }
+    if (!profile) return null;
+    if (s.finished) return { profile, level: true, style: true, tastes: true };
+    if (!known?.level && !known?.style) return null;
+    return { profile, level: !!known.level, style: !!known.style, tastes: false };
   }
 
-  /** Zwischen den Runden: nur die Werte, die in der Lobby fest gewählt waren (und nur bei fester Sitzordnung). */
-  private botPartialReveal(bot: BotProfile): HTMLElement | null {
-    const parts: string[] = [];
-    if (bot.reveal?.level) parts.push(t(`level.${bot.level}`));
-    if (bot.reveal?.style) parts.push(t(`style.${roleOfStyle(bot.style)}`));
-    return parts.length ? h('div', { class: 'factors accent reveal' }, parts.join(' · ')) : null;
-  }
-
-  /** Infobox zum Bot (nur nach Spielende): jede Vorliebe in einer eigenen Zeile. */
+  /** Infobox zum Bot: Gedächtnis, Spielweise (orange), leere Zeile, dann die Vorlieben, je eine Zeile (Wort „Vorlieben“ steht nicht dabei). */
   private botInfo(s: GameState, pid: number): void {
-    const tastes = describeTasteSet(tastesFor(s.seed, pid));
+    const f = this.botFacts(s, pid);
+    if (!f) return;
+    const role = roleOfStyle(f.profile.style);
+    const head: string[] = [];
+    if (f.level) head.push(t(`level.${f.profile.level}`));
+    if (f.style) head.push(role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`));
+    const tastes = f.tastes ? describeTasteSet(tastesFor(s.seed, pid)) : [];
+    const rest = f.tastes ? (tastes.length ? tastes.join('\n') : t('gameEnd.noTastes')) : '';
     this.askDialog({
       title: s.players[pid].name,
-      text: tastes.length ? `${t('gameEnd.tastes')}\n${tastes.join('\n')}` : t('gameEnd.noTastes'),
+      body: h('p', null, h('span', { class: 'accent' }, head.join('\n')), rest ? `\n\n${rest}` : ''),
       back: true,
     });
   }
@@ -632,7 +647,7 @@ export class App {
       ),
     );
     return windowEl(
-      [h('h2', null, d.title), d.text ? h('p', null, d.text) : null, field, buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null, d.back ? backBtn(() => this.closeDialog()) : null],
+      [h('h2', null, d.title), d.body ?? (d.text ? h('p', null, d.text) : null), field, buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null, d.back ? backBtn(() => this.closeDialog()) : null],
       d.back ? () => this.closeDialog() : undefined,
     );
   }
@@ -995,7 +1010,8 @@ export class App {
         [bots[i], bots[j]] = [bots[j], bots[i]];
       }
     }
-    const seatFixed = this.prefs.seating !== 'random';
+    // Mit nur einem Bot weiß man ohnehin, wer es ist: Die Sitzordnung verbirgt dann nichts.
+    const seatFixed = this.prefs.seating !== 'random' || bots.length === 1;
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style, reveal: seatFixed ? b.fixed : undefined } }));
     // Cheats gelten nur für dieses eine Spiel: Sie wandern in den Spielstand und nie in die gespeicherten Einstellungen.
     const cheats: Cheats | undefined = this.pendingCheats?.cheats;
@@ -2957,7 +2973,7 @@ export class App {
 
   private joinRoom(): void {
     const code = this.joinCode.trim().toUpperCase();
-    if (!/^\d{3,4}$/.test(code)) {
+    if (!/^\d{1,5}$/.test(code)) {
       this.toast(t('net.noRoom'), true);
       return;
     }
@@ -3138,7 +3154,7 @@ export class App {
     const codeInput = h('input', {
       class: 'text code',
       type: 'text',
-      maxlength: '4',
+      maxlength: '5',
       inputmode: 'numeric',
       pattern: '[0-9]*',
       value: this.joinCode,
@@ -3448,17 +3464,19 @@ export class App {
     if (res.hand) extras.push(t('roundEnd.hand'));
     if (res.jokerBurned) extras.push(t('roundEnd.joker'));
     const ordered = [...s.players].sort((a, b) => s.totals[a.id] - s.totals[b.id] || res.scores[a.id].total - res.scores[b.id].total);
+    // Platz nach Gesamtpunkten (wenige Strafpunkte = vorn), bei Gleichstand derselbe Platz.
+    const place = (pid: number) => 1 + s.players.filter((o) => s.totals[o.id] < s.totals[pid]).length;
     const rows = ordered.map((p) => {
       const sc = res.scores[p.id];
       const pr = r.players[p.id];
       return h(
         'tr',
-        { class: res.winner === p.id ? 'winner' : '' },
+        { class: p.id === this.me ? 'me' : '' },
+        h('td', { class: 'place' }, `${place(p.id)}.`),
         h(
           'td',
           null,
-          s.finished && p.bot ? btn([name(p.id), pixelIcon(ICON_INFO)], () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
-          p.bot ? (s.finished ? this.botReveal(s, p.id, p.bot) : this.botPartialReveal(p.bot)) : null,
+          this.botFacts(s, p.id) ? btn([name(p.id), pixelIcon(ICON_INFO)], () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
           h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,
@@ -3485,7 +3503,7 @@ export class App {
       h(
         'table',
         { class: 'scores' },
-        h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
+        h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
         h('tbody', null, ...rows),
       ),
       h(
