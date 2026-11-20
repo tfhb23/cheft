@@ -67,8 +67,8 @@ describe('Kartengrößen am Tisch: Reihenfolge beim Verkleinern', () => {
   });
 
   it('Startgrößen der Vorschlagstabelle (Dichte 2)', () => {
-    expect(tableLadder(2, 'phoneNarrow', 2)[0]).toEqual({ a: 1, c: 1.5 });
-    expect(tableLadder(2, 'phone', 2)[0]).toEqual({ a: 1.5, c: 1.5 });
+    expect(tableLadder(2, 'phoneNarrow', 2)[0]).toEqual({ a: 2, c: 2 });
+    expect(tableLadder(2, 'phone', 2)[0]).toEqual({ a: 2, c: 2 });
     expect(tableLadder(2, 'tablet', 2)[0]).toEqual({ a: 2, c: 2 });
     expect(tableLadder(2, 'desktop', 3)[0]).toEqual({ a: 3, c: 3 });
   });
@@ -80,14 +80,14 @@ describe('Kartengrößen am Tisch: Reihenfolge beim Verkleinern', () => {
     expect(l).toContain('1/1.5');
   });
 
-  it('iPhone (Dichte 3): schmal startet mit 1 zu 1,67', () => {
-    expect(tableLadder(3, 'phoneNarrow', 2)[0]).toEqual({ a: 1, c: 1.667 });
+  it('iPhone (Dichte 3): schmal startet mit 2 zu 2', () => {
+    expect(tableLadder(3, 'phoneNarrow', 2)[0]).toEqual({ a: 2, c: 2 });
   });
 
   it('Google Pixel (Dichte 2,625): Start in der Klasse Handy normal', () => {
     const first = tableLadder(2.625, 'phone', 2)[0];
-    expect(first.a).toBeCloseTo(1.524, 3);
-    expect(first.c).toBeCloseTo(1.524, 3);
+    expect(first.a).toBeCloseTo(1.905, 3);
+    expect(first.c).toBeCloseTo(1.905, 3);
   });
 
   it('Dichte 1: nur ganze Stufen, Verhältnis höchstens 1,75', () => {

@@ -21,10 +21,10 @@ export interface ScaleStep {
 
 export type DeviceClass = 'phoneNarrow' | 'phone' | 'tablet' | 'desktop';
 
-/** Startgrößen je Geräteklasse (Auslagen / Mitte), bevor sie auf die Stufen des Bildschirms gerundet werden. */
+/** Startgrößen je Geräteklasse (Auslagen / Mitte) = Größe der Handkarten, bevor sie auf die Stufen des Bildschirms gerundet werden. */
 export const START: Record<DeviceClass, ScaleStep> = {
-  phoneNarrow: { a: 1, c: 1.75 },
-  phone: { a: 1.5, c: 1.75 },
+  phoneNarrow: { a: 2, c: 2 },
+  phone: { a: 2, c: 2 },
   tablet: { a: 2, c: 2 },
   desktop: { a: 3, c: 3 },
 };
