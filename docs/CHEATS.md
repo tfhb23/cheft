@@ -75,8 +75,13 @@ spielt die App den einfachsten erlaubten Zug, statt stehen zu bleiben.
 - Die Cheats liegen in `GameState.cheats`, nie in den Einstellungen. Mehrspieler kennt sie nicht: Der Server erzeugt keine, entfernt sie
   aus jeder geladenen Raum-Kopie, und die Spieler-Sicht enthält sie nie. Im Spiel zeigt eine orange Wunschlampe neben der Rundenzahl, dass Cheats aktiv sind; bei dreistelliger Rundenzahl (kein Platz) steht sie stattdessen in der Punkteübersicht (Symbol links oben). Am Spielende steht ein Vermerk.
 
-## Todo (später)
+## Todo (später, neuer Chat)
 
+- **Namen und Meldungen** der Cheats vergeben (klassische Cheat-Codes der frühen Konsolen- und PC-Zeit, z. B. `BIG DADDY` für den Joker); alles steht in `src/engine/cheatnames.ts`.
 - **Anzeige-Cheats:** monochrom, invertiert, Game-Boy-Grün, CGA, Bernstein, Scanlines. Nur einer gleichzeitig, der zuerst genannte zählt.
 - **Tipp-Knopf**, rollenbasiert (Rolle als Parameter): zeigt den klügsten Zug sichtbar (Ziehstelle pulsiert, Karten hervorgehoben, Textzeile). Erst nach dem Design Guide.
-- **Namen und Meldungen** der Cheats vergeben (klassische Cheat-Codes der frühen Konsolen- und PC-Zeit).
+- Kleinigkeiten:
+  - Zeitreise im allerersten Zug: Meldung "weiter zurück geht es nicht" (springt bisher nur wieder an den Rundenstart).
+  - Bei sehr vielen Runden (999, Superfast + Autoplay) wächst der Spielstand stark; der Browserspeicher kann voll werden (das Spiel läuft dann ohne Speichern weiter). Verlauf (`history`) kürzen?
+  - Cheat-Icons (Lampe, Play, Pause, Einzelschritt, Zeitreise) sind nicht in `ICONS`/Design Guide eingetragen.
+  - Mehrspieler-Raum einmal von Hand im Browser durchspielen (der Server-Teil ist nur durch Tests abgesichert).
