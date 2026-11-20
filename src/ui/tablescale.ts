@@ -63,3 +63,16 @@ export function tableLadder(dpr: number, handScale: number): ScaleStep[] {
   if (steps.length === 0) steps.push({ a: a0, c: c0 });
   return steps;
 }
+
+/**
+ * Maßstab der Handkarten (und damit der ganzen Oberfläche) auf eine Stufe mit ganzen Geräte-Pixeln je Kartenpixel legen.
+ * Es gilt die nächstgelegene Stufe zum Wunsch (bei Gleichstand die kleinere). Eine größere Stufe nur, wenn `fits` sagt, dass sie Platz hat.
+ */
+export function crispScale(base: number, dpr: number, fits: (s: number) => boolean = () => true): number {
+  const grid = scaleGrid(dpr);
+  let down = grid[0];
+  for (const v of grid) if (v <= base + 1e-9) down = v;
+  const up = grid.find((v) => v > base + 1e-9);
+  if (up === undefined || Math.abs(up - base) >= Math.abs(base - down) - 1e-9) return down;
+  return fits(up) ? up : down;
+}

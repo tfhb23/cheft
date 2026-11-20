@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_RATIO, scaleGrid, snap, tableLadder } from './tablescale';
+import { MAX_RATIO, crispScale, scaleGrid, snap, tableLadder } from './tablescale';
 
 describe('Kartengrößen am Tisch: Raster in ganzen Geräte-Pixeln', () => {
   it('Dichte 1: ganze Stufen; Dichte 2: halbe; Dichte 3: Drittel', () => {
@@ -77,5 +77,24 @@ describe('Kartengrößen am Tisch: Reihenfolge beim Verkleinern', () => {
 
   it('Dichte 1: nur ganze Stufen, Verhältnis höchstens 1,75', () => {
     expect(tableLadder(1, 3).map((x) => `${x.a}/${x.c}`)).toEqual(['3/3', '2/3', '2/2', '1/1']);
+  });
+});
+
+describe('Maßstab der Handkarten auf ganze Geräte-Pixel', () => {
+  it('Pixel (Dichte 2,625): 2 wird zu 1,905, 3 zu 3,048', () => {
+    expect(crispScale(2, 2.625)).toBeCloseTo(1.905, 3);
+    expect(crispScale(3, 2.625)).toBeCloseTo(3.048, 3);
+  });
+  it('passt schon: bleibt', () => {
+    expect(crispScale(2, 1)).toBe(2);
+    expect(crispScale(2, 2)).toBe(2);
+    expect(crispScale(2, 3)).toBe(2);
+  });
+  it('größer nur, wenn Platz da ist', () => {
+    // Dichte 2,75: 1,818 und 2,182 liegen gleich weit von 2 entfernt: bei Gleichstand die kleinere
+    expect(crispScale(2, 2.75, () => true)).toBeCloseTo(1.818, 3);
+    // Dichte 2,4: 1,667 (n=4)… 2,083 liegt näher an 2 als 1,667; nur mit Platz
+    expect(crispScale(2, 2.4, () => true)).toBeCloseTo(2.083, 3);
+    expect(crispScale(2, 2.4, () => false)).toBeCloseTo(1.667, 3);
   });
 });
