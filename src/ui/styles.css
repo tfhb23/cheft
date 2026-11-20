@@ -206,7 +206,7 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Cheat-Knöpfe (nur mit aktivem Cheat): Zeitreise neben dem Zurücksetzen, Autoplay rechts unten */
 .travel-btn { position: absolute; left: calc(var(--sp-3) + var(--size-btn-icon) + var(--sp-2)); bottom: var(--sp-3); z-index: var(--z-lift); }
 .auto-ctl { position: absolute; right: var(--sp-3); bottom: var(--sp-3); z-index: var(--z-lift); display: flex; gap: var(--gap-tight); }
-.cheat-tag { color: var(--text-muted); }
+.cheat-tag { display: block; color: var(--text-muted); font-size: 0.7em; line-height: 1; margin-top: var(--sp-1); }
 .own { position: relative; grid-column: 1 / 4; grid-row: 3; padding: var(--sp-1) 0; }
 /* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }

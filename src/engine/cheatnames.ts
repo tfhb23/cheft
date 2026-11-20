@@ -7,7 +7,7 @@
  * Trennzeichen nötig ist (cheats.test.ts prüft das).
  */
 
-export type CheatId = 'jokers' | 'hand' | 'rounds' | 'laidOut' | 'carpet' | 'autoplay' | 'timeTravel' | 'firstMeld';
+export type CheatId = 'jokers' | 'hand' | 'rounds' | 'laidOut' | 'carpet' | 'autoplay' | 'timeTravel' | 'firstMeld' | 'deck2' | 'deck3' | 'deck4' | 'jokerParty' | 'mini';
 
 export const CHEAT_NAMES: Record<CheatId, string[]> = {
   jokers: ['JOKER'],
@@ -18,6 +18,12 @@ export const CHEAT_NAMES: Record<CheatId, string[]> = {
   autoplay: ['AUTOPLAY'],
   timeTravel: ['ZEITREISE'],
   firstMeld: ['ERSTMELDUNG'],
+  // Deck: jede Karte doppelt/dreifach/vierfach so oft wie im Standardspiel (also 4, 6 oder 8 Kopien), Joker mit
+  deck2: ['DOPPELT'],
+  deck3: ['DREIFACH'],
+  deck4: ['VIERFACH'],
+  jokerParty: ['JOKERPARTY'],
+  mini: ['MINI'],
 };
 
 /** Meldung beim Aktivieren eines Cheats (Platzhalter). */
@@ -30,14 +36,20 @@ export const CHEAT_MESSAGES: Record<CheatId, string> = {
   autoplay: 'Cheat aktiv: Autoplay.',
   timeTravel: 'Cheat aktiv: Zeitreise.',
   firstMeld: 'Cheat aktiv: niedrigere Erstmeldung.',
+  deck2: 'Cheat aktiv: doppelt so viele Karten.',
+  deck3: 'Cheat aktiv: dreimal so viele Karten.',
+  deck4: 'Cheat aktiv: viermal so viele Karten.',
+  jokerParty: 'Cheat aktiv: Jokerparty.',
+  mini: 'Cheat aktiv: Mini-Deck (7 bis Ass).',
 };
 
 /** Testhände, die als Zeile in `HAND( … )` stehen dürfen (Platzhalter-Namen). */
-export type PresetId = 'pairs' | 'fivePairs' | 'runs';
+export type PresetId = 'pairs' | 'fivePairs' | 'runs' | 'almost';
 export const PRESET_NAMES: Record<PresetId, string[]> = {
   pairs: ['PAARE'],
   fivePairs: ['FUENFPAARE'],
   runs: ['HANDRUMMEL'],
+  almost: ['FASTFERTIG'],
 };
 
 /** Der Joker als Karte in der Wunschhand. */

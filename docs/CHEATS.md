@@ -16,7 +16,9 @@ Die Namen in `src/engine/cheatnames.ts` (und die Meldungen dort) sind Platzhalte
 - **Wunschhand** `HAND( … )`: Runden durch `/` getrennt, leer = Zufallsrunde, weitere Runden werden abgeschnitten, fehlende
   Karten zufällig aufgefüllt. Ohne Klammer läuft die Hand bis zum Ende des Textes. Karten: Farbe `He` `Ka` `Kr` `Pi` plus
   `A` `2`–`10` `B` `D` `K`; `J` oder `JOKER` ist der Joker. Eine Zeile darf eine **Testhand** enthalten (`PAARE`, `FUENFPAARE`,
-  `HANDRUMMEL`), zusätzliche Karten ersetzen sie von hinten.
+  `HANDRUMMEL`, `FASTFERTIG`), zusätzliche Karten ersetzen sie von hinten.
+  `HANDRUMMEL`: 14 Karten, die ohne Rest in Kombinationen aufgehen (Hand machen). `FASTFERTIG`: 13 Karten in fertigen Kombinationen mit
+  mindestens 51 Augen plus eine Füllkarte (auslegen, in zwei Zügen fertig).
 
 Beispiel: `autoplay zeitreise runden 12 joker 2 hand( HeD KrB PiA Ka3 J He9 Kr10 / / paare )`
 
@@ -32,11 +34,30 @@ Beispiel: `autoplay zeitreise runden 12 joker 2 hand( HeD KrB PiA Ka3 J He9 Kr10
 | Autoplay | Play/Pause und Einzelschritt rechts unten. Ein Mastermind-Bot der gewählten Rolle spielt für mich. Runden laufen von selbst weiter, an der Spielende-Übersicht hält er an. Eigenes Spielen pausiert ihn. |
 | Zeitreise | Knopf links unten: mitten im Zug zurück an dessen Anfang (macht auch eine Cheft-Ansage rückgängig), sonst zum Beginn des vorigen Zuges, auch über Rundengrenzen. Gemerkt werden höchstens 120 Zuganfänge. |
 | Erstmeldung | Eigene Mindestaugen für die Erstmeldung. "Die vorherige Erstmeldung übertreffen" gilt weiter. |
+| Doppelt / Dreifach / Vierfach | Jede Karte 4, 6 oder 8 Kopien statt 2 (also ×2, ×3, ×4), Joker ebenso viele (4, 6, 8). Mehrere Faktoren: der zuerst genannte zählt. |
+| Jokerparty | Genau N Joker im Deck (0–60, ohne Zahl 8). Überstimmt die Joker des Faktors; `JOKERPARTY 0` ist ein Spiel ohne Joker. |
+| Mini | Skatblatt: nur 7, 8, 9, 10, Bube, Dame, König, Ass (64 Karten plus Joker). Kein Ass-2-3, Folgen gehen nur bis Dame-König-Ass. |
+
+Die Deck-Cheats sind miteinander kombinierbar (z. B. `VIERFACH MINI JOKERPARTY 12`). Sie ändern nur, welche Karten es gibt;
+alles andere (Wunschhand, Teppich, Ausgelegt, Joker) nimmt seine Karten weiterhin aus diesem Deck. Gibt es eine Wunschkarte nicht
+(Mini-Deck ohne 2, dritte Kopie im Standarddeck), wird sie zufällig ersetzt. Joker-Cheat und `AUSGELEGT` gehen ohne Joker im Deck leer aus,
+jeweils mit Hinweis.
 
 ## Rangfolge beim Austeilen
 
 Wer höher steht, bekommt seine Karten zuerst; was nicht mehr geht, wird zufällig ersetzt oder entfällt (mit Hinweis beim
 Rundenstart): 1. Wunschhand und Testhand, 2. Ausgelegt, 3. Teppich, 4. Joker, 5. Rest der Hand, Gegner und Stapel zufällig.
+
+## Deck technisch
+
+`DeckConfig` (Kopien, Joker, Werte) in `engine/cards.ts`, aus den Cheats gebildet von `deckConfigOf` (`engine/cheats.ts`). Ohne Cheats ist es das
+Standarddeck. Die Karten-Id ist Blatt × 52 + Farbe × 13 + (Wert − 1), Joker folgen ab 52 × Kopien; für das Standarddeck sind das die bisherigen
+Ids. Rücken und Bildkarten richten sich nach dem geraden/ungeraden Blatt (`deckParity`). Die Bots lesen die Kopienzahl aus dem Spiel
+(Gedächtnis `bot/memory.ts`, Rundenfortschritt `bot/strategy.ts`, Zähler `bot/bot.ts`).
+
+Mit vielen Jokern tritt ein Fall auf, der mit zwei Jokern fast nie vorkommt: Ein Satz aus einer echten Karte und Jokern (Ass, Joker, Joker) wird von
+der Engine als Folge A-2-3 gelesen, wenn die Kartenreihenfolge zufällig eine Folge ergibt. Die Bots legen Sätze deshalb in einer Reihenfolge aus,
+die keine Folge ergibt (`groupsOf` in `bot/bot.ts`).
 
 ## Regeln, die immer gelten
 
@@ -51,5 +72,4 @@ Rundenstart): 1. Wunschhand und Testhand, 2. Ausgelegt, 3. Teppich, 4. Joker, 5.
 
 - **Anzeige-Cheats:** monochrom, invertiert, Game-Boy-Grün, CGA, Bernstein, Scanlines. Nur einer gleichzeitig, der zuerst genannte zählt.
 - **Tipp-Knopf**, rollenbasiert (Rolle als Parameter): zeigt den klügsten Zug sichtbar (Ziehstelle pulsiert, Karten hervorgehoben, Textzeile). Erst nach dem Design Guide.
-- **Deck-Gruppe:** jede Karte 2×/3×/4×, `JOKERPARTY N`, `MINI`, alles kombinierbar. Vorarbeit: Die Bot-Zählung (`bot/memory.ts`, `bot/strategy.ts`) rechnet fest mit 2 Kopien und 106 Karten und muss die Deck-Konfiguration lesen.
 - **Namen und Meldungen** der Cheats vergeben (klassische Cheat-Codes der frühen Konsolen- und PC-Zeit).

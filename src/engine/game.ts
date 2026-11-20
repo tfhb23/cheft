@@ -3,7 +3,7 @@
  * Alle Aktionen prüfen zuerst (check…) und verändern dann den Zustand (do…).
  * Fehler werden als Übersetzungsschlüssel zurückgegeben.
  */
-import { Card, isJoker, makeDeck, makeRng, penaltyValue, shuffle, sameCard } from './cards';
+import { Card, DeckConfig, isJoker, makeDeck, makeRng, penaltyValue, shuffle, sameCard } from './cards';
 import {
   Meld,
   MeldShape,
@@ -20,7 +20,7 @@ import {
   replaceJoker,
 } from './melds';
 import { RoundProfile, buildProfiles } from './profile';
-import { CheatNote, Cheats, HAND_SIZE, cheatDeal, meldValue } from './cheats';
+import { CheatNote, Cheats, HAND_SIZE, cheatDeal, deckConfigOf, deckTooSmall, meldValue } from './cheats';
 
 export type Mode = 'romme' | 'cheft';
 export type DrawSource = 'stock' | 'discard' | 'carpet';
@@ -191,9 +191,17 @@ export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.n
     finished: false,
     seed,
   };
-  if (cheats) state.cheats = cheats;
+  if (cheats) {
+    state.cheats = cheats;
+    if (deckTooSmall(deckConfigOf(cheats), players.length)) throw new Error('Deck zu klein');
+  }
   state.round = dealRound(state, 1, dealer % players.length);
   return state;
+}
+
+/** Zusammensetzung des Decks dieses Spiels (Standard: 106 Karten; Cheats können es ändern). */
+export function deckConfig(state: GameState): DeckConfig {
+  return deckConfigOf(state.cheats);
 }
 
 export function nextIndex(state: GameState, i: number): number {
@@ -212,7 +220,7 @@ export function scoreOrder(state: GameState): number[] {
 
 export function dealRound(state: GameState, no: number, dealer: number): RoundState {
   const rng = makeRng(state.seed + no * 7919);
-  let deck = shuffle(makeDeck(), rng);
+  let deck = shuffle(makeDeck(deckConfig(state)), rng);
   const n = state.players.length;
   const starter = (dealer + 1) % n;
   const hands: Card[][] = state.players.map(() => []);

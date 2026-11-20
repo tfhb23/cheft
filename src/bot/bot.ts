@@ -14,13 +14,14 @@ import {
   checkDiscard,
   checkDraw,
   checkLay,
+  deckConfig,
   canUseImmediately,
   checkStealJoker,
   layOffTargets,
   nextIndex,
   thresholdFor,
 } from '../engine/game';
-import { ALL_TYPES, ROMME_TYPES, MeldShape, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
+import { ALL_TYPES, ROMME_TYPES, MeldShape, asRunAll, findPartition, interpretMeld, jokerRepresents, maxPairs } from '../engine/melds';
 import { DEFAULT_TUNING, Tuning, isBold, weighOpening } from './strategy';
 import { Persona, resolvePersona } from './personas';
 import { RoleId, rolePersona, roleOfStyle } from './roles';
@@ -397,8 +398,33 @@ function usableAfterOpening(state: GameState, pid: number, card: Card): boolean 
   return !!part && part.used > 0 && part.used < hand.length;
 }
 
+/**
+ * Die Karten einer Kombination als Ids. Die Engine liest eine Gruppe, deren Reihenfolge eine gültige Folge ergibt, genau als
+ * diese Folge. Ein Satz aus einer echten Karte und Jokern (z. B. Ass, Joker, Joker) wird dann zur Folge A-2-3 mit weniger Augen
+ * als geplant. Deshalb steht bei Sätzen eine Reihenfolge, die keine Folge ergibt; die Engine wählt dann die augenreichste Lesart.
+ * (Mit zwei Jokern kommt das selten vor, mit vielen Jokern im Deck oft.)
+ */
 function groupsOf(melds: MeldShape[]): number[][] {
-  return melds.map((m) => m.cards.map((c) => c.id));
+  return melds.map((m) => {
+    let cards = m.cards;
+    if (m.type === 'set') {
+      const isExactRun = (cs: Card[]) => asRunAll(cs).some((sh) => sh.cards.every((c, i) => c.id === cs[i].id));
+      if (isExactRun(cards)) {
+        const better = permutations(cards).find((cs) => !isExactRun(cs));
+        if (better) cards = better;
+      }
+    }
+    return cards.map((c) => c.id);
+  });
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  const out: T[][] = [];
+  items.forEach((x, i) => {
+    for (const rest of permutations([...items.slice(0, i), ...items.slice(i + 1)])) out.push([x, ...rest]);
+  });
+  return out;
 }
 
 /** Handmacher: zurückhalten, wenn höchstens drei Karten fehlen und noch niemand draußen ist. */
@@ -998,7 +1024,7 @@ function chooseDiscard(state: GameState, pid: number, k: Knobs, per: Perception,
           else if (d === 2) {
             // Zähler: Lücke nur wert, wenn die Zwischenkarte noch im Spiel ist
             const mid: Card = { id: -1, suit: c.suit, rank: (o.rank + c.rank) / 2 };
-            if (!(k.counter && visibleCopies(state, mid) >= 2)) score -= 1;
+            if (!(k.counter && visibleCopies(state, mid) >= deckConfig(state).copies)) score -= 1;
           }
           if (c.rank === 1 && (o.rank === 13 || o.rank === 12)) score -= 2;
         }

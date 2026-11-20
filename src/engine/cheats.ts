@@ -11,7 +11,7 @@
  * hinter dem Wort. `HAND( … )` enthält die Wunschhand: Runden durch `/` getrennt, leer = Zufallsrunde. Ohne Klammern läuft die
  * Hand bis zum Ende des Textes. Namen siehe cheatnames.ts.
  */
-import { Card, SUITS, Suit, isJoker, shuffle, makeRng } from './cards';
+import { ALL_RANKS, Card, DeckConfig, MINI_RANKS, STANDARD_DECK, SUITS, Suit, deckSize, isJoker, rankValue, shuffle, makeRng } from './cards';
 import { Meld, meldAugen } from './melds';
 import type { BotStyle } from './game';
 import { CHEAT_NAMES, CHEAT_MESSAGES, CheatId, JOKER_CARD_NAMES, PRESET_NAMES, PresetId, ROLE_NAMES } from './cheatnames';
@@ -48,7 +48,27 @@ export interface Cheats {
   timeTravel?: boolean;
   /** Mindestaugen für die Erstmeldung ohne und mit Cheft-Ansage. */
   firstMeld?: { base: number; cheft: number };
+  /** Deck: jede Karte so viel mal öfter als im Standardspiel (2, 3, 4), Joker entsprechend mehr. */
+  deckMult?: 2 | 3 | 4;
+  /** Genau so viele Joker im Deck (überstimmt die Joker des Deck-Faktors). */
+  jokerParty?: number;
+  /** Mini-Deck (7 bis Ass). */
+  mini?: boolean;
 }
+
+/** Die Deck-Zusammensetzung dieses Spiels (ohne Cheats: das Standardspiel). */
+export function deckConfigOf(cheats?: Cheats): DeckConfig {
+  if (!cheats || (!cheats.deckMult && cheats.jokerParty === undefined && !cheats.mini)) return STANDARD_DECK;
+  const mult = cheats.deckMult ?? 1;
+  return { copies: 2 * mult, jokers: cheats.jokerParty ?? 2 * mult, ranks: cheats.mini ? MINI_RANKS : ALL_RANKS };
+}
+
+/** Reicht das Deck für Austeilen (14 Karten je Spieler, Teppichkarte, 15. Karte) und einen Stapel? */
+export function deckTooSmall(cfg: DeckConfig, players: number): boolean {
+  return deckSize(cfg) < 14 * players + 4;
+}
+
+export const MAX_JOKER_PARTY = 60;
 
 export interface CheatNote {
   key: string;
@@ -276,8 +296,32 @@ export function parseCheatCode(input: string): ParseResult {
         }
         break;
       }
+      case 'deck2':
+      case 'deck3':
+      case 'deck4':
+        // mehrere Deck-Faktoren: der zuerst genannte zählt
+        if (!cheats.deckMult) {
+          cheats.deckMult = Number(id[4]) as 2 | 3 | 4;
+          active.push(id);
+        }
+        break;
+      case 'jokerParty': {
+        const n = readInt(text, i);
+        let k = 8;
+        if (n) {
+          k = n.value;
+          i = n.end;
+        }
+        if (k < 0 || k > MAX_JOKER_PARTY) return { kind: 'error', key: 'cheat.err.range', params: { word: CHEAT_NAMES.jokerParty[0], min: 0, max: MAX_JOKER_PARTY } };
+        if (!dup) {
+          cheats.jokerParty = k;
+          active.push(id);
+        }
+        break;
+      }
       case 'laidOut':
       case 'carpet':
+      case 'mini':
       case 'timeTravel':
         if (!dup) {
           cheats[id] = true;
@@ -340,7 +384,7 @@ function buildPreset(id: PresetId, avail: Map<string, number>, rng: () => number
     return out;
   };
   const randomRun = (len: number): CardSpec[] | null => {
-    for (let t = 0; t < 60; t++) {
+    for (let t = 0; t < 200; t++) {
       const suit = SUITS[Math.floor(rng() * 4)];
       const start = 1 + Math.floor(rng() * (14 - len));
       const cards = Array.from({ length: len }, (_, i) => spec(suit, start + i));
@@ -358,28 +402,45 @@ function buildPreset(id: PresetId, avail: Map<string, number>, rng: () => number
     const pairs = run ? pickPairs(5) : null;
     return run && pairs ? [...run, ...pairs] : null;
   }
-  // Rommé-Hand: 14 Karten, die ohne Rest in Folgen und Sätze aufgehen
-  const plans = [[3, 3, 4, 4], [3, 3, 3, 5], [3, 4, 7], [4, 5, 5], [3, 5, 6]];
-  for (let attempt = 0; attempt < 200; attempt++) {
+  // Rommé-Hand: 'runs' = 14 Karten, die ohne Rest in Folgen und Sätze aufgehen (Hand machen);
+  // 'almost' = 13 Karten in fertigen Kombinationen mit mindestens 51 Augen plus eine Füllkarte (Auslegen, in zwei Zügen fertig)
+  const plans = id === 'almost' ? [[3, 3, 3, 4], [3, 5, 5], [3, 3, 7], [4, 4, 5], [3, 4, 6]] : [[3, 3, 4, 4], [3, 3, 3, 5], [3, 4, 7], [4, 5, 5], [3, 5, 6]];
+  for (let attempt = 0; attempt < 400; attempt++) {
     const snapshot = new Map(count);
     const sizes = shuffle(plans[Math.floor(rng() * plans.length)], rng);
     const out: CardSpec[] = [];
+    let augen = 0;
     let ok = true;
     for (const size of sizes) {
       let group: CardSpec[] | null = null;
       if (size <= 4 && rng() < 0.5) {
-        const rank = 1 + Math.floor(rng() * 13);
+        const rank = ALL_RANKS[Math.floor(rng() * 13)];
         const suits = shuffle(SUITS, rng).filter((s) => have(spec(s, rank)));
         if (suits.length >= size) {
           group = suits.slice(0, size).map((s) => spec(s, rank));
           group.forEach(use);
+          augen += rankValue(rank === 1 ? 14 : rank) * size;
         }
-      } else group = randomRun(size);
+      } else {
+        group = randomRun(size);
+        if (group) augen += group.reduce((sum, c) => sum + rankValue(c.rank), 0);
+      }
       if (!group) {
         ok = false;
         break;
       }
       out.push(...group);
+    }
+    if (ok && id === 'almost') {
+      if (augen < 51) ok = false;
+      else {
+        const filler = shuffle(
+          [...count.keys()].filter((k) => k[0] !== 'J' && (count.get(k) ?? 0) > 0),
+          rng,
+        )[0];
+        if (!filler) ok = false;
+        else out.push(spec(filler[0] as Suit, Number(filler.slice(1))));
+      }
     }
     if (ok) return out;
     for (const [k, v] of snapshot) count.set(k, v);

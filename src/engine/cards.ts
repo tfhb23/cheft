@@ -1,6 +1,6 @@
 /**
  * Karten-Grundlagen für Cheft.
- * 106 Karten: zwei französische Blätter (je 52) plus 2 Joker.
+ * Standard: 106 Karten, zwei französische Blätter (je 52) plus 2 Joker (Cheats können das Deck ändern, siehe DeckConfig).
  */
 
 export type Suit = 'H' | 'D' | 'C' | 'S';
@@ -20,19 +20,51 @@ export function isJoker(c: Card): boolean {
   return c.suit === 'J';
 }
 
-export function makeDeck(): Card[] {
+/** Zusammensetzung des Decks. Das Standardspiel hat 2 Kopien jeder Karte und 2 Joker (106 Karten); Cheats können sie ändern. */
+export interface DeckConfig {
+  /** Kopien jeder Karte (Farbe × Wert). */
+  copies: number;
+  /** Joker im Deck. */
+  jokers: number;
+  /** Vorhandene Werte (1 = Ass … 13 = König). */
+  ranks: number[];
+}
+
+export const ALL_RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+/** Mini-Deck: wie ein Skatblatt (7 bis Ass). */
+export const MINI_RANKS = [1, 7, 8, 9, 10, 11, 12, 13];
+export const STANDARD_DECK: DeckConfig = { copies: 2, jokers: 2, ranks: ALL_RANKS };
+
+export function deckSize(cfg: DeckConfig): number {
+  return cfg.copies * 4 * cfg.ranks.length + cfg.jokers;
+}
+
+/**
+ * Das Deck. Die Id einer Karte ist Blatt × 52 + Farbe × 13 + (Wert − 1); Joker folgen ab 52 × Kopien. Für das Standardspiel
+ * sind das genau die Ids 0–103 und 104–105, die Oberfläche richtet Kartenbilder und Rücken nach der Id (gerades/ungerades Blatt).
+ */
+export function makeDeck(cfg: DeckConfig = STANDARD_DECK): Card[] {
   const cards: Card[] = [];
-  let id = 0;
-  for (let d = 0; d < 2; d++) {
-    for (const suit of SUITS) {
-      for (let rank = 1; rank <= 13; rank++) {
-        cards.push({ id: id++, suit, rank });
-      }
-    }
+  for (let d = 0; d < cfg.copies; d++) {
+    SUITS.forEach((suit, si) => {
+      for (const rank of cfg.ranks) cards.push({ id: d * 52 + si * 13 + (rank - 1), suit, rank });
+    });
   }
-  cards.push({ id: id++, suit: 'J', rank: 0 });
-  cards.push({ id: id++, suit: 'J', rank: 0 });
+  for (let j = 0; j < cfg.jokers; j++) cards.push({ id: 52 * cfg.copies + j, suit: 'J', rank: 0 });
   return cards;
+}
+
+/** Umkehrung der Id-Vergabe (für Spielprotokolle, die nur die Id speichern). */
+export function cardFromId(id: number, copies: number): Card {
+  if (id >= 52 * copies) return { id, suit: 'J', rank: 0 };
+  const within = id % 52;
+  return { id, suit: SUITS[Math.floor(within / 13)], rank: (within % 13) + 1 };
+}
+
+/** Gerades (0) oder ungerades (1) Blatt: bestimmt Rücken und die Personen der Bildkarten. Joker wechseln je Id. */
+export function deckParity(c: Pick<Card, 'id' | 'suit'>): 0 | 1 {
+  if (c.id < 0) return 0;
+  return (c.suit === 'J' ? c.id % 2 : Math.floor(c.id / 52) % 2) as 0 | 1;
 }
 
 /** Augenwert einer Position in einer Folge (1 = Ass unten, 14 = Ass oben). */

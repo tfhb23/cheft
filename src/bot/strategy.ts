@@ -16,7 +16,8 @@
  * Alles ist eine reine Funktion des Spielzustands (keine eigene Erinnerung).
  */
 import { Card, isJoker } from '../engine/cards';
-import { GameState, thresholdFor } from '../engine/game';
+import { GameState, deckConfig, thresholdFor } from '../engine/game';
+import { deckSize } from '../engine/cards';
 import { Meld, ROMME_TYPES, addOptions, findPartition, interpretMeld, meldAugen } from '../engine/melds';
 import { Unseen } from './memory';
 
@@ -217,7 +218,7 @@ export function handChance(hand: Card[], groups: number[][], unseen: Unseen, dra
 /** Wie weit ist die Runde? 0 = Rundenbeginn, 1 = der Stapel ist bis auf `endgameStock` Karten leer. */
 export function roundProgress(state: GameState, endgameStock: number): number {
   const n = state.players.length;
-  const start = 106 - 1 - 14 * n - 1; // Stapel nach dem Austeilen
+  const start = deckSize(deckConfig(state)) - 1 - 14 * n - 1; // Stapel nach dem Austeilen
   const left = state.round.stock.length;
   return Math.min(1, Math.max(0, (start - left) / Math.max(1, start - endgameStock)));
 }

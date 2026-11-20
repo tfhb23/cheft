@@ -28,7 +28,7 @@ import {
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
 import { decideAction } from '../bot/bot';
 import { decideForHuman } from '../bot/autoplay';
-import { Cheats, ParseResult, parseCheatCode } from '../engine/cheats';
+import { Cheats, ParseResult, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
 import { describeTasteSet, tastesFor } from '../bot/tastes';
@@ -981,6 +981,11 @@ export class App {
 
   // ------------------------------------------------------------ Spielsteuerung
   private startGame(): void {
+    // Ein zu kleines Deck (z. B. Mini mit wenigen Jokern bei vielen Spielern) reicht nicht zum Austeilen: im Setup bleiben
+    if (this.pendingCheats && deckTooSmall(deckConfigOf(this.pendingCheats.cheats), 1 + this.prefs.bots)) {
+      this.toast(t('cheat.err.deckSmall'), true);
+      return;
+    }
     const name = this.playerName();
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
@@ -1561,7 +1566,7 @@ export class App {
         this.showScores = true;
         this.render();
       }),
-      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, !this.online && s.cheats ? h('span', { class: 'cheat-tag' }, ` ${t('cheat.tag')}`) : null),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, !this.online && s.cheats ? h('span', { class: 'cheat-tag' }, t('cheat.tag')) : null),
       h(
         'div',
         { class: 'icons' },

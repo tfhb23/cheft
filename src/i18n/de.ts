@@ -257,6 +257,7 @@ export const de: Record<string, string> = {
   'cheat.err.needNumber': '{word} braucht eine Zahl.',
   'cheat.err.range': '{word}: Zahl von {min} bis {max}.',
   'cheat.err.twoPresets': 'Zeile {line}: Nur eine Testhand je Runde.',
+  'cheat.err.deckSmall': 'Das Deck ist für so viele Spieler zu klein. Weniger Bots wählen oder mehr Joker nehmen.',
   'cheat.warn.tooMany': 'Zeile {line}: Mehr als {max} Karten, der Rest wird ignoriert.',
   'cheat.note.missing': 'Wunschkarte {card} gibt es nicht mehr, sie wurde zufällig ersetzt.',
   'cheat.note.noPreset': 'Die Testhand ließ sich nicht bilden, die Hand ist zufällig.',

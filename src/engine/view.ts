@@ -4,7 +4,7 @@
  * Offen sichtbar bleiben die vorübergehenden Karten des Spielers am Zug (Ablage-, Teppichkarte, geklauter Joker).
  * Der Rücksetzpunkt des Zuges (Turn.rewind) steckt die ganze Runde samt Stapel und gehört nie in eine Spieler-Sicht.
  */
-import { Card } from './cards';
+import { Card, deckParity } from './cards';
 import { GameState, RoundState, tempCardIds } from './game';
 
 export interface RoundView extends RoundState {
@@ -19,7 +19,7 @@ export interface GameView extends GameState {
 }
 
 export function maskCard(c: Card): Card {
-  const second = c.id === 105 || (c.id >= 52 && c.id < 104);
+  const second = deckParity(c) === 1;
   return { id: second ? -2 : -1, suit: 'J', rank: 0 };
 }
 
