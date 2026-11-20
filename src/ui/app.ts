@@ -42,7 +42,7 @@ import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_LAMP, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
-import { ScaleStep, deviceClass, tableLadder } from './tablescale';
+import { ScaleStep, crispScale, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -289,9 +289,11 @@ export class App {
       this.state = save.state;
       this.order = save.order;
     }
+    this.applyCrispScale();
     window.addEventListener('resize', () => {
       const a = document.activeElement;
       if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      this.applyCrispScale();
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
@@ -1557,6 +1559,23 @@ export class App {
     this.toastTimer = showToast(msg, error, this.toastTimer);
   }
 
+  /**
+   * Hauptmaßstab (--s) auf ganze Geräte-Pixel je Kartenpixel runden. Der Wunsch kommt aus den Bildschirmbreiten-Regeln im CSS;
+   * größer als gewünscht wird es nur, wenn die Hand (14 Karten) dadurch nicht in mehr Zeilen umbricht.
+   */
+  private applyCrispScale(): void {
+    const root = document.documentElement;
+    root.style.removeProperty('--s');
+    const base = parseFloat(getComputedStyle(root).getPropertyValue('--s')) || 2;
+    const handRows = (s: number) => {
+      const W = window.innerWidth * 0.96;
+      const cw = CARD_PX.w * s;
+      return (W - cw) / 13 >= HAND.minStep * s ? 1 : 2;
+    };
+    const s = crispScale(base, window.devicePixelRatio || 1, (v) => handRows(v) <= handRows(base));
+    if (Math.abs(s - base) > 1e-6) root.style.setProperty('--s', String(s));
+  }
+
   private scale(): number {
     return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 2;
   }
@@ -1937,8 +1956,8 @@ export class App {
 
   /**
    * Kartengrößen am Tisch und Sitzgrößen. Alle Auslagen (auch die eigene) haben eine Stufe, die Mitte eine eigene (höchstens 1,75-mal so groß).
-   * Es geht von der Startgröße des Geräts schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
-   * zum Start, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
+   * Es geht von der Größe der Handkarten schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
+   * die Handkarten, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
    */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
@@ -1953,7 +1972,7 @@ export class App {
     const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
     const dpr = window.devicePixelRatio || 1;
-    const ladder = tableLadder(dpr, deviceClass(window.innerWidth, window.innerHeight), s);
+    const ladder = tableLadder(dpr, s);
     const key = `${this.state?.round.no ?? 0}${this.state?.round.waiting ? 'w' : 'p'}:${this.state?.players.length ?? 0}:${window.innerWidth}x${window.innerHeight}@${dpr}`;
     if (this.tableStep.key !== key) this.tableStep = { key, index: 0 };
     const apply = (st: ScaleStep) => {

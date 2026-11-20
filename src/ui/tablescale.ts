@@ -5,7 +5,7 @@
  * Pixelkarten sehen nur dann gleichmäßig aus, wenn ein Kartenpixel eine ganze Zahl von Geräte-Pixeln groß ist. Die erlaubten
  * Stufen sind darum n ÷ Pixeldichte (Dichte 1: 1, 2, 3 · Dichte 2: 1, 1,5, 2 … · Dichte 3: 1, 1,33, 1,67 …).
  * Die Mitte darf höchstens MAX_RATIO mal so groß sein wie die Auslagen, damit alles ähnlich groß wirkt.
- * Beim Verkleinern geht es von der Startgröße der Geräteklasse schrittweise nach unten, bis alles passt.
+ * Es gibt keine festen Größen je Gerät: Der Tisch beginnt so groß wie die Handkarten (nie größer) und geht schrittweise nach unten, bis alles auf den Bildschirm passt.
  */
 
 export const MAX_RATIO = 1.75;
@@ -17,23 +17,6 @@ export interface ScaleStep {
   a: number;
   /** Stufe der Mitte. */
   c: number;
-}
-
-export type DeviceClass = 'phoneNarrow' | 'phone' | 'tablet' | 'desktop';
-
-/** Startgrößen je Geräteklasse (Auslagen / Mitte), bevor sie auf die Stufen des Bildschirms gerundet werden. */
-export const START: Record<DeviceClass, ScaleStep> = {
-  phoneNarrow: { a: 1, c: 1.75 },
-  phone: { a: 1.5, c: 1.75 },
-  tablet: { a: 2, c: 2 },
-  desktop: { a: 3, c: 3 },
-};
-
-/** Geräteklasse nach Fenstergröße (gleiche Umschaltpunkte wie der Maßstab der Handkarten, siehe SCALE_TOKENS). */
-export function deviceClass(width: number, height: number): DeviceClass {
-  if (width >= 1000 && height >= 860) return 'desktop';
-  if (width >= 700) return 'tablet';
-  return width <= 380 ? 'phoneNarrow' : 'phone';
 }
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
@@ -61,12 +44,11 @@ export function snap(grid: number[], target: number, tol = 0.05): number {
  * Alle zulässigen Kombinationen, von groß nach klein: Mitte nie kleiner als die Auslagen und höchstens MAX_RATIO mal so groß.
  * `handScale` ist die Größe der Handkarten: Nichts am Tisch wird größer.
  */
-export function tableLadder(dpr: number, cls: DeviceClass, handScale: number): ScaleStep[] {
+export function tableLadder(dpr: number, handScale: number): ScaleStep[] {
   const grid = scaleGrid(dpr);
-  const cap = (v: number) => Math.min(v, handScale);
-  const a0 = snap(grid, cap(START[cls].a));
-  let c0 = snap(grid, cap(START[cls].c));
-  if (c0 < a0) c0 = a0;
+  // Größte Stufe, die die Handkarten nicht überschreitet: Auslagen und Mitte beginnen beide dort
+  const a0 = snap(grid, handScale);
+  const c0 = a0;
   const steps: ScaleStep[] = [];
   for (const a of grid) {
     if (a > a0 + 1e-9) continue;
@@ -77,7 +59,20 @@ export function tableLadder(dpr: number, cls: DeviceClass, handScale: number): S
   }
   // Größte Summe zuerst; bei Gleichstand die mit den größeren Auslagen (weniger Unterschied zwischen den Karten)
   steps.sort((x, y) => y.a + y.c - (x.a + x.c) || y.a - x.a);
-  // Reicht die Startgröße nicht aus, steht sie trotzdem an erster Stelle (Raster und Verhältnis erlauben sie immer)
+  // Zur Sicherheit: nie eine leere Liste
   if (steps.length === 0) steps.push({ a: a0, c: c0 });
   return steps;
+}
+
+/**
+ * Maßstab der Handkarten (und damit der ganzen Oberfläche) auf eine Stufe mit ganzen Geräte-Pixeln je Kartenpixel legen.
+ * Es gilt die nächstgelegene Stufe zum Wunsch (bei Gleichstand die kleinere). Eine größere Stufe nur, wenn `fits` sagt, dass sie Platz hat.
+ */
+export function crispScale(base: number, dpr: number, fits: (s: number) => boolean = () => true): number {
+  const grid = scaleGrid(dpr);
+  let down = grid[0];
+  for (const v of grid) if (v <= base + 1e-9) down = v;
+  const up = grid.find((v) => v > base + 1e-9);
+  if (up === undefined || Math.abs(up - base) >= Math.abs(base - down) - 1e-9) return down;
+  return fits(up) ? up : down;
 }
