@@ -41,6 +41,7 @@ export function viewFor(state: GameState, viewer: number): GameView {
   }
   return {
     ...state,
+    cheats: undefined, // Cheats gibt es nur lokal im Solospiel
     players: state.players.map((p) => (finished ? p : { ...p, bot: undefined })),
     round,
     viewer,

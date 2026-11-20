@@ -27,6 +27,8 @@ import {
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
 import { decideAction } from '../bot/bot';
+import { decideForHuman } from '../bot/autoplay';
+import { Cheats, ParseResult, parseCheatCode } from '../engine/cheats';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
 import { describeTasteSet, tastesFor } from '../bot/tastes';
@@ -35,7 +37,7 @@ import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
-import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
+import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { ScaleStep, deviceClass, tableLadder } from './tablescale';
@@ -69,6 +71,9 @@ const DROP_ZONE_GROW = 1.15;
 const HAND_BACK_GUARD_MS = 1500;
 
 const PREFS_KEY = 'cheft.prefs.v2';
+/** Zeitreise: so viele Zuganfänge werden höchstens gemerkt (bei sehr vielen Runden wächst der Spielstand sonst stark). */
+const TIMELINE_MAX = 120;
+const TIMELINE_CHARS = 30_000_000;
 /** Wählbare Rundenzahlen. */
 const ROUND_CHOICES = [3, 5, 7, 9];
 /** Obergrenze für die Auswahl „Wie auslegen?“. Es werden alle erlaubten Möglichkeiten angeboten, die Grenze schützt nur vor endlosem Rechnen. */
@@ -245,6 +250,14 @@ export class App {
   private drag: Drag | null = null;
   private botGen = 0;
   private botsRunning = false;
+  /** Ein Aufruf von runBots kam, während die Schleife noch lief (z. B. nach Zeitreise): nach dem Ende neu starten. */
+  private botsRerun = false;
+  /** Cheats aus dem eingefügten Code, bis das Solo-Spiel startet (nur im Speicher; Zurück, Neuladen und Online verwerfen sie). */
+  private pendingCheats: Extract<ParseResult, { kind: 'ok' }> | null = null;
+  /** Autoplay-Cheat: läuft (on) oder macht gerade einen Einzelschritt (steps). Nur Oberfläche, wird nie gespeichert. */
+  private auto = { on: false, steps: 0 };
+  /** Zeitreise-Cheat: Spielstände zu Beginn meiner Züge (als JSON), neueste zuletzt. Nur Speicher. */
+  private timeline: string[] = [];
   private dealing = false;
   private showSettings = false;
   private showScores = false;
@@ -478,6 +491,18 @@ export class App {
           primary: true,
           onClick: async (code) => {
             if (!code.trim()) return;
+            // Cheat-Text statt Spielstand? Dann öffnet sich "Neues Spiel"; der Cheat gilt nur für dieses eine Solo-Spiel.
+            const cheat = parseCheatCode(code);
+            if (cheat.kind === 'error') {
+              this.toast(t(cheat.key, cheat.params), true);
+              return;
+            }
+            if (cheat.kind === 'ok') {
+              this.pendingCheats = cheat;
+              this.toast([...cheat.messages, ...cheat.warnings.map((w) => t(w.key, w.params))].join(' '));
+              this.goto('setup');
+              return;
+            }
             let raw: string;
             try {
               raw = await unpackSave(code);
@@ -747,6 +772,7 @@ export class App {
       h(
         'div',
         { class: 'panel' },
+        ...(this.pendingCheats ? this.pendingCheats.messages.map((m) => hint(m)) : []),
         h('div', { class: 'option' }, fieldLabel(t('setup.name')), nameInput),
         this.choice(t('setup.bots'), [{ v: 2, label: '2' }, { v: 3, label: '3' }], () => this.prefs.bots, (v) => (this.prefs.bots = v as number)),
         ...this.prefs.botChoices.slice(0, this.prefs.bots).map((c, i) => this.botRow(c, i)),
@@ -872,6 +898,8 @@ export class App {
     this.screen = screen;
     this.showSettings = false;
     this.showScores = false;
+    // Ein Cheat gilt nur für das Solo-Spiel, das er gleich startet: Wer woandershin geht, verwirft ihn.
+    if (screen !== 'setup' && screen !== 'game') this.pendingCheats = null;
     if (screen === 'menu') this.logoCards = null;
     this.render();
   }
@@ -965,9 +993,14 @@ export class App {
     }
     const seatFixed = this.prefs.seating !== 'random';
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style, reveal: seatFixed ? b.fixed : undefined } }));
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
+    // Cheats gelten nur für dieses eine Spiel: Sie wandern in den Spielstand und nie in die gespeicherten Einstellungen.
+    const cheats: Cheats | undefined = this.pendingCheats?.cheats;
+    this.pendingCheats = null;
+    const settings: Settings = { rounds: cheats?.rounds ?? this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
-    this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length));
+    this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length), cheats);
+    this.auto = { on: false, steps: 0 };
+    this.timeline = [];
     this.order = [];
     this.fresh.clear();
     this.selected.clear();
@@ -980,6 +1013,8 @@ export class App {
 
   private continueGame(): void {
     if (!this.state) return;
+    this.auto = { on: false, steps: 0 };
+    this.timeline = [];
     this.selected.clear();
     this.fresh.clear();
     this.botGen++;
@@ -1002,6 +1037,8 @@ export class App {
     this.dealing = false;
     play('card');
     this.render();
+    const notes = this.state?.round.cheatNotes;
+    if (notes?.length) this.toast(notes.map((n) => t(n.key, n.params)).join(' '), true);
     void this.runBots();
   }
 
@@ -1199,6 +1236,12 @@ export class App {
 
   private act(action: Action): boolean {
     const s = this.state!;
+    // Wer selbst spielt, pausiert Autoplay; vor Beginn eines Zuges merkt sich die Zeitreise den Stand
+    if (this.auto.on) {
+      this.auto.on = false;
+      this.auto.steps = 0;
+    }
+    if (action.kind === 'draw' || action.kind === 'ready' || action.kind === 'declareCheft') this.markTimeline();
     const before = snapshot(this.root);
     const appearFrom = action.kind === 'draw' ? this.pileRect(action.source) : null;
     if (this.online) {
@@ -1278,27 +1321,58 @@ export class App {
     return this.prefs.speed === 'fast' ? 650 : 1300;
   }
 
+  /** Autoplay-Cheat: Soll der Mastermind-Bot gerade meinen Platz spielen (läuft oder macht einen Einzelschritt)? */
+  private autoActive(): boolean {
+    return !this.online && !!this.state?.cheats?.autoplay && (this.auto.on || this.auto.steps > 0);
+  }
+
   private async runBots(): Promise<void> {
-    if (this.botsRunning || this.online) return;
+    if (this.online) return;
+    if (this.botsRunning) {
+      this.botsRerun = true;
+      return;
+    }
     this.botsRunning = true;
     const gen = this.botGen;
     try {
-      while (this.state && gen === this.botGen && this.screen === 'game' && !this.state.round.ended && !this.dealing) {
+      while (this.state && gen === this.botGen && this.screen === 'game' && !this.dealing) {
+        if (this.state.round.ended) {
+          // Autoplay: Runde automatisch beenden und die nächste starten; am Spielende bleibt die Übersicht stehen
+          if (this.state.finished) {
+            if (this.auto.on) {
+              this.auto.on = false;
+              this.render();
+            }
+            break;
+          }
+          if (!this.auto.on || !this.state.cheats?.autoplay) break;
+          await sleep(this.prefs.speed === 'fast' ? 900 : 1800);
+          if (gen !== this.botGen || !this.state || !this.auto.on) break;
+          this.nextRound();
+          break;
+        }
+        const meAuto = this.autoActive();
         if (this.state.round.waiting) {
           const r = this.state.round;
-          const pending = this.state.players.filter((p) => p.isBot && !r.ready[p.id]);
+          const pending = this.state.players.filter((p) => (p.isBot || (p.id === this.me && meAuto)) && !r.ready[p.id]);
           if (pending.length === 0) break; // auf den Menschen warten
-          await sleep(900 + Math.floor(Math.random() * 1200));
+          await sleep(pending[0].id === this.me && !this.auto.on ? 150 : 900 + Math.floor(Math.random() * 1200));
           if (gen !== this.botGen || !this.state) break;
+          if (pending[0].id === this.me) this.markTimeline();
           applyAction(this.state, pending[0].id, { kind: 'ready' });
+          if (pending[0].id === this.me && this.auto.steps > 0) {
+            this.auto.steps--;
+            this.render();
+          }
           this.save();
           if (!this.drag) this.render();
           if (!this.state.round.waiting) play('card');
           continue;
         }
         const pid = current(this.state);
-        if (!this.state.players[pid].isBot) break;
-        await sleep(this.botDelay());
+        const human = pid === this.me;
+        if (!this.state.players[pid].isBot && !(human && meAuto)) break;
+        await sleep(human && !this.auto.on ? 150 : this.botDelay());
         if (gen !== this.botGen || !this.state || this.drag) {
           if (this.drag) {
             // Während der Mensch sortiert, kurz warten
@@ -1307,7 +1381,9 @@ export class App {
           }
           break;
         }
-        const action = decideAction(this.state, pid);
+        if (human && !this.autoActive()) continue; // pausiert, während wir gewartet haben
+        if (human && this.state.round.turn.phase === 'draw') this.markTimeline();
+        const action = human ? decideForHuman(this.state, pid, this.state.cheats!.autoplay!.role) : decideAction(this.state, pid);
         const before = snapshot(this.root);
         const seat = this.seatRect(pid);
         const drawInfo =
@@ -1321,6 +1397,7 @@ export class App {
               }
             : null;
         const res = applyAction(this.state, pid, action);
+        if (human && this.auto.steps > 0) this.auto.steps--;
         if (!res.ok) {
           console.error('Bot-Fehler', action, res.error);
           const hand = this.state.round.players[pid].hand;
@@ -1343,7 +1420,68 @@ export class App {
       }
     } finally {
       this.botsRunning = false;
+      if (this.botsRerun) {
+        this.botsRerun = false;
+        void this.runBots();
+      }
     }
+  }
+
+  // ------------------------------------------------------------ Cheats: Zeitreise und Autoplay
+  /** Zeitreise: merkt sich den Stand vor Beginn meines Zuges (nur mit Cheat, höchstens so viele wie TIMELINE_MAX). */
+  private markTimeline(): void {
+    if (this.online || !this.state?.cheats?.timeTravel) return;
+    const snap = JSON.stringify(this.state);
+    if (this.timeline[this.timeline.length - 1] === snap) return;
+    this.timeline.push(snap);
+    // Begrenzung nach Anzahl und nach Datenmenge (bei hunderten Runden ist ein Spielstand mehrere MB groß)
+    let size = this.timeline.reduce((n, x) => n + x.length, 0);
+    while (this.timeline.length > 1 && (this.timeline.length > TIMELINE_MAX || size > TIMELINE_CHARS)) size -= this.timeline.shift()!.length;
+  }
+
+  /** Zeitreise: mitten im Zug zurück an dessen Anfang (samt Cheft-Ansage), am Anfang zum Beginn meines vorigen Zuges, auch über Rundengrenzen. */
+  private timeTravel(): void {
+    if (this.online || !this.state?.cheats?.timeTravel) return;
+    const cur = JSON.stringify(this.state);
+    if (this.timeline.length > 0 && this.timeline[this.timeline.length - 1] === cur) this.timeline.pop();
+    const target = this.timeline[this.timeline.length - 1];
+    if (!target) {
+      this.toast(t('cheat.noRewind'), true);
+      return;
+    }
+    this.auto = { on: false, steps: 0 };
+    this.botGen++;
+    this.state = JSON.parse(target) as GameState;
+    this.selected.clear();
+    this.fresh.clear();
+    this.order = [];
+    this.chooser = null;
+    this.peekTable = false;
+    play('undo');
+    this.save();
+    this.render();
+    void this.runBots();
+  }
+
+  private toggleAuto(): void {
+    if (this.auto.on) {
+      this.auto.on = false;
+      this.auto.steps = 0;
+    } else {
+      // Ein von Hand angefangener Zug beginnt neu, damit der Bot nicht mit Pflichtkarten hängt
+      if (this.state) abortTurn(this.state);
+      this.auto.on = true;
+    }
+    this.render();
+    void this.runBots();
+  }
+
+  private autoStep(): void {
+    if (this.auto.on || !this.state) return;
+    abortTurn(this.state);
+    this.auto.steps = 1;
+    this.render();
+    void this.runBots();
   }
 
   private nextRound(): void {
@@ -1423,7 +1561,7 @@ export class App {
         this.showScores = true;
         this.render();
       }),
-      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, !this.online && s.cheats ? h('span', { class: 'cheat-tag' }, ` ${t('cheat.tag')}`) : null),
       h(
         'div',
         { class: 'icons' },
@@ -1568,7 +1706,7 @@ export class App {
     else if (held(r.turn.mustPairWithId)) msg = t('turn.you.carpet');
     else if (held(r.turn.mustUseId)) msg = t('turn.you.mustUse');
     else msg = t('turn.you.play');
-    let info = t('threshold', { n: tableThreshold(s) });
+    let info = t('threshold', { n: tableThreshold(s, this.me) });
     if (selectedCards.length >= 3 && !me.opened && me.mode === 'romme') {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
@@ -1612,6 +1750,23 @@ export class App {
       undo.classList.add('undo-btn');
       (undo as HTMLButtonElement).disabled = !(playPhase && r.turn.canRewind);
       table.appendChild(undo);
+    }
+
+    // Cheat-Knöpfe: Zeitreise links neben dem Zurücksetzen, Autoplay (Play/Pause und Einzelschritt) rechts unten
+    if (!this.online && s.cheats) {
+      if (s.cheats.timeTravel) {
+        const back = iconBtn(pixelIcon(ICON_REWIND), t('cheat.rewind'), () => this.timeTravel());
+        back.classList.add('travel-btn');
+        table.appendChild(back);
+      }
+      if (s.cheats.autoplay) {
+        const canStep = !this.auto.on && !r.ended && ((r.waiting && !r.ready[this.me]) || current(s) === this.me);
+        const stepBtn = iconBtn(pixelIcon(ICON_STEP), t('cheat.step'), () => this.autoStep());
+        (stepBtn as HTMLButtonElement).disabled = !canStep;
+        const playBtn = iconBtn(pixelIcon(this.auto.on ? ICON_PAUSE : ICON_PLAY), this.auto.on ? t('cheat.pause') : t('cheat.play'), () => this.toggleAuto());
+        (playBtn as HTMLButtonElement).disabled = s.finished;
+        table.appendChild(h('div', { class: 'auto-ctl' }, stepBtn, playBtn));
+      }
     }
 
     const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
@@ -3235,6 +3390,7 @@ export class App {
       h('h2', null, title),
       h('p', null, text),
       extras.length ? h('p', { class: 'accent' }, extras.join(' ')) : null,
+      s.finished && !this.online && s.cheats ? h('p', { class: 'muted' }, t('cheat.gameEnd')) : null,
       h(
         'table',
         { class: 'scores' },

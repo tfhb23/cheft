@@ -617,6 +617,20 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
     expect(restored.seats[2].sid).toBe(3);
   });
 
+  it('Cheats gibt es nur solo: ein Raum erzeugt keine, und eine Kopie mit Cheats verliert sie beim Laden', () => {
+    const room = new Rooms(60).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    expect(room.state!.cheats).toBeUndefined();
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    (snap.state as { cheats?: unknown }).cheats = { seat: 0, jokers: 2, rounds: 999, firstMeld: { base: 1, cheft: 1 } };
+    const restored = new Rooms(61).restore(snap);
+    expect(restored.state!.cheats).toBeUndefined();
+    expect(JSON.stringify(restored.toSnapshot())).not.toContain('cheats');
+  });
+
   it('Raum mit Wunschcode eröffnen: nur gültige freie Codes, mit Obergrenze', () => {
     const rooms = new Rooms(59);
     expect(isRoomCode('232')).toBe(true);

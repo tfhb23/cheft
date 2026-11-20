@@ -564,6 +564,8 @@ export class Room {
     const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
     this.state = snap.state;
+    // Cheats gibt es nur im Solospiel: Ein Mehrspieler-Raum kennt sie nie, auch nicht aus einer manipulierten Kopie.
+    if (this.state) delete (this.state as { cheats?: unknown }).cheats;
     // Ein beim Einschlafen angefangener Zug wird zurückgesetzt, damit niemand mit einer Pflichtkarte hängen bleibt.
     if (this.state) abortTurn(this.state);
     this.rev = snap.rev;
