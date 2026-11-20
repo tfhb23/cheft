@@ -309,6 +309,13 @@ describe('Testhand FASTFERTIG', () => {
   });
 });
 
+describe('SUPERFAST', () => {
+  it('wird gelesen und ist kombinierbar', () => {
+    expect(ok('superfast').superFast).toBe(true);
+    expect(ok('SUPER FAST autoplay runden 999')).toMatchObject({ superFast: true, rounds: 999, autoplay: { role: 'wildcard' } });
+  });
+});
+
 describe('Deck-Gruppe: Eingabe', () => {
   it('Faktor, Jokerparty und Mini lesen', () => {
     expect(ok('doppelt').deckMult).toBe(2);

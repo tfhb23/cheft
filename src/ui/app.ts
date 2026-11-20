@@ -28,6 +28,7 @@ import {
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
 import { decideAction } from '../bot/bot';
 import { decideForHuman } from '../bot/autoplay';
+import { fallbackMove } from '../bot/fallback';
 import { Cheats, ParseResult, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
@@ -37,7 +38,7 @@ import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
-import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
+import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_LAMP, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { ScaleStep, deviceClass, tableLadder } from './tablescale';
@@ -84,7 +85,6 @@ interface Prefs {
   bots: number;
   rounds: number;
   firstTurn: boolean;
-  speed: 'normal' | 'fast';
   vibration: boolean;
   sound: boolean;
   botChoices: BotChoice[];
@@ -118,7 +118,6 @@ interface DialogSpec {
 /** Die Einstellungen eines Spiels, wie Solo-Setup und Lobby sie anzeigen. */
 interface SettingValues {
   seating: 'manual' | 'random';
-  speed: 'normal' | 'fast';
   firstTurnOpenAllowed: boolean;
   sortedDeal: boolean;
   peekDiscards: boolean;
@@ -191,7 +190,6 @@ export class App {
     bots: 3,
     rounds: 7,
     firstTurn: false,
-    speed: 'normal',
     vibration: true,
     sound: false,
     botChoices: [
@@ -416,6 +414,7 @@ export class App {
       if (raw) {
         const stored = JSON.parse(raw) as Partial<Prefs> & { v?: number };
         this.prefs = { ...this.prefs, ...stored };
+        delete (this.prefs as { speed?: unknown }).speed; // Bot-Tempo gibt es nicht mehr (nur noch als Cheat)
         // Neuer Standard: Rauskommen im ersten Zug gesperrt (einmalig auch für gespeicherte Einstellungen).
         if ((stored.v ?? 0) < 3) this.prefs.firstTurn = false;
         // Neuer Standard: Sitzplätze zufällig (einmalig auch für gespeicherte Einstellungen).
@@ -732,7 +731,6 @@ export class App {
     ];
     return [
       this.choice(t('setup.seating'), [{ v: 'manual', label: t('setup.seating.manual') }, { v: 'random', label: t('setup.seating.random') }], () => v.seating, (x) => set({ seating: x as SettingValues['seating'] })),
-      this.choice(t('settings.speed'), [{ v: 'normal', label: t('settings.speed.normal') }, { v: 'fast', label: t('settings.speed.fast') }], () => v.speed, (x) => set({ speed: x as SettingValues['speed'] })),
       this.choice(t('setup.firstTurn'), yesNo, () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x as boolean })),
       this.choice(t('setup.sortedDeal'), [{ v: true, label: t('setup.sortedDeal.yes') }, { v: false, label: t('setup.sortedDeal.no') }], () => v.sortedDeal, (x) => set({ sortedDeal: x as boolean })),
       this.choice(t('setup.peek'), yesNo, () => v.peekDiscards, (x) => set({ peekDiscards: x as boolean })),
@@ -745,7 +743,6 @@ export class App {
     const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, label), h('span', null, value));
     return [
       row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
-      row(t('settings.speed'), t(`settings.speed.${v.speed}`)),
       row(t('setup.firstTurn'), t(v.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')),
       row(t('setup.sortedDeal'), t(v.sortedDeal ? 'setup.sortedDeal.yes' : 'setup.sortedDeal.no')),
       row(t('setup.peek'), t(v.peekDiscards ? 'setup.yes' : 'setup.no')),
@@ -782,10 +779,9 @@ export class App {
           this.render();
         }),
         ...this.settingChoices(
-          { seating: this.prefs.seating, speed: this.prefs.speed, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
+          { seating: this.prefs.seating, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
           (patch) => {
             if (patch.seating !== undefined) this.prefs.seating = patch.seating;
-            if (patch.speed !== undefined) this.prefs.speed = patch.speed;
             if (patch.firstTurnOpenAllowed !== undefined) this.prefs.firstTurn = patch.firstTurnOpenAllowed;
             if (patch.sortedDeal !== undefined) this.prefs.sortedDeal = patch.sortedDeal;
             if (patch.peekDiscards !== undefined) this.prefs.peekDiscards = patch.peekDiscards;
@@ -1030,6 +1026,15 @@ export class App {
   }
 
   private async startRoundWithDeal(): Promise<void> {
+    if (this.superFast()) {
+      // SUPERFAST: ohne Austeil-Animation
+      this.dealing = false;
+      this.render();
+      const notes = this.state?.round.cheatNotes;
+      if (notes?.length) this.toast(notes.map((n) => t(n.key, n.params)).join(' '), true);
+      void this.runBots();
+      return;
+    }
     this.dealing = true;
     this.render();
     const stock = this.root.querySelector('.stock-wrap > .card');
@@ -1316,6 +1321,7 @@ export class App {
   private onRoundEnded(): void {
     this.peekTable = false; // Das Ergebnis-Popup geht immer auf, egal was in der Vorrunde gedrückt wurde
     const r = this.state!.round.result!;
+    if (this.superFast()) return;
     if (r.winner === this.me) {
       play('win');
       vibrate(VIB.win, this.prefs.vibration);
@@ -1323,7 +1329,29 @@ export class App {
   }
 
   private botDelay(): number {
-    return this.prefs.speed === 'fast' ? 650 : 1300;
+    return 1300;
+  }
+
+  /** Cheat SUPERFAST: Bots (und Autoplay) spielen ohne Pausen, Animationen und Töne. */
+  private superFast(): boolean {
+    return !this.online && !!this.state?.cheats?.superFast;
+  }
+  private fastTicks = 0;
+  /** Wartet `ms` Millisekunden; mit SUPERFAST nur kurz Luft holen (ein Aufgabenwechsel ohne die 4-ms-Bremse von setTimeout). */
+  private async pause(ms: number): Promise<void> {
+    if (!this.superFast()) {
+      await sleep(ms);
+      return;
+    }
+    if (++this.fastTicks % 25 === 0) {
+      await sleep(0);
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => resolve();
+      ch.port2.postMessage(0);
+    });
   }
 
   /** Autoplay-Cheat: Soll der Mastermind-Bot gerade meinen Platz spielen (läuft oder macht einen Einzelschritt)? */
@@ -1351,7 +1379,7 @@ export class App {
             break;
           }
           if (!this.auto.on || !this.state.cheats?.autoplay) break;
-          await sleep(this.prefs.speed === 'fast' ? 900 : 1800);
+          await this.pause(1800);
           if (gen !== this.botGen || !this.state || !this.auto.on) break;
           this.nextRound();
           break;
@@ -1361,7 +1389,7 @@ export class App {
           const r = this.state.round;
           const pending = this.state.players.filter((p) => (p.isBot || (p.id === this.me && meAuto)) && !r.ready[p.id]);
           if (pending.length === 0) break; // auf den Menschen warten
-          await sleep(pending[0].id === this.me && !this.auto.on ? 150 : 900 + Math.floor(Math.random() * 1200));
+          await this.pause(pending[0].id === this.me && !this.auto.on ? 150 : 900 + Math.floor(Math.random() * 1200));
           if (gen !== this.botGen || !this.state) break;
           if (pending[0].id === this.me) this.markTimeline();
           applyAction(this.state, pending[0].id, { kind: 'ready' });
@@ -1371,13 +1399,13 @@ export class App {
           }
           this.save();
           if (!this.drag) this.render();
-          if (!this.state.round.waiting) play('card');
+          if (!this.state.round.waiting && !this.superFast()) play('card');
           continue;
         }
         const pid = current(this.state);
         const human = pid === this.me;
         if (!this.state.players[pid].isBot && !(human && meAuto)) break;
-        await sleep(human && !this.auto.on ? 150 : this.botDelay());
+        await this.pause(human && !this.auto.on ? 150 : this.botDelay());
         if (gen !== this.botGen || !this.state || this.drag) {
           if (this.drag) {
             // Während der Mensch sortiert, kurz warten
@@ -1389,10 +1417,11 @@ export class App {
         if (human && !this.autoActive()) continue; // pausiert, während wir gewartet haben
         if (human && this.state.round.turn.phase === 'draw') this.markTimeline();
         const action = human ? decideForHuman(this.state, pid, this.state.cheats!.autoplay!.role) : decideAction(this.state, pid);
-        const before = snapshot(this.root);
-        const seat = this.seatRect(pid);
+        const fast = this.superFast();
+        const before = fast ? ({} as RectMap) : snapshot(this.root);
+        const seat = fast ? null : this.seatRect(pid);
         const drawInfo =
-          action.kind === 'draw'
+          !fast && action.kind === 'draw'
             ? {
                 pid,
                 source: action.source,
@@ -1404,27 +1433,38 @@ export class App {
         const res = applyAction(this.state, pid, action);
         if (human && this.auto.steps > 0) this.auto.steps--;
         if (!res.ok) {
+          // Sollte nie vorkommen: Der Zug geht trotzdem weiter, sonst bliebe das Spiel stehen
           console.error('Bot-Fehler', action, res.error);
-          const hand = this.state.round.players[pid].hand;
-          applyAction(this.state, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });
+          if (!fallbackMove(this.state, pid)) {
+            this.toast(t('err.botStuck'), true);
+            break;
+          }
         }
         this.noteModes();
-        this.save();
-        this.render();
-        if (action.kind === 'draw') {
-          play(drawSound(action.source));
-          if (drawInfo) this.flyDraw(drawInfo);
-          void flip(this.root, before, {});
-        } else {
-          play(action.kind === 'discard' ? 'discard' : 'lay');
-          if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+        const ended = this.state.round.ended;
+        // Mit SUPERFAST nur ab und zu speichern und zeichnen (am Rundenende und wenn der Mensch dran ist immer, siehe unten)
+        if (!fast || ended || this.fastTicks % 25 === 0) this.save();
+        if (!fast || ended || this.fastTicks % 8 === 0) this.render();
+        if (!fast) {
+          if (action.kind === 'draw') {
+            play(drawSound(action.source));
+            if (drawInfo) this.flyDraw(drawInfo);
+            void flip(this.root, before, {});
+          } else {
+            play(action.kind === 'discard' ? 'discard' : 'lay');
+            if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+          }
         }
-        if (this.state.round.ended) this.onRoundEnded();
+        if (ended) this.onRoundEnded();
         // Nach einem Abwurf etwas länger zeigen, was liegt.
-        if (action.kind === 'discard') await sleep(this.prefs.speed === 'fast' ? 250 : 700);
+        if (action.kind === 'discard') await this.pause(700);
       }
     } finally {
       this.botsRunning = false;
+      if (this.superFast() && this.state) {
+        this.save();
+        this.render();
+      }
       if (this.botsRerun) {
         this.botsRerun = false;
         void this.runBots();
@@ -1566,7 +1606,8 @@ export class App {
         this.showScores = true;
         this.render();
       }),
-      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, !this.online && s.cheats ? h('span', { class: 'cheat-tag' }, t('cheat.tag')) : null),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
+      this.lampInHeader() ? h('span', { class: 'cheat-lamp', title: t('cheat.tag') }, pixelIcon(ICON_LAMP)) : null,
       h(
         'div',
         { class: 'icons' },
@@ -1783,6 +1824,12 @@ export class App {
     const request = this.online?.lobby ? this.renderRequest(this.online.lobby) : null;
     if (request) game.appendChild(request);
     return game;
+  }
+
+  /** Cheat-Lampe in der Kopfzeile: nur im Solospiel mit Cheats, und nur wenn die Rundenzahl kurz genug ist (bei 100+ Runden steht sie in der Punkteübersicht). */
+  private lampInHeader(): boolean {
+    const s = this.state;
+    return !this.online && !!s?.cheats && String(s.settings.rounds).length < 3;
   }
 
   /** Stapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
@@ -3190,7 +3237,6 @@ export class App {
     });
     const values: SettingValues = {
       seating: lobby.settings.seating,
-      speed: lobby.settings.speed,
       firstTurnOpenAllowed: lobby.settings.firstTurnOpenAllowed,
       sortedDeal: lobby.settings.sortedDeal ?? true,
       peekDiscards: lobby.settings.peekDiscards,
@@ -3347,7 +3393,11 @@ export class App {
   private renderScores(): HTMLElement {
     const s = this.state!;
     return windowEl(
-      [s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')), backBtn(() => this.back())],
+      [
+        !this.online && s.cheats && !this.lampInHeader() ? h('p', { class: 'cheat-note' }, h('span', { class: 'cheat-lamp' }, pixelIcon(ICON_LAMP)), t('cheat.active')) : null,
+        s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')),
+        backBtn(() => this.back()),
+      ],
       () => this.back(),
     );
   }

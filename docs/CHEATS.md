@@ -36,6 +36,7 @@ Beispiel: `autoplay zeitreise runden 12 joker 2 hand( HeD KrB PiA Ka3 J He9 Kr10
 | Erstmeldung | Eigene Mindestaugen für die Erstmeldung. "Die vorherige Erstmeldung übertreffen" gilt weiter. |
 | Doppelt / Dreifach / Vierfach | Jede Karte 4, 6 oder 8 Kopien statt 2 (also ×2, ×3, ×4), Joker ebenso viele (4, 6, 8). Mehrere Faktoren: der zuerst genannte zählt. |
 | Jokerparty | Genau N Joker im Deck (0–60, ohne Zahl 8). Überstimmt die Joker des Faktors; `JOKERPARTY 0` ist ein Spiel ohne Joker. |
+| Superfast | Die Bots (und Autoplay) spielen mit maximalem Tempo: keine Pausen, Animationen und Töne, gezeichnet und gespeichert wird nur ab und zu. Zusammen mit Autoplay und vielen Runden zum schnellen Durchspielen (12 Runden dauern etwa 10 Sekunden). |
 | Mini | Skatblatt: nur 7, 8, 9, 10, Bube, Dame, König, Ass (64 Karten plus Joker). Kein Ass-2-3, Folgen gehen nur bis Dame-König-Ass. |
 
 Die Deck-Cheats sind miteinander kombinierbar (z. B. `VIERFACH MINI JOKERPARTY 12`). Sie ändern nur, welche Karten es gibt;
@@ -48,6 +49,11 @@ jeweils mit Hinweis.
 Wer höher steht, bekommt seine Karten zuerst; was nicht mehr geht, wird zufällig ersetzt oder entfällt (mit Hinweis beim
 Rundenstart): 1. Wunschhand und Testhand, 2. Ausgelegt, 3. Teppich, 4. Joker, 5. Rest der Hand, Gegner und Stapel zufällig.
 
+## Bot-Tempo
+
+Das frühere Bot-Tempo ist aus den Einstellungen entfernt (solo und online): Bots spielen immer im normalen Tempo. Schneller geht es nur mit dem
+Cheat Superfast. Alte gespeicherte Einstellungen und Raum-Kopien werden beim Laden bereinigt.
+
 ## Deck technisch
 
 `DeckConfig` (Kopien, Joker, Werte) in `engine/cards.ts`, aus den Cheats gebildet von `deckConfigOf` (`engine/cheats.ts`). Ohne Cheats ist es das
@@ -57,7 +63,8 @@ Ids. Rücken und Bildkarten richten sich nach dem geraden/ungeraden Blatt (`deck
 
 Mit vielen Jokern tritt ein Fall auf, der mit zwei Jokern fast nie vorkommt: Ein Satz aus einer echten Karte und Jokern (Ass, Joker, Joker) wird von
 der Engine als Folge A-2-3 gelesen, wenn die Kartenreihenfolge zufällig eine Folge ergibt. Die Bots legen Sätze deshalb in einer Reihenfolge aus,
-die keine Folge ergibt (`groupsOf` in `bot/bot.ts`).
+die keine Folge ergibt (`groupsOf` in `bot/bot.ts`). Als Notausgang gibt es `bot/fallback.ts`: Lehnt die Engine einen Bot-Zug ab (sollte nie passieren),
+spielt die App den einfachsten erlaubten Zug, statt stehen zu bleiben.
 
 ## Regeln, die immer gelten
 
@@ -66,7 +73,7 @@ die keine Folge ergibt (`groupsOf` in `bot/bot.ts`).
 - Ist die Teppichkarte ein Joker und der Cheat-Spieler beginnt mit 14 festgelegten Karten, geht der Joker zurück in den Stapel
   (neu gemischt) und es wird eine neue Teppichkarte gezogen.
 - Die Cheats liegen in `GameState.cheats`, nie in den Einstellungen. Mehrspieler kennt sie nicht: Der Server erzeugt keine, entfernt sie
-  aus jeder geladenen Raum-Kopie, und die Spieler-Sicht enthält sie nie. Im Spiel zeigt ein Abzeichen "CHEAT", am Spielende steht ein Vermerk.
+  aus jeder geladenen Raum-Kopie, und die Spieler-Sicht enthält sie nie. Im Spiel zeigt eine orange Wunschlampe neben der Rundenzahl, dass Cheats aktiv sind; bei dreistelliger Rundenzahl (kein Platz) steht sie stattdessen in der Punkteübersicht (Symbol links oben). Am Spielende steht ein Vermerk.
 
 ## Todo (später)
 

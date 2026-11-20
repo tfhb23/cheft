@@ -339,12 +339,12 @@ describe('Räume', () => {
   it('eine Einstellung ändern lässt die anderen unberührt', () => {
     const room = new Rooms(18).create();
     room.addHuman('A');
-    expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
-    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true, speed: undefined });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
-    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
+    expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined }).ok).toBe(true);
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, seating: 'random', peekDiscards: true, sortedDeal: true });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, seating: 'random', peekDiscards: true, sortedDeal: true });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, seating: 'random', peekDiscards: false, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.updateSettings({ rounds: 11 }).ok).toBe(false); // nur 3, 5, 7, 9
   });
 
@@ -615,6 +615,17 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
     const next = restored.claim(2, 'Neu');
     expect('pid' in next).toBe(true);
     expect(restored.seats[2].sid).toBe(3);
+  });
+
+  it('ein altes Bot-Tempo in einer gespeicherten Kopie verschwindet beim Laden', () => {
+    const room = new Rooms(62).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    (snap.settings as { speed?: string }).speed = 'fast';
+    const restored = new Rooms(63).restore(snap);
+    expect('speed' in restored.settings).toBe(false);
   });
 
   it('Cheats gibt es nur solo: ein Raum erzeugt keine, und eine Kopie mit Cheats verliert sie beim Laden', () => {

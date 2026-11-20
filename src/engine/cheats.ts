@@ -54,6 +54,8 @@ export interface Cheats {
   jokerParty?: number;
   /** Mini-Deck (7 bis Ass). */
   mini?: boolean;
+  /** Bots (und Autoplay) spielen mit maximalem Tempo: keine Pausen, Animationen und Töne. */
+  superFast?: boolean;
 }
 
 /** Die Deck-Zusammensetzung dieses Spiels (ohne Cheats: das Standardspiel). */
@@ -322,6 +324,7 @@ export function parseCheatCode(input: string): ParseResult {
       case 'laidOut':
       case 'carpet':
       case 'mini':
+      case 'superFast':
       case 'timeTravel':
         if (!dup) {
           cheats[id] = true;

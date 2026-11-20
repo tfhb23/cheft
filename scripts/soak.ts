@@ -57,6 +57,8 @@ function exactUnseen(g: GameState, pid: number): Map<string, number> {
   for (const c of r.discard) seen.add(c.id);
   if (r.carpet) seen.add(r.carpet.id);
   for (const x of r.taken) seen.add(x.card.id);
+  // Beim Abheben aufgedeckte Teppich-Joker lagen offen auf dem Tisch: Jeder kennt sie (der Mastermind merkt sich sie genau)
+  for (const c of r.carpetJokers ?? []) seen.add(c.id);
   const out = new Map<string, number>();
   for (const c of deck) if (!seen.has(c.id)) out.set(keyOf(c), (out.get(keyOf(c)) ?? 0) + 1);
   return out;

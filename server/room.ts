@@ -10,8 +10,6 @@ import { decideAction } from '../src/bot/bot';
 import { BotChoice, resolveBots, sanitizeChoice } from '../src/bot/names';
 import { FORGOTTEN_NAMES } from '../src/ui/names';
 
-export type Speed = 'normal' | 'fast';
-
 export type Seating = 'manual' | 'random';
 
 export const ROUND_OPTIONS = [3, 5, 7, 9];
@@ -19,7 +17,6 @@ export const ROUND_OPTIONS = [3, 5, 7, 9];
 export interface LobbySettings {
   rounds: number;
   firstTurnOpenAllowed: boolean;
-  speed: Speed;
   /** Sitzordnung: wie vom Gastgeber festgelegt oder beim Start ausgelost. */
   seating: Seating;
   /** Rückblick auf die letzten Abwürfe erlaubt. */
@@ -160,7 +157,7 @@ export class Room {
   private nextSid = 0;
   /** Zeitpunkt des letzten Spielzugs (für die Haltbarkeit der Kopie). */
   activeAt = Date.now();
-  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
+  settings: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, seating: 'random', peekDiscards: true, sortedDeal: true };
   state: GameState | null = null;
   paused: PauseKind | null = null;
   /** Wer die Pause beenden will; es geht erst weiter, wenn alle aktiven Menschen bestätigt haben. */
@@ -561,8 +558,9 @@ export class Room {
     this.normalizeHost();
     this.activeAt = snap.activeAt ?? Date.now();
     // Ältere Kopien kennen neuere Einstellungen noch nicht: Standardwerte ergänzen.
-    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true };
+    const defaults: LobbySettings = { rounds: 7, firstTurnOpenAllowed: false, seating: 'random', peekDiscards: true, sortedDeal: true };
     this.settings = { ...defaults, ...(snap.settings as Partial<LobbySettings>) };
+    delete (this.settings as { speed?: unknown }).speed; // Ältere Kopien kannten ein Bot-Tempo; es gibt nur noch ein Tempo
     this.state = snap.state;
     // Cheats gibt es nur im Solospiel: Ein Mehrspieler-Raum kennt sie nie, auch nicht aus einer manipulierten Kopie.
     if (this.state) delete (this.state as { cheats?: unknown }).cheats;

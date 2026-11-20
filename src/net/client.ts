@@ -16,7 +16,7 @@ export interface LobbyInfo {
   paused: 'manual' | 'auto' | null;
   /** Wer die Pause schon mit „Weiter“ bestätigt hat. */
   resumed: number[];
-  settings: { rounds: number; firstTurnOpenAllowed: boolean; speed: 'normal' | 'fast'; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
+  settings: { rounds: number; firstTurnOpenAllowed: boolean; seating: 'manual' | 'random'; peekDiscards: boolean; sortedDeal: boolean };
   /** Offene Anfragen, einen Platz zu übernehmen; der Spielleiter antwortet. */
   requests?: { id: number; name: string; seatName: string }[];
   seats: { pid: number; name: string; isBot: boolean; connected: boolean; /** Ein Abwesender, für den der Autopilot spielt. */ autopilot?: boolean; isHost: boolean; botLabel?: string; back?: string }[];
@@ -236,7 +236,7 @@ export class NetClient {
   removeSeat(pid: number): void {
     this.send({ type: 'lobby', op: 'removeSeat', pid });
   }
-  settings(patch: { rounds?: number; firstTurnOpenAllowed?: boolean; speed?: 'normal' | 'fast'; seating?: 'manual' | 'random'; peekDiscards?: boolean; sortedDeal?: boolean }): void {
+  settings(patch: { rounds?: number; firstTurnOpenAllowed?: boolean; seating?: 'manual' | 'random'; peekDiscards?: boolean; sortedDeal?: boolean }): void {
     this.send({ type: 'lobby', op: 'settings', ...patch });
   }
   /** Neue Sitzordnung: order[neu] = bisheriger Platz. */

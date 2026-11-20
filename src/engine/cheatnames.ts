@@ -7,7 +7,7 @@
  * Trennzeichen nötig ist (cheats.test.ts prüft das).
  */
 
-export type CheatId = 'jokers' | 'hand' | 'rounds' | 'laidOut' | 'carpet' | 'autoplay' | 'timeTravel' | 'firstMeld' | 'deck2' | 'deck3' | 'deck4' | 'jokerParty' | 'mini';
+export type CheatId = 'jokers' | 'hand' | 'rounds' | 'laidOut' | 'carpet' | 'autoplay' | 'timeTravel' | 'firstMeld' | 'deck2' | 'deck3' | 'deck4' | 'jokerParty' | 'mini' | 'superFast';
 
 export const CHEAT_NAMES: Record<CheatId, string[]> = {
   jokers: ['JOKER'],
@@ -24,6 +24,7 @@ export const CHEAT_NAMES: Record<CheatId, string[]> = {
   deck4: ['VIERFACH'],
   jokerParty: ['JOKERPARTY'],
   mini: ['MINI'],
+  superFast: ['SUPERFAST'],
 };
 
 /** Meldung beim Aktivieren eines Cheats (Platzhalter). */
@@ -41,6 +42,7 @@ export const CHEAT_MESSAGES: Record<CheatId, string> = {
   deck4: 'Cheat aktiv: viermal so viele Karten.',
   jokerParty: 'Cheat aktiv: Jokerparty.',
   mini: 'Cheat aktiv: Mini-Deck (7 bis Ass).',
+  superFast: 'Cheat aktiv: Bots spielen mit maximalem Tempo.',
 };
 
 /** Testhände, die als Zeile in `HAND( … )` stehen dürfen (Platzhalter-Namen). */
