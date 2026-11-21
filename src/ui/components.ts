@@ -186,3 +186,28 @@ export function backChoiceRow(items: { id: string; name: string; orange: string;
   });
   return h('div', { class: 'back-scroller' }, iconBtn(pixelIcon(ICON_ARROW_L), '‹', step(-1)), strip, iconBtn(pixelIcon(ICON_ARROW_R), '›', step(1)));
 }
+
+/**
+ * Schalter (Design 4.23): Beschriftung links, Kästchen rechts. Orange mit hellem Haken = an, helles leeres Kästchen = aus; der Text
+ * sagt, was „an“ bedeutet (z. B. „Handkarten vorsortiert“). onToggle fehlt = nur lesen (Lobby für Mitspieler ohne Rechte).
+ */
+export function checkRow(label: string, on: boolean, onToggle?: (next: boolean) => void): HTMLElement {
+  const NS = 'http://www.w3.org/2000/svg';
+  const box = h('span', { class: `check${on ? ' on' : ''}` });
+  if (on) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 8 5');
+    svg.setAttribute('class', 'check-mark');
+    // Haken aus Pixeln: 8 × 5
+    for (const [x, y, w] of [[6, 0, 2], [5, 1, 2], [0, 2, 2], [4, 2, 2], [1, 3, 4], [2, 4, 2]]) {
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', String(x));
+      r.setAttribute('y', String(y));
+      r.setAttribute('width', String(w));
+      r.setAttribute('height', '1');
+      svg.appendChild(r);
+    }
+    box.appendChild(svg);
+  }
+  return h('button', { class: 'check-row', type: 'button', role: 'checkbox', 'aria-checked': on ? 'true' : 'false', disabled: onToggle ? false : true, onclick: onToggle ? () => onToggle(!on) : undefined }, h('span', { class: 'check-label' }, label), box);
+}

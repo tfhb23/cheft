@@ -122,6 +122,15 @@ details > * + * { margin-top: var(--gap-tight); }
 .option { display: flex; flex-direction: column; gap: var(--gap-hair); }
 .option .choices { display: flex; gap: var(--gap-tight); flex-wrap: nowrap; }
 .option .btn { width: auto; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Schalter (4.23): Kästchen mit Haken. Aus = helles leeres Kästchen, an = orange mit hellem Haken (Pixel-SVG 8 × 5 u). Nur lesen: grau, ohne Schatten */
+.check-row { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-row); width: 100%; min-height: var(--size-check-row); padding: 0; background: none; border: 0; font: inherit; font-size: var(--fs-body); line-height: var(--lh-base); color: var(--text-strong); text-align: left; cursor: pointer; }
+.check-row:disabled { cursor: default; color: var(--text-strong); }
+.check { position: relative; flex: none; width: var(--size-check); height: var(--size-check); border: var(--border); background: var(--surface-field); box-shadow: var(--sh-btn); }
+.check.on { background: var(--accent); }
+.check-row:active:not(:disabled) .check { box-shadow: none; transform: translate(var(--bw), var(--bw)); }
+.check-row:disabled .check { box-shadow: none; border-color: var(--text-muted); background: var(--surface-disabled); }
+.check-row:disabled .check.on { background: var(--text-muted); }
+.check-mark { position: absolute; left: var(--bw); top: calc(2 * var(--bw)); width: calc(8 * var(--bw)); height: calc(5 * var(--bw)); fill: var(--surface-field); shape-rendering: crispEdges; }
 /* Stufe und Spielweise der Bots: immer zwei gleich breite Knöpfe in einer Zeile */
 .bot-pick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-row); }
 .bot-col { display: flex; flex-direction: column; gap: var(--gap-hair); min-width: 0; }

@@ -40,7 +40,7 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_LAMP, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
-import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { backBtn, backChoiceRow, btn, checkRow, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { ScaleStep, crispScale, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
@@ -755,30 +755,34 @@ export class App {
     );
   }
 
+  /** Schalter für Ja/Nein-Einstellungen (4.23): der Text sagt, was „an“ bedeutet. */
+  private toggle(label: string, get: () => boolean, set: (v: boolean) => void): HTMLElement {
+    return checkRow(label, get(), (next) => {
+      set(next);
+      this.savePrefs();
+      this.render();
+    });
+  }
+
   /** Die Spieleinstellungen in fester Reihenfolge, im Solo-Setup und in der Lobby gleich. */
   private settingChoices(v: SettingValues, set: (patch: Partial<SettingValues>) => void): HTMLElement[] {
-    const yesNo = [
-      { v: true, label: t('setup.yes') },
-      { v: false, label: t('setup.no') },
-    ];
     return [
-      this.choice(t('setup.seating'), [{ v: 'manual', label: t('setup.seating.manual') }, { v: 'random', label: t('setup.seating.random') }], () => v.seating, (x) => set({ seating: x as SettingValues['seating'] })),
-      this.choice(t('setup.firstTurn'), yesNo, () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x as boolean })),
-      this.choice(t('setup.sortedDeal'), [{ v: true, label: t('setup.sortedDeal.yes') }, { v: false, label: t('setup.sortedDeal.no') }], () => v.sortedDeal, (x) => set({ sortedDeal: x as boolean })),
-      this.choice(t('setup.peek'), yesNo, () => v.peekDiscards, (x) => set({ peekDiscards: x as boolean })),
+      this.toggle(t('setup.seating'), () => v.seating === 'random', (x) => set({ seating: x ? 'random' : 'manual' })),
+      this.toggle(t('setup.firstTurn'), () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x })),
+      this.toggle(t('setup.sortedDeal'), () => v.sortedDeal, (x) => set({ sortedDeal: x })),
+      this.toggle(t('setup.peek'), () => v.peekDiscards, (x) => set({ peekDiscards: x })),
       this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => v.rounds, (x) => set({ rounds: x as number })),
     ];
   }
 
-  /** Dieselben Einstellungen für Mitspieler ohne Rechte: eine Zeile je Einstellung, gleiche Reihenfolge. */
+  /** Dieselben Einstellungen für Mitspieler ohne Rechte: gleiche Reihenfolge, Schalter nur zum Lesen, Runden als Zeile. */
   private settingSummary(v: SettingValues): HTMLElement[] {
-    const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, label), h('span', null, value));
     return [
-      row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
-      row(t('setup.firstTurn'), t(v.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')),
-      row(t('setup.sortedDeal'), t(v.sortedDeal ? 'setup.sortedDeal.yes' : 'setup.sortedDeal.no')),
-      row(t('setup.peek'), t(v.peekDiscards ? 'setup.yes' : 'setup.no')),
-      row(t('setup.rounds'), String(v.rounds)),
+      checkRow(t('setup.seating'), v.seating === 'random'),
+      checkRow(t('setup.firstTurn'), v.firstTurnOpenAllowed),
+      checkRow(t('setup.sortedDeal'), v.sortedDeal),
+      checkRow(t('setup.peek'), v.peekDiscards),
+      h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, String(v.rounds))),
     ];
   }
 
@@ -2776,10 +2780,6 @@ export class App {
 
   private renderSettings(): HTMLElement {
     const inGame = this.screen === 'game';
-    const onOff = [
-      { v: true, label: t('settings.on') },
-      { v: false, label: t('settings.off') },
-    ];
     // Im Spiel zuerst, was das laufende Spiel betrifft (Pause, Spielstand, Speichern, Abbrechen), danach die allgemeinen Einstellungen
     const gameActions = inGame
       ? h(
@@ -2813,39 +2813,24 @@ export class App {
       'div',
       { class: 'menu-group' },
       inGame && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
-      this.choice(
-        t('settings.vibration'),
-        onOff,
-        () => this.prefs.vibration,
-        (v) => {
-          this.prefs.vibration = v as boolean;
-          // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
-          if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
-        },
-      ),
-      this.choice(
-        t('settings.sound'),
-        onOff,
-        () => this.prefs.sound,
-        (v) => {
-          this.prefs.sound = v as boolean;
-          // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
-          setSoundEnabled(this.prefs.sound);
-          if (this.prefs.sound) {
-            unlockAudio();
-            play('lay');
-          }
-        },
-      ),
-      this.choice(
-        t('settings.keepAwake'),
-        onOff,
-        () => this.prefs.keepAwake,
-        (v) => {
-          this.prefs.keepAwake = v as boolean;
-          void this.syncWakeLock();
-        },
-      ),
+      this.toggle(t('settings.vibration'), () => this.prefs.vibration, (v) => {
+        this.prefs.vibration = v;
+        // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
+        if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
+      }),
+      this.toggle(t('settings.sound'), () => this.prefs.sound, (v) => {
+        this.prefs.sound = v;
+        // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
+        setSoundEnabled(this.prefs.sound);
+        if (this.prefs.sound) {
+          unlockAudio();
+          play('lay');
+        }
+      }),
+      this.toggle(t('settings.keepAwake'), () => this.prefs.keepAwake, (v) => {
+        this.prefs.keepAwake = v;
+        void this.syncWakeLock();
+      }),
       this.cardBackChoice(),
     );
     // Spieler im Raum: für alle sichtbar; der Spielleiter kann entfernen, der Gastgeber die Leitung übergeben

@@ -14,7 +14,7 @@ import { Card } from '../engine/cards';
 import { CHEAT_NAMES, type CheatId } from '../engine/cheatnames';
 import { h, Child } from './dom';
 import { t } from '../i18n';
-import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
+import { backBtn, backChoiceRow, badge, btn, checkRow, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
 import { ICONS, ICON_INFO, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
@@ -493,9 +493,10 @@ export function chapters(env: GuideEnv): Chapter[] {
   ];
   const btnSpecs = mergeSpecs(btnSpecsRaw, ['4.09', '4.10']);
   const choiceDemo = (): HTMLElement =>
-    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('setup.peek')), h('div', { class: 'choices' }, btn(t('setup.yes'), undefined, { variant: 'primary' }), btn(t('setup.no'))));
+    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('setup.rounds')), h('div', { class: 'choices' }, ...['3', '5', '7', '9'].map((n) => btn(n, undefined, { variant: n === '7' ? 'primary' : 'default' }))));
   const inputSpecsRaw: Spec[] = [
-    { id: '4.11', name: 'Auswahlzeile', where: 'Alle Einstellungen: Vibration, Sounds, Runden, Sitzplätze …', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
+    { id: '4.11', name: 'Auswahlzeile', where: 'Mehrfachauswahl: Runden, Bots (2 | 3)', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
+    { id: '4.23', name: 'Schalter', where: 'Alle Ja/Nein-Einstellungen: Sitzplätze zufällig, Rauskommen, Handkarten vorsortiert, Rückblick, Vibration, Sounds, Bildschirm. Der Text sagt, was „an“ bedeutet. Aus: helles leeres Kästchen; an: orange mit hellem Haken (Kästchen 3.117, Zeilenhöhe 3.118, Schatten wie ein Button, gedrückt ohne Schatten). Nur lesen (Lobby ohne Rechte): grau, ohne Schatten', code: 'checkRow() · .check-row', sel: '.check-row', stage: () => h('div', { style: { display: 'flex', flexDirection: 'column', width: '100%' } }, checkRow(t('setup.sortedDeal'), true, () => undefined), checkRow(t('setup.firstTurn'), false, () => undefined), checkRow(t('setup.peek'), true)), stageCls: 'flat', live: 'box', liveSel: '.check' },
     { id: '4.12', name: 'Bot-Auswahl', where: 'Neues Spiel, Lobby: Stufe und Spielweise', code: 'App.botPicker() · .bot-pick', sel: '.bot-pick', stage: () => h('div', { class: 'bot-pick', style: { width: '100%' } }, h('div', { class: 'bot-col' }, hint(t('setup.level')), btn(t('level.hard'), undefined, { variant: 'primary' })), h('div', { class: 'bot-col' }, hint(t('setup.style')), btn(t('setup.random')))), stageCls: 'flat', live: 'box', liveSel: '.bot-pick' },
     { id: '4.13', name: 'Eingabefeld', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
     { id: '4.14', name: 'Namensfeld', where: 'Lobby und Einstellungen online: eigener Name', code: 'input.text.name-edit', sel: 'input.text.name-edit', stage: () => h('input', { class: 'text name-edit', type: 'text', value: 'Tobi' }), stageCls: 'flat', live: 'box' },
@@ -1290,18 +1291,20 @@ export function renderGuide(env: GuideEnv): HTMLElement {
   }
   // Werkstatt: eingeklappt am Ende derselben Seite, jeder Unterpunkt noch einmal
   // Schalter wechselt an Ort und Stelle: kein Neuaufbau, die Werkstatt bleibt offen und die Seite springt nicht
-  const btnOn = btn('an', () => setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' });
-  const btnOff = btn('aus', () => setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' });
-  const setLabels = (on: boolean): void => {
-    env.setLabels(on);
-    btnOn.classList.toggle('primary', on);
-    btnOff.classList.toggle('primary', !on);
+  let labelsState = env.labelsOn;
+  const labelsBox = h('div', null);
+  const drawLabels = (): void => {
+    labelsBox.replaceChildren(checkRow('Nummern im Spiel', labelsState, (next) => {
+      labelsState = next;
+      env.setLabels(next);
+      drawLabels();
+    }));
   };
-  const labelChoices = h('div', { class: 'choices' }, btnOn, btnOff);
+  drawLabels();
   const labelsRow = h(
     'div',
     { class: 'panel guide-labels' },
-    h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), labelChoices),
+    labelsBox,
     hint('Zeigt an jedem Element im Spiel einen kleinen gelben Punkt unten links (nicht in diesem Album). Antippen zeigt die Nummer und kopiert sie.'),
   );
   const werkInner = h('div', { class: 'guide-wk-body' }, labelsRow, h('p', { class: 'guide-chapter-intro muted' }, werk.intro ?? ''));

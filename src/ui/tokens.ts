@@ -250,6 +250,8 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.100', css: '--discard-x', name: 'Ablage Versatz links', units: 12, use: 'Oberste Karte in der Ablage' },
   { id: '3.101', css: '--discard-y', name: 'Ablage Versatz oben', units: 9, use: 'dito' },
   { id: '3.116', css: '--discard-gap', name: 'Ablageziel Abstand', units: 8, use: 'Abstand der gestrichelten Kontur um alle Ablagekarten (wie der Halbkreis zum Auslegen Abstand zur Scheibe hat)' },
+  { id: '3.117', css: '--size-check', name: 'Größe Schalter', units: 12, use: 'Kästchen des Schalters (12 × 12 u, Rahmen und Schatten wie ein Button)' },
+  { id: '3.118', css: '--size-check-row', name: 'Höhe Schalter-Zeile', units: 16, use: 'Mindesthöhe einer Schalter-Zeile, damit sie mit dem Daumen sicher zu treffen ist' },
   { id: '3.102', css: '--count-size', name: 'Größe Zähler auf Stapel', units: 14, use: 'Kästchen mit der Restzahl (ab 7 Karten)' },
   { id: '3.103', css: '--count-x', name: 'Zähler Position links', units: 9, use: 'Kästchen auf dem Stapel' },
   { id: '3.104', css: '--count-y', name: 'Zähler Position oben', units: 15, use: 'Kästchen auf dem Stapel' },
