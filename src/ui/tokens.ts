@@ -164,10 +164,7 @@ export const BREAKPOINT_TOKENS: ValueToken[] = [
 export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
   { id: '3.11', css: '--sp-1', units: 1 },
   { id: '3.12', css: '--sp-2', units: 2 },
-  { id: '3.13', css: '--sp-3', units: 3 },
   { id: '3.14', css: '--sp-4', units: 4 },
-  { id: '3.15', css: '--sp-5', units: 5 },
-  { id: '3.16', css: '--sp-6', units: 6 },
   { id: '3.17', css: '--sp-8', units: 8 },
   { id: '3.18', css: '--sp-16', units: 16 },
 ];
@@ -175,17 +172,17 @@ export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
 /** 3.21–3.49: Abstands-Rollen. Wer ändern will, ändert hier den Verweis auf die Skala. */
 export const SPACING_ROLES: { id: string; css: string; name: string; ref: string; use: string }[] = [
   { id: '3.21', css: '--gap-stack', name: 'Abstand Stapel', ref: '--sp-4', use: 'Zwischen Knöpfen und Feldern untereinander in Panel, Dialog und Menü-Gruppe' },
-  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-6', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 10 u); auch zwischen Logo und Panel im Menü' },
-  { id: '3.23', css: '--gap-row', name: 'Abstand Reihe', ref: '--sp-3', use: 'Zwischen Knöpfen nebeneinander (btn-row), in Zeilen mit Feld und Knopf, Bot-Auswahl, Kopfleiste' },
+  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-8', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 12 u); auch zwischen Logo und Panel im Menü' },
+  { id: '3.23', css: '--gap-row', name: 'Abstand Reihe', ref: '--sp-4', use: 'Zwischen Knöpfen nebeneinander (btn-row), in Zeilen mit Feld und Knopf, Bot-Auswahl, Kopfleiste' },
   { id: '3.24', css: '--gap-tight', name: 'Abstand eng', ref: '--sp-2', use: 'Wahlknöpfe (an/aus), Aktionsleiste, Sitzbeschriftung, Karten untereinander' },
   { id: '3.25', css: '--gap-hair', name: 'Abstand haar', ref: '--sp-1', use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Karten in der Restkarten-Reihe' },
   { id: '3.27', css: '--pad-screen', name: 'Rand Seite', ref: '--sp-8', use: 'Außenrand der Menü-Seiten' },
-  { id: '3.28', css: '--pad-inner', name: 'Innenrand (Master)', ref: '--sp-5', use: 'Innenrand von Panels, Dialogen und Toast; links/rechts in Buttons und in der Status-Zeile' },
-  { id: '3.29', css: '--pad-overlay', name: 'Rand Fenster', ref: '--sp-6', use: 'Außenrand um Fenster auf der Abdunkelung' },
+  { id: '3.28', css: '--pad-inner', name: 'Innenrand (Master)', ref: '--sp-4', use: 'Innenrand von Panels, Dialogen und Toast; links/rechts in Buttons und in der Status-Zeile' },
+  { id: '3.29', css: '--pad-overlay', name: 'Rand Fenster', ref: '--sp-8', use: 'Außenrand um Fenster auf der Abdunkelung' },
   { id: '3.30', css: '--pad-control-y', name: 'Innenrand Bedienelement oben/unten', ref: '--sp-2', use: 'Alle Buttons und Eingabefelder' },
-  { id: '3.33', css: '--pad-input-x', name: 'Innenrand Feld links/rechts', ref: '--sp-3', use: 'Eingabefelder' },
+  { id: '3.33', css: '--pad-input-x', name: 'Innenrand Feld links/rechts', ref: '--sp-4', use: 'Eingabefelder' },
   { id: '3.38', css: '--pad-chip-x', name: 'Innenrand Chip links/rechts', ref: '--sp-2', use: 'Alle Chips: Rommé/Cheft, Nummern, Namensschild im Rückblick, Zahl beim Ziehen' },
-  { id: '3.34', css: '--pad-bar-y', name: 'Innenrand Leiste oben/unten', ref: '--sp-3', use: 'Aktionsleiste, Fußleiste, Handleiste oben' },
+  { id: '3.34', css: '--pad-bar-y', name: 'Innenrand Leiste oben/unten', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste oben' },
   { id: '3.35', css: '--pad-bar-x', name: 'Innenrand Leiste links/rechts', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste, Kopfleiste' },
 ];
 
@@ -287,41 +284,26 @@ export const Z_TOKENS: ValueToken[] = [
 ];
 
 // ---------------------------------------------------------------- 3.131–3.142 Bewegung
-/** Zeiten in Millisekunden; auch das Skript liest sie hier. */
+/** Zeiten in Millisekunden; auch das Skript liest sie hier. Wenige Werte für alle Bewegungen. */
 export const MOTION = {
-  /** Karte rückt in der Hand an ihren Platz. */
-  handShift: 120,
-  /** Karte fliegt (Ziehen, Ablegen, Auslegen). */
+  /** Kurz: Karte rückt in der Hand an ihren Platz, Rückblick blendet aus. */
+  quick: 120,
+  /** Karte fliegt: Ziehen, Ablegen, Auslegen, Austeilen, Karten des Rückblicks gleiten ein. */
   fly: 260,
-  /** Austeil-Karte fliegt. */
-  dealFly: 280,
-  /** Abstand zwischen zwei ausgeteilten Karten. */
-  dealStep: 70,
-  /** Langes Drücken auf die Ablage bis zum Rückblick. */
-  peekHold: 380,
-  /** Rückblick-Karte gleitet ein. */
-  peekIn: 240,
-  /** Versatz zwischen zwei Rückblick-Karten. */
-  peekStagger: 70,
-  /** Rückblick blendet aus. */
-  peekOut: 120,
-  /** Sperrzeit nach dem Rückblick, damit das Loslassen nichts zieht. */
-  peekGuard: 350,
+  /** Takt zwischen zwei Karten beim Austeilen und beim Einblenden des Rückblicks. */
+  step: 70,
+  /** Halten: Langes Drücken auf die Ablage bis zum Rückblick; ebenso die Sperre danach, damit das Loslassen nichts zieht. */
+  hold: 380,
   /** Toast bleibt stehen. */
   toast: 3200,
   /** Zwei Tipps auf die Ablage gelten als Doppeltipp. */
   doubleTap: 500,
 };
 export const MOTION_TOKENS: { id: string; key: keyof typeof MOTION; name: string; use: string }[] = [
-  { id: '3.131', key: 'handShift', name: 'Hand sortiert um', use: 'Übergang left/top der Handkarten (CSS --dur-hand)' },
-  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch, auch das Gleiten der Tischmitte und der seitlichen Sitze' },
-  { id: '3.133', key: 'dealFly', name: 'Austeilen: Flug', use: 'Eine Karte beim Austeilen' },
-  { id: '3.134', key: 'dealStep', name: 'Austeilen: Takt', use: 'Abstand zwischen zwei Karten' },
-  { id: '3.135', key: 'peekHold', name: 'Rückblick: Halten', use: 'So lange drücken, bis der Rückblick erscheint' },
-  { id: '3.136', key: 'peekIn', name: 'Rückblick: Einblenden', use: 'Karten gleiten von der Ablage zum Namensschild' },
-  { id: '3.137', key: 'peekStagger', name: 'Rückblick: Staffelung', use: 'Versatz zwischen zwei Karten' },
-  { id: '3.138', key: 'peekOut', name: 'Rückblick: Ausblenden', use: 'Ausblenden des Rückblicks' },
-  { id: '3.139', key: 'peekGuard', name: 'Rückblick: Sperre', use: 'Wartezeit nach dem Rückblick, bis wieder gezogen werden kann' },
+  { id: '3.131', key: 'quick', name: 'Kurz', use: 'Hand sortiert um (CSS --dur-hand), Rückblick blendet aus' },
+  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch, auch Austeilen, das Gleiten der Tischmitte und der seitlichen Sitze und das Einblenden des Rückblicks' },
+  { id: '3.134', key: 'step', name: 'Takt', use: 'Abstand zwischen zwei Karten beim Austeilen und im Rückblick' },
+  { id: '3.135', key: 'hold', name: 'Halten', use: 'So lange drücken, bis der Rückblick erscheint; so lange danach nichts gezogen werden kann' },
   { id: '3.140', key: 'toast', name: 'Toast: Dauer', use: 'So lange bleibt eine Meldung stehen' },
   { id: '3.142', key: 'doubleTap', name: 'Doppeltipp', use: 'Zeitfenster für zwei Tipps auf die Ablage (Cheft ansagen)' },
 ];
@@ -378,7 +360,7 @@ export function tokenVars(): [string, string][] {
     else v.push([s.css, u(s.units!)]);
   }
   for (const h of HAND_TOKENS) v.push([h.css, u(HAND[h.key])]);
-  v.push(['--dur-hand', `${MOTION.handShift}ms`]);
+  v.push(['--dur-hand', `${MOTION.quick}ms`]);
   return v;
 }
 

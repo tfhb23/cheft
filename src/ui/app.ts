@@ -1055,7 +1055,7 @@ export class App {
       this.peekTimer = window.setTimeout(() => {
         this.peekTimer = null;
         this.showPeek();
-      }, MOTION.peekHold);
+      }, MOTION.hold);
     });
     const cancel = () => {
       if (this.peekTimer) clearTimeout(this.peekTimer);
@@ -1070,8 +1070,8 @@ export class App {
     if (!this.peekLayer) return;
     const layer = this.peekLayer;
     this.peekLayer = null;
-    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.peekOut, fill: 'forwards' }).onfinish = () => layer.remove();
-    window.setTimeout(() => (this.peekSuppress = false), MOTION.peekGuard);
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.quick, fill: 'forwards' }).onfinish = () => layer.remove();
+    window.setTimeout(() => (this.peekSuppress = false), MOTION.hold);
   }
 
   /**
@@ -1159,7 +1159,7 @@ export class App {
       item.style.width = `${pile.width}px`;
       layer.appendChild(line);
       layer.appendChild(item);
-      if (!keep.has(e.card.id)) item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.peekIn, delay: keep.size ? 0 : i * MOTION.peekStagger, easing: EASE_FLY, fill: 'backwards' });
+      if (!keep.has(e.card.id)) item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.fly, delay: keep.size ? 0 : i * MOTION.step, easing: EASE_FLY, fill: 'backwards' });
     });
     return true;
   }

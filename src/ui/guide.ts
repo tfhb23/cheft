@@ -372,7 +372,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       [
         { where: 'Seitenrand außen', parts: ['--pad-screen'], note: 'Rand um Logo und Panel' },
         { where: 'Logo ↔ Panel', parts: ['--gap-group'] },
-        { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--sp-3'], note: '1 u Logo-Abstand + 3 u unter den Karten' },
+        { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--sp-4'], note: '1 u Logo-Abstand + 4 u unter den Karten' },
         { where: 'Logo: Schriftzug ↔ Untertitel', parts: ['--gap-hair'] },
         { where: 'Panel: Innenrand', parts: ['--pad-inner'] },
         { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-stack'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
@@ -383,7 +383,7 @@ export function chapters(env: GuideEnv): Chapter[] {
         { where: 'Bot-Auswahl: Stufe ↔ Spielweise', parts: ['--gap-row'] },
         { where: 'Bot-Auswahl: Hinweis ↔ Knopf', parts: ['--gap-hair'] },
         { where: 'Feld ↔ Knopf in einer Zeile (Raumcode, Beitreten)', parts: ['--gap-row'] },
-        { where: 'Einstellungen-Zusammenfassung: Zeilenabstand innen', parts: ['--sp-1'], note: 'oben/unten je 1 u, Spalten 3 u' },
+        { where: 'Einstellungen-Zusammenfassung: Zeilenabstand innen', parts: ['--sp-1'], note: 'oben/unten je 1 u, Spalten 4 u' },
       ],
     ],
     [
@@ -394,8 +394,8 @@ export function chapters(env: GuideEnv): Chapter[] {
         { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-stack'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
         { where: 'Über „Zurück“', parts: ['--gap-stack', '--gap-group'] },
         { where: 'Zwei Knöpfe nebeneinander (Abbrechen | Aktion)', parts: ['--gap-row'] },
-        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--sp-3'] },
-        { where: 'Wahloption: Kombinationen untereinander', parts: ['--sp-3'] },
+        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--sp-4'] },
+        { where: 'Wahloption: Kombinationen untereinander', parts: ['--sp-4'] },
         { where: 'Tabelle: Zelle innen oben/unten', parts: ['--sp-1'], note: 'links/rechts 2 u' },
         { where: 'Restkarten in der Auswertung: Karte ↔ Karte', parts: ['--gap-hair'] },
       ],
@@ -403,9 +403,9 @@ export function chapters(env: GuideEnv): Chapter[] {
     [
       'Ganzseitige Ansicht (Regeln, Familienalbum)',
       [
-        { where: 'Titelleiste: oben/unten', parts: ['--sp-3'], note: 'links/rechts 4 u' },
-        { where: 'Lesespalte: Rand oben/unten', parts: ['--sp-6'] },
-        { where: 'Zwischenüberschrift: darüber', parts: ['--sp-6'], note: 'darunter 2 u' },
+        { where: 'Titelleiste: oben/unten', parts: ['--sp-4'], note: 'links/rechts 4 u' },
+        { where: 'Lesespalte: Rand oben/unten', parts: ['--sp-8'] },
+        { where: 'Zwischenüberschrift: darüber', parts: ['--sp-8'], note: 'darunter 2 u' },
         { where: 'Listenpunkt ↔ Listenpunkt', parts: ['--sp-2'] },
         { where: 'Fußleiste: oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten mindestens der Sicherheitsrand des Geräts' },
       ],
@@ -413,7 +413,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     [
       'Spielfeld',
       [
-        { where: 'Kopfzeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 3 u' },
+        { where: 'Kopfzeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 4 u' },
         { where: 'Kopfzeile: Zähler ↔ Piktogramme', parts: ['--sp-4'] },
         { where: 'Kopfzeile: Piktogramm ↔ Piktogramm', parts: ['--gap-tight'] },
         { where: 'Tisch: Innenrand', parts: ['--sp-2'] },
@@ -421,16 +421,16 @@ export function chapters(env: GuideEnv): Chapter[] {
         { where: 'Eigener Sitz: Beschriftung ↔ Auslage', parts: ['--gap-hair'] },
         { where: 'Auslage: Kombination ↔ Kombination (Zeile / Spalte)', parts: ['--gap-tight', '--sp-4'], note: '2 u zwischen den Zeilen, 4 u daneben' },
         { where: 'Kombination: Innenrand', parts: ['--sp-1'] },
-        { where: 'Sitz-Beschriftung: Name ↔ Chip ↔ Kartenzahl', parts: ['--sp-3'] },
-        { where: 'Aktiver Sitz: Innenrand links/rechts', parts: ['--sp-3'] },
+        { where: 'Sitz-Beschriftung: Name ↔ Chip ↔ Kartenzahl', parts: ['--sp-4'] },
+        { where: 'Aktiver Sitz: Innenrand links/rechts', parts: ['--sp-4'] },
         { where: 'Tischmitte: Stapel ↔ Ablage', parts: ['--pile-gap'] },
         { where: 'Stapel/Ablage ↔ Beschriftung', parts: ['--gap-hair'] },
-        { where: 'Status-Zeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 5 u; Meldung ↔ Info 4 u' },
+        { where: 'Status-Zeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 4 u; Meldung ↔ Info 4 u' },
         { where: 'Handleiste: Rand oben', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten 0, die Karten stehen an der Aktionsleiste' },
         { where: 'Hand: Zeile ↔ Zeile (zweizeilig)', parts: ['--sp-4'] },
         { where: 'Aktionsleiste: Rand oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; Knopf-Innenrand 2 u links/rechts' },
         { where: 'Aktionsleiste: Knopf ↔ Knopf', parts: ['--gap-tight'] },
-        { where: 'Toast: Innenrand oben/unten', parts: ['--sp-3'], note: 'links/rechts 5 u; 90 u über dem unteren Rand' },
+        { where: 'Toast: Innenrand oben/unten', parts: ['--sp-4'], note: 'links/rechts 4 u; 90 u über dem unteren Rand' },
       ],
     ],
     [
@@ -475,7 +475,7 @@ export function chapters(env: GuideEnv): Chapter[] {
         if (b.css === '--bw-mark') return h('div', { style: { width: 'calc(4 * var(--size-btn-icon))', height: 'var(--size-btn-icon)', outline: 'var(--bw-mark) solid var(--accent)', background: 'var(--surface-panel)' } });
         if (b.css === '--radius') return h('div', { class: 'panel', style: { boxShadow: 'none' } }, 'Ecken eckig (0)');
         if (b.css === '--sh-card') return h('h1', null, 'Cheft');
-        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--border)', boxShadow: `var(${b.css})`, margin: 'var(--sp-6)' } });
+        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--border)', boxShadow: `var(${b.css})`, margin: 'var(--sp-8)' } });
       };
       return { id: b.id, name: b.name, where: b.use, code: `${b.css}: ${b.value}`, stage };
     }),
@@ -785,14 +785,14 @@ export function chapters(env: GuideEnv): Chapter[] {
       code: '.peek-layer · .peek-line · .peek-item · .peek-tag · .peek-taken',
       sel: '.peek-item',
       stage: () => h('div', { class: 'peek-layer', style: { position: 'relative', width: '100%', height: 'calc(3.5 * var(--card-h))', zIndex: 'auto' } },
-        h('div', { class: 'peek-banner', style: { top: 'var(--sp-3)' } }, t('peek.title')),
+        h('div', { class: 'peek-banner', style: { top: 'var(--sp-4)' } }, t('peek.title')),
         h('div', { class: 'peek-line', style: { left: 'calc(2.5 * var(--card-w))', top: 'calc(0.5 * var(--card-h))', width: 'var(--card-w)', transform: 'rotate(0.6rad)' } }),
         h('div', { class: 'peek-item', style: { left: 'var(--sp-8)', top: 'calc(1.2 * var(--card-h))' } }, c(card('H', 9, -701)), h('div', { class: 'peek-tag' }, 'Emil')),
         h('div', { class: 'peek-item taken', style: { left: 'calc(2 * var(--card-w))', top: 'calc(1.2 * var(--card-h))' } }, c(card('D', 3, -702)), h('div', { class: 'peek-tag' }, 'Zhao', h('div', { class: 'peek-taken' }, t('peek.taken', { name: 'Neo' })))),
       ),
       stageCls: 'flat',
     },
-    { id: '6.80', name: 'Fliegende Karte', where: 'Alle Kartenbewegungen: Ziehen, Abwerfen, Auslegen, Austeilen', code: '.card.fly · anim.ts', stage: () => h('div', { class: 'hint' }, `Kopie der Karte, die in ${MOTION.fly} ms (Austeilen ${MOTION.dealFly} ms) vom alten zum neuen Platz fliegt, Kurve ${EASE_FLY}. Ebene 3.122.`), stageCls: 'flat' },
+    { id: '6.80', name: 'Fliegende Karte', where: 'Alle Kartenbewegungen: Ziehen, Abwerfen, Auslegen, Austeilen', code: '.card.fly · anim.ts', stage: () => h('div', { class: 'hint' }, `Kopie der Karte, die in ${MOTION.fly} ms (auch beim Austeilen) vom alten zum neuen Platz fliegt, Kurve ${EASE_FLY}. Ebene 3.122.`), stageCls: 'flat' },
   ];
 
   // ----- 7 Fenster
