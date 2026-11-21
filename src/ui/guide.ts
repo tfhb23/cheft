@@ -253,33 +253,25 @@ export function chapters(env: GuideEnv): Chapter[] {
   const rankName = (r: number) => (r === 1 ? 'Ass' : r === 11 ? 'Bube' : r === 12 ? 'Dame' : r === 13 ? 'König' : String(r));
 
   // ----- 1 Farben
-  const swatch = (value: string, lg = false) => h('span', { class: `swatch${lg ? ' lg' : ''}`, style: { background: value } });
   const uiColors = PALETTE_COLORS.filter((x) => x.group !== 'Figuren');
+  /** Farbkachel wie ein Porträt: große Fläche oben, darunter Name, Hexwert und Details. */
+  const colorTile = (x: (typeof PALETTE_COLORS)[number], withRoles: boolean): HTMLElement => {
+    const roles = withRoles ? ROLE_COLORS.filter((r) => r.ref === x.css) : [];
+    return h(
+      'div',
+      { class: 'color-tile' },
+      h('div', { class: 'color-chip', style: { background: x.value } }),
+      h('div', { class: 'fam-name' }, x.name),
+      h('div', { class: 'color-hex' }, x.value),
+      h('div', { class: 'color-ids' }, idChip(x.id), h('span', { class: 'hint' }, x.css)),
+      x.use ? h('div', { class: 'hint' }, x.use) : null,
+      ...roles.map((r) => h('div', { class: 'hint' }, idChip(r.id), ` ${r.name}: ${r.use}`)),
+    );
+  };
+  const colorGrid = (list: (typeof PALETTE_COLORS)[number][], withRoles: boolean): HTMLElement => h('div', { class: 'color-grid' }, ...list.map((x) => colorTile(x, withRoles)));
   const paletteGroups: Group[] = [...new Set(uiColors.map((x) => x.group))].map((g) => ({
     title: g,
-    node: () =>
-      h(
-        'div',
-        { class: 'spec' },
-        ...uiColors
-          .filter((x) => x.group === g)
-          .map((x) => {
-            const roles = ROLE_COLORS.filter((r) => r.ref === x.css);
-            return h(
-              'div',
-              { class: 'swatch-row' },
-              swatch(x.value, true),
-              h(
-                'div',
-                { class: 'swatch-text' },
-                h('div', { class: 'spec-head' }, idChip(x.id), h('span', { class: 'spec-name' }, x.name), h('span', { class: 'muted' }, x.value)),
-                h('div', { class: 'spec-where' }, x.css),
-                x.use ? h('div', { class: 'spec-where' }, x.use) : null,
-                ...roles.map((r) => h('div', { class: 'spec-where' }, idChip(r.id), ` ${r.name} (${r.css}): ${r.use}`)),
-              ),
-            );
-          }),
-      ),
+    node: () => h('div', { class: 'panel' }, colorGrid(uiColors.filter((x) => x.group === g), true)),
   }));
 
   // ----- 2 Typografie
@@ -586,14 +578,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     S: { id: '5.53', world: 'Die Bösen · weiße Haare, Brille, Monokel, Zylinder, blasse Haut, Schwarz', chars: { 11: ['weißer Topfschnitt, runde Brille', ''], 12: ['Beret, Schönheitspunkt', 'weißer Bob, Brille, Melone mit rotem Band'], 13: ['Zylinder, Monokel, weißes langes Haar', 'breiter Zylinder, Glatze, Schnurrbart'] }, colors: ['skin-s', 'eye-s'] },
   };
   const fold = (title: string, ...children: Child[]): HTMLElement => h('details', { class: 'fold' }, h('summary', { class: 'hint' }, title), ...children);
-  const colorRows = (names: string[]): HTMLElement =>
-    table(
-      ['Nr.', 'Farbe', 'Wert'],
-      names.map((n) => {
-        const col = PALETTE_COLORS.find((x) => x.css === `--c-${n}`)!;
-        return [idChip(col.id), h('span', null, h('span', { class: 'swatch', style: { background: col.value } }), ` ${col.name}`), col.value];
-      }),
-    );
+  const colorRows = (names: string[]): HTMLElement => colorGrid(names.map((n) => PALETTE_COLORS.find((x) => x.css === `--c-${n}`)!), false);
   /** Person ohne Karte: der Ausschnitt mit Kopf und Schultern (Spalten 10–23, Zeilen 8–32 der Karte). */
   const portrait = (su: string, rank: number, deck: 0 | 1): HTMLElement => {
     const rows = FACE_ART[`${su}${rank}`][deck].slice(8, 33).map((r) => r.slice(10, 24));
@@ -610,7 +595,8 @@ export function chapters(env: GuideEnv): Chapter[] {
       h('div', { class: 'spec-head fam-head' }, h('span', { class: 'fam-suit', style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink } }, art(SUIT_SHAPES[su], undefined, 2)), h('h3', null, suitName[su]), idChip(f.id)),
       h('div', { class: 'hint fam-world' }, f.world),
       h('div', { class: 'fam-chars' }, ...chars),
-      fold(`Farben dieser Familie (${f.colors.length}, nur für die Figuren)`, colorRows(f.colors)),
+      h('div', { class: 'hint fam-world' }, `Farben dieser Familie (${f.colors.length}, nur für die Figuren)`),
+      colorRows(f.colors),
     );
   };
   const familiesNode = (): HTMLElement =>
