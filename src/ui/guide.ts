@@ -656,8 +656,8 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       id: '5.32',
       name: 'Hintergrundmuster',
-      where: 'Hinter allen Seiten: Schachbrett aus Sandstufe 6 (1.07) und Sandstufe 3 (1.06), Kachel 8 u',
-      code: 'body · --tile',
+      where: 'Hinter allen Seiten und hinter dem Tisch: Pixel-Teppich in den Sandstufen 3 bis 6 (1.06, 1.07 und dazwischen), Mitte = Mitte von Bildschirm bzw. Tisch, 680 × 920 Teppichpixel zu je ½ Kartenpixel (im Querformat gedreht); darüber hinaus Sandstufe 6. Die Bühne zeigt das alte Schachbrett als Muster für Vorschauflächen',
+      code: 'body, .game > .table · --carpet-w, --carpet-h',
       stage: () => h('div', { style: { width: 'calc(8 * var(--tile))', height: 'calc(3 * var(--tile))', background: 'var(--surface-page)', backgroundImage: 'repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%)', backgroundSize: 'var(--tile) var(--tile)', border: 'var(--border)' } }),
       stageCls: 'flat',
     },

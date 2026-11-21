@@ -11,8 +11,11 @@
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
   background: var(--surface-page);
-  background-image: repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%);
-  background-size: var(--tile) var(--tile);
+  background-image: url('./carpet-hoch.png');
+  background-size: var(--carpet-w) var(--carpet-h);
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
   color: var(--text-strong);
   font-family: var(--font-body);
   font-size: var(--fs-body);
@@ -26,6 +29,12 @@ body {
   overscroll-behavior: none;
 }
 #app { height: 100dvh; display: flex; flex-direction: column; }
+/* Teppich-Hintergrund (Familienalbum 5.32): Seitenhintergrund und Tisch. Seine Mitte liegt in der Mitte des Bildschirms (Menüs) bzw. des Tisches (Spiel).
+   Jedes Teppichpixel ist ein halbes Kartenpixel; im Querformat liegt das Bild gedreht. Wo der Teppich endet (große Bildschirme), bleibt Sandstufe 6. */
+.game > .table { background-image: url('./carpet-hoch.png'); background-size: var(--carpet-w) var(--carpet-h); background-position: center; background-repeat: no-repeat; image-rendering: pixelated; }
+@media (orientation: landscape) {
+  body, .game > .table { background-image: url('./carpet-quer.png'); background-size: var(--carpet-h) var(--carpet-w); }
+}
 
 /* ===== 2 Typografie: Überschriften, Texte, Hinweise ===== */
 h1, h2, h3 { font-family: var(--font-head); font-weight: var(--fw-head); margin: 0; letter-spacing: var(--ls-head); }

@@ -275,6 +275,8 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.105', css: '--status-h', name: 'Mindesthöhe Status-Zeile', units: 13, use: 'Status-Zeile' },
   { id: '3.106', css: '--hand-gap', name: 'Handhöhe Zusatz', units: 8, use: 'Luft unter der Handkarte bei einzeiliger Hand (zweizeilig: 4 u zwischen den Zeilen)' },
   { id: '3.107', css: '--tile', name: 'Schachbrett', units: 8, use: 'Kachelgröße des Seitenhintergrunds' },
+  { id: '3.155', css: '--carpet-w', name: 'Teppich Breite', units: 340, use: 'Teppich-Hintergrund im Hochformat: 680 Teppichpixel, jedes ein halbes Kartenpixel (im Querformat gedreht: Breite und Höhe vertauscht)' },
+  { id: '3.156', css: '--carpet-h', name: 'Teppich Höhe', units: 460, use: 'Teppich-Hintergrund im Hochformat: 920 Teppichpixel; die Mitte liegt in der Mitte des Tisches (Menüs: des Bildschirms)' },
   { id: '3.108', css: '--peek-top', name: 'Rückblick-Banner oben', units: 10, use: 'Abstand des Rückblick-Banners vom oberen Rand' },
   { id: '3.109', css: '--toast-bottom', name: 'Toast unten', units: 90, use: 'Abstand des Toasts vom unteren Rand' },
 ];
