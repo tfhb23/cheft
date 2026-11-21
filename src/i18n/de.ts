@@ -167,7 +167,7 @@ export const de: Record<string, string> = {
   'carpet': 'Teppichkarte',
   'carpet.label': 'Teppich',
   'table.empty': 'Noch nichts ausgelegt.',
-  'threshold': 'Erstmeldung: mind. {n} Augen',
+  'threshold': 'Erstmeldung: {n} Augen',
   'threshold.cheft': 'Cheft: 5 oder 7 Paare',
   'threshold.opened': 'Du bist draußen',
   'selected.augen': '{n} Augen gewählt',

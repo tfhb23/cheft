@@ -296,6 +296,8 @@ export class App {
       const a = document.activeElement;
       if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
       this.applyCrispScale();
+      // Das Familienalbum baut sich nicht neu auf (Scrollposition, aufgeklappte Bereiche): Es richtet sich per CSS nach der Größe
+      if (this.screen === 'guide') return;
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
@@ -613,12 +615,23 @@ export class App {
     document.querySelector('.toast')?.remove();
     this.dialog = spec;
     this.dialogInput = spec.input?.value ?? '';
-    this.render();
+    this.mountDialog();
   }
 
   private closeDialog(): void {
     this.dialog = null;
-    this.render();
+    this.mountDialog();
+  }
+
+  /** Im Familienalbum nur das Fenster auf- oder abbauen, damit die Seite dahinter stehen bleibt; sonst alles neu aufbauen. */
+  private mountDialog(): void {
+    if (this.screen !== 'guide') {
+      this.render();
+      return;
+    }
+    this.root.querySelector(':scope > .overlay')?.remove();
+    if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
+    this.nav.sync();
   }
 
   private renderDialog(d: DialogSpec): HTMLElement {
@@ -902,8 +915,9 @@ export class App {
       setLabels: (on) => {
         this.prefs.dsLabels = on;
         this.savePrefs();
-        this.render();
+        this.labels.refresh(on);
       },
+      showInfo: (title, body) => this.askDialog({ title, body, back: true }),
       onBack: () => this.back(),
     });
   }

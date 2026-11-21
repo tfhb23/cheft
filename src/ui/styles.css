@@ -432,6 +432,12 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .back-pair { display: flex; gap: var(--gap-tight); }
 .back-name { color: var(--text-strong); }
 .blatt-row { margin-bottom: var(--gap-tight); }
+.viewbar.to-top { cursor: pointer; }
+/* Verstecktes Fenster im Familienalbum */
+.cheat-info { display: flex; flex-direction: column; gap: var(--gap-hair); text-align: left; }
+.cheat-info h3 { margin-top: var(--gap-row); }
+.cheat-code { background: var(--surface-field); border: var(--border); padding: var(--gap-hair) var(--gap-tight); word-break: break-word; margin-top: var(--gap-tight); }
+.cheat-name { color: var(--accent-dark); margin-top: var(--gap-tight); }
 .guide-group { text-align: left; margin: var(--gap-group) 0 var(--gap-tight); }
 .spec { margin-bottom: var(--gap-row); display: flex; flex-direction: column; gap: var(--gap-tight); min-width: 0; overflow-x: auto; }
 .spec-head .spec-name { color: var(--text-strong); font-size: var(--fs-caption); }
@@ -443,7 +449,7 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .spec-also { display: flex; flex-direction: column; gap: var(--gap-hair); }
 .spec-vals dt { color: var(--text-muted); }
 .spec-vals dd { margin: 0; color: var(--text-strong); }
-.swatch { width: var(--size-btn-icon); height: var(--size-btn-icon); border: var(--border); flex: none; }
+.swatch { display: inline-block; vertical-align: middle; width: var(--size-btn-icon); height: var(--size-btn-icon); border: var(--border); flex: none; }
 .swatch.lg { width: calc(2 * var(--size-btn-icon)); height: calc(2 * var(--size-btn-icon)); }
 .swatch-row .swatch-text { display: flex; flex-direction: column; min-width: 0; }
 .pix { display: block; shape-rendering: crispEdges; image-rendering: pixelated; }

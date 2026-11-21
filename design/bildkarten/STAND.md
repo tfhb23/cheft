@@ -127,3 +127,7 @@ Siehe `ENTWUERFE_PAARE.md` und `images/entw/`. Noch nicht ausgewählt, nichts li
 ## 12. Abschluss: alle 24 Personen fertig
 
 Alle zwölf Bildkarten haben zwei verschiedene, freigegebene Personen. Die zweiten Personen stehen in `code/zwillinge.py` (Entwurf-Skripte `entw*.py`, Hilfen in `paare.py`), `export_ts.py` schreibt sie nach `src/ui/face-art.ts`. Zuletzt: Herz König Person 2 = Dreibogen-Goldkrone mit grauem Haar und kleinem Schnurrbart. Der Abschnitt 2 (Tabelle) zeigt den früheren Zwischenstand.
+
+## 11. Deck 1 und Deck 2 getauscht
+
+Bei Herz Dame, Herz König, Karo König, Pik Dame und Kreuz Bube zeigt Deck 1 jetzt die frühere zweite Person und Deck 2 die frühere erste (`SWAP` in `code/export_ts.py`; die Tabelle in Abschnitt 2 nennt weiter die Entwurfsreihenfolge). Das Familienalbum (`FAMILIES` in `guide.ts`) folgt dieser Reihenfolge.

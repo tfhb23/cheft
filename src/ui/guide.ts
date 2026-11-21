@@ -11,6 +11,7 @@
  * eindeutig sind und jeder Selektor existiert.
  */
 import { Card } from '../engine/cards';
+import { CHEAT_NAMES, type CheatId } from '../engine/cheatnames';
 import { h, Child } from './dom';
 import { t } from '../i18n';
 import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
@@ -51,6 +52,8 @@ export interface GuideEnv {
   labelsOn: boolean;
   setLabels: (on: boolean) => void;
   onBack: () => void;
+  /** Zeigt ein Fenster mit „Zurück“ (das Album dahinter bleibt stehen). */
+  showInfo: (title: string, body: HTMLElement) => void;
 }
 
 type Live = 'text' | 'box' | 'both';
@@ -500,7 +503,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '4.18', name: 'Einstellungs-Zeile (nur lesen)', where: 'Lobby für Mitspieler ohne Rechte', code: '.summary-row', sel: '.summary-row', stage: () => h('div', { class: 'row spread summary-row', style: { width: '100%' } }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, '7')), stageCls: 'flat', live: 'box', liveSel: '.summary-row' },
     { id: '4.19', name: 'Sortier-Griff', where: 'Lobby: Sitzordnung ziehen (nur Gastgeber)', code: '.handle', sel: '.handle', stage: () => h('span', { class: 'handle' }), live: 'box' },
     { id: '4.20', name: 'Chip (Rommé, Cheft)', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
-    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange mit Rahmen (5.12), die übrigen dunkel und abgeblendet (5.15). Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
+    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange mit Rahmen (5.12), die übrigen dunkel und abgeblendet. Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', also: [{ id: '5.15', name: 'Karte abgeblendet', where: 'die nicht gewählten Rückseiten (Filter 3.61)', sel: '.card.dim' }], stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
     { id: '4.21', name: 'Chip Cheft', where: 'Sitz-Beschriftung: Spieler hat Cheft angesagt', code: "badge(text, 'cheft')", sel: '.badge.cheft', stage: () => badge(t('mode.cheft'), 'cheft'), live: 'both' },
   ];
   const inputSpecs = mergeSpecs(inputSpecsRaw, ['4.13', '4.14', '4.15', '4.16'], ['4.20', '4.21']);
@@ -522,7 +525,6 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '5.11', name: 'Karte normal', where: 'Hand, Auslage, Ablage', code: '.card', stage: () => stateCard({}) },
     { id: '5.12', name: 'Karte ausgewählt', where: 'Hand: angetippt (hebt sich 6 u an). Rückseiten-Auswahl in den Einstellungen: die gewählte Rückseite', code: '.card.selected', sel: '.card.selected', stage: () => stateCard({ selected: true }), stageCls: 'flat', facts: [['Rahmen', 'Orange, 2 u stark, außen direkt an der Kartenkontur, Außenecken um 1 Pixel abgerundet wie die Karte. Grün (5.14) und Rot (5.17) haben genau dieselbe Form']] },
     { id: '5.14', name: 'Karte frisch gezogen', where: 'Hand: gerade gezogene Karte; auch Teppich-Joker und geklauter Joker (grün)', code: '.card.fresh', sel: '.card.fresh', stage: () => stateCard({ fresh: true }), stageCls: 'flat' },
-    { id: '5.15', name: 'Karte abgeblendet', where: 'Rückseiten-Auswahl in den Einstellungen: die nicht gewählten Rückseiten', code: '.card.dim', sel: '.card.dim', stage: () => stateCard({ dim: true }), stageCls: 'flat' },
     { id: '5.17', name: 'Vorübergehende Karte', where: 'Roter Rahmen mit dünnem dunklem Ring: Ablagekarte (nur als Rommé-Spieler), Teppichkarte (nicht bei leerem Stapel) und geklauter Joker. Muss im selben Zug verwendet werden. Die Mitspieler sehen sie offen (Fächer am Desktop, halbe Karte am Handy)', code: '.card.temp', sel: '.card.temp', stage: () => h('div', { style: { padding: 'var(--gap-row)' } }, stateCard({ temp: true })), stageCls: 'flat', liveSel: '.card' },
     { id: '5.18', name: 'Karte unter dem Finger', where: 'Ziehen: leicht durchsichtig und größer, mit Zahl der Gruppe', code: '.hand .card.dragging · .drag-badge', sel: '.drag-badge', stage: () => h('div', { style: { opacity: 'var(--op-drag)', transform: 'scale(var(--scale-drag))', position: 'relative' } }, stateCard({}), h('div', { class: 'drag-badge' }, '×3')), stageCls: 'flat' },
     { id: '5.19', name: 'Platzhalter', where: 'Leere Ablage und leere Restkartenzeile in der Auswertung', code: "cardEl('slot') · .slot-hint", stage: () => c('slot'), stageCls: 'flat' },
@@ -575,10 +577,10 @@ export function chapters(env: GuideEnv): Chapter[] {
   // ----- Familien: Figuren ohne Spielkarte, beide Decks als Paar. Beschreibungen aus design/bildkarten (STAND.md, zwillinge.py).
   type Fam = { id: string; world: string; chars: Record<11 | 12 | 13, [string, string]>; colors: string[] };
   const FAMILIES: Record<'H' | 'D' | 'C' | 'S', Fam> = {
-    H: { id: '5.50', world: 'Die Guten · persische Dichtkunst, Liebe · Rot, Gold, Weiß, Braun, nicht zu bunt', chars: { 11: ['Turbanform, Gold, Mond', 'kleiner Turban mit steiler Feder'], 12: ['Schleier, Mond und Sterne, schmaler Mund', 'Goldkamm, schmale Lippen'], 13: ['Moghul-Turban, Feder, grauer Bart', 'Dreibogen-Goldkrone, graues Haar, kleiner Schnurrbart'] }, colors: ['skin-h', 'hair-h', 'eye-h', 'hair-gray'] },
-    D: { id: '5.51', world: 'Orient, Schätze, Gold · blondes Haar, goldene Elemente · roter Fez als Familienmotiv', chars: { 11: ['roter Fez, Quaste', 'Takke und Stirnlocken'], 12: ['Juwelenkönigin, Diamant-Diadem', 'Sonnenscheibe, wellig mit Goldbändern'], 13: ['Kalif, Goldturban, langer Bart', 'Federkrone'] }, colors: ['skin-d', 'hair-d', 'eye-d'] },
-    C: { id: '5.52', world: 'Klassische Königsfamilie · Schwarz, Gold, Weiß, braunes Haar', chars: { 11: ['Falkner mit Falke', 'Hermelinprinz'], 12: ['Hofdame, Diadem, Perlen', 'Zopfkrone'], 13: ['Goldkrone, Schnurrbart', 'Glatze, runder Bart, Goldspange'] }, colors: ['skin-c', 'hair-c', 'eye-c'] },
-    S: { id: '5.53', world: 'Die Bösen · weiße Haare, Brille, Monokel, Zylinder, blasse Haut, Schwarz', chars: { 11: ['weißer Topfschnitt, runde Brille', ''], 12: ['weißer Bob, Brille, Melone mit rotem Band', 'Beret, Schönheitspunkt'], 13: ['Zylinder, Monokel, weißes langes Haar', 'breiter Zylinder, Glatze, Schnurrbart'] }, colors: ['skin-s', 'eye-s'] },
+    H: { id: '5.50', world: 'Die Guten · persische Dichtkunst, Liebe · Rot, Gold, Weiß, Braun, nicht zu bunt', chars: { 11: ['Turbanform, Gold, Mond', 'kleiner Turban mit steiler Feder'], 12: ['Goldkamm, schmale Lippen', 'Schleier, Mond und Sterne, schmaler Mund'], 13: ['Dreibogen-Goldkrone, graues Haar, kleiner Schnurrbart', 'Moghul-Turban, Feder, grauer Bart'] }, colors: ['skin-h', 'hair-h', 'eye-h', 'hair-gray'] },
+    D: { id: '5.51', world: 'Orient, Schätze, Gold · blondes Haar, goldene Elemente · roter Fez als Familienmotiv', chars: { 11: ['roter Fez, Quaste', 'Takke und Stirnlocken'], 12: ['Juwelenkönigin, Diamant-Diadem', 'Sonnenscheibe, wellig mit Goldbändern'], 13: ['Federkrone', 'Kalif, Goldturban, langer Bart'] }, colors: ['skin-d', 'hair-d', 'eye-d'] },
+    C: { id: '5.52', world: 'Klassische Königsfamilie · Schwarz, Gold, Weiß, braunes Haar', chars: { 11: ['Hermelinprinz', 'Falkner mit Falke'], 12: ['Hofdame, Diadem, Perlen', 'Zopfkrone'], 13: ['Goldkrone, Schnurrbart', 'Glatze, runder Bart, Goldspange'] }, colors: ['skin-c', 'hair-c', 'eye-c'] },
+    S: { id: '5.53', world: 'Die Bösen · weiße Haare, Brille, Monokel, Zylinder, blasse Haut, Schwarz', chars: { 11: ['weißer Topfschnitt, runde Brille', ''], 12: ['Beret, Schönheitspunkt', 'weißer Bob, Brille, Melone mit rotem Band'], 13: ['Zylinder, Monokel, weißes langes Haar', 'breiter Zylinder, Glatze, Schnurrbart'] }, colors: ['skin-s', 'eye-s'] },
   };
   const fold = (title: string, ...children: Child[]): HTMLElement => h('details', { class: 'fold' }, h('summary', { class: 'hint' }, title), ...children);
   const colorRows = (names: string[]): HTMLElement =>
@@ -1188,6 +1190,47 @@ export function allSpecIds(): string[] {
   return out;
 }
 
+// ---------------------------------------------------------------- Versteckt: Cheatcodes
+/** Wirkung je Cheat in einem Satz (Namen kommen aus cheatnames.ts und können sich ändern). */
+const CHEAT_INFO: [CheatId, string][] = [
+  ['jokers', 'mindestens so viele Joker auf der Hand, in jeder Runde (Zahl dahinter, sonst 1)'],
+  ['hand', 'eigene Wunschhand, Runden durch / getrennt'],
+  ['rounds', 'eigene Rundenzahl (1 bis 999)'],
+  ['laidOut', 'du startest mit einer ausgelegten Folge samt Joker (Joker klauen üben)'],
+  ['carpet', 'die Teppichkarte passt zu einer deiner Karten'],
+  ['autoplay', 'ein Bot spielt für dich, mit Knöpfen rechts unten (Rolle dahinter)'],
+  ['timeTravel', 'Knopf links unten: einen Zug zurück'],
+  ['firstMeld', 'niedrigere Erstmeldung (Zahl dahinter)'],
+  ['deck2', 'jede Karte doppelt so oft'],
+  ['deck3', 'jede Karte dreimal so oft'],
+  ['deck4', 'jede Karte viermal so oft'],
+  ['jokerParty', 'genau so viele Joker im Deck (Zahl dahinter, 0 = ohne Joker)'],
+  ['mini', 'Skatblatt: nur 7 bis Ass'],
+  ['superFast', 'Bots spielen ohne Pausen und Animationen'],
+];
+
+function cheatsBody(): HTMLElement {
+  const n = (id: CheatId): string => CHEAT_NAMES[id][0];
+  const code = (text: string): HTMLElement => h('div', { class: 'cheat-code' }, text);
+  const examples: [string, string][] = [
+    [`${n('jokers')} 2`, 'mindestens zwei Joker in jeder Runde'],
+    [`${n('rounds')} 3 ${n('firstMeld')} 21`, 'drei Runden, Erstmeldung schon ab 21 Augen'],
+    [`${n('autoplay')} ${n('superFast')} ${n('rounds')} 12`, 'ein Bot spielt zwölf Runden im Zeitraffer'],
+    [`${n('hand')}( HeD KrB PiA J )`, 'Wunschhand in der ersten Runde: Herz Dame, Kreuz Bube, Pik Ass, Joker, der Rest wird aufgefüllt'],
+    [`${n('deck4')} ${n('mini')} ${n('jokerParty')} 12`, 'Deck-Cheats lassen sich mischen'],
+  ];
+  return h(
+    'div',
+    { class: 'cheat-info' },
+    h('p', null, 'Nur gegen Bots, nur für ein Spiel. Im Menü „Spielstand-Code einfügen“ wählen, statt eines Spielstands den Cheat-Text eintragen und „Laden“ tippen. Danach öffnet sich „Neues Spiel“, und der Cheat gilt für dieses Spiel.'),
+    h('p', { class: 'hint' }, 'Groß und klein sowie Leerzeichen im Namen sind egal. Mehrere Cheats einfach hintereinander schreiben, eine Zahl direkt hinter das Wort. Ein unbekanntes Wort lehnt den ganzen Text ab.'),
+    h('h3', null, 'Beispiele'),
+    ...examples.flatMap(([c, what]) => [code(c), h('div', { class: 'hint' }, what)]),
+    h('h3', null, 'Alle Cheats'),
+    ...CHEAT_INFO.flatMap(([id, what]) => [h('div', { class: 'cheat-name' }, n(id)), h('div', { class: 'hint' }, what)]),
+  );
+}
+
 // ---------------------------------------------------------------- Seite
 const TIER_TITLES: Record<Tier, string> = { marke: 'Marke', tisch: 'Tisch', werkstatt: 'Werkstatt' };
 
@@ -1254,16 +1297,45 @@ export function renderGuide(env: GuideEnv): HTMLElement {
     for (const g of ch.groups) body.push(...groupEls(g));
   }
   // Werkstatt: eingeklappt am Ende derselben Seite, jeder Unterpunkt noch einmal
+  // Schalter wechselt an Ort und Stelle: kein Neuaufbau, die Werkstatt bleibt offen und die Seite springt nicht
+  const btnOn = btn('an', () => setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' });
+  const btnOff = btn('aus', () => setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' });
+  const setLabels = (on: boolean): void => {
+    env.setLabels(on);
+    btnOn.classList.toggle('primary', on);
+    btnOff.classList.toggle('primary', !on);
+  };
+  const labelChoices = h('div', { class: 'choices' }, btnOn, btnOff);
   const labelsRow = h(
     'div',
     { class: 'panel guide-labels' },
-    h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), h('div', { class: 'choices' }, btn('an', () => env.setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' }), btn('aus', () => env.setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' }))),
+    h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), labelChoices),
     hint('Zeigt an jedem Element im Spiel einen kleinen gelben Punkt unten links (nicht in diesem Album). Antippen zeigt die Nummer und kopiert sie.'),
   );
   const werkInner = h('div', { class: 'guide-wk-body' }, labelsRow, h('p', { class: 'guide-chapter-intro muted' }, werk.intro ?? ''));
   for (const g of werk.groups) werkInner.append(lazyDetails('guide-sub', h('span', { class: 'guide-sub-title' }, g.title), () => groupEls(g).slice(1)));
   body.push(h('details', { class: 'panel guide-wk', id: `${NS}-werkstatt` }, h('summary', null, h('h2', { class: 'guide-chapter' }, 'Werkstatt', h('span', { class: 'guide-ids' }, werk.ids ?? ''))), werkInner));
   const view = viewEl(t('btn.guide'), body, env.onBack, 'reading guide');
+  // Ein Tipp auf den Titel scrollt wieder nach oben
+  const bar = view.querySelector('.viewbar');
+  bar?.classList.add('to-top');
+  bar?.addEventListener('click', () => view.querySelector('.view-body')?.scrollTo({ top: 0 }));
+  // Verstecktes: sieben Tipps hintereinander auf die Joker-Grafiken (5.24)
+  const jokerBox = view.querySelector('[id="guide-5.24"] .spec-stage');
+  let taps = 0;
+  let tapTimer = 0;
+  jokerBox?.addEventListener('click', () => {
+    window.clearTimeout(tapTimer);
+    tapTimer = window.setTimeout(() => (taps = 0), 2000);
+    taps += 1;
+    if (taps >= 7) {
+      taps = 0;
+      env.showInfo('Cheatcodes', cheatsBody());
+    }
+  });
+  view.addEventListener('pointerdown', (e) => {
+    if (jokerBox && !jokerBox.contains(e.target as Node)) taps = 0;
+  }, true);
   const run = measurers;
   queueMicrotask(() => run.forEach((f) => f()));
   return view;

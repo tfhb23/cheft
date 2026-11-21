@@ -16,12 +16,15 @@ CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-
 tok=open(lib._TOK).read()
 by_hex={}
 for i,css,n,v in re.findall(r"\{ id: '(1\.\d\d)', css: '--c-([^']+)', name: '([^']+)', value: '(#[0-9a-fA-F]{6})'",tok): by_hex.setdefault(v.lower(),css)
+# Karten, bei denen Person 1 und Person 2 vertauscht sind (Deck 1 zeigt die zweite Person der Entwurfsliste, Deck 2 die erste)
+SWAP={'H12','H13','D13','S12','C11'}
 def sprites():
     out={}
     for s,r,keys in KARTEN:
         if r<11: continue
         a=keys[0]; b=keys[1] or keys[0]
-        out['%s%d'%(s,r)]=[render_final(a),render_final(b)]
+        key='%s%d'%(s,r)
+        out[key]=[render_final(b),render_final(a)] if key in SWAP else [render_final(a),render_final(b)]
     return out
 def main():
     sp=sprites(); order=[]
