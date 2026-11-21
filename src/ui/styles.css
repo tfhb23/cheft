@@ -34,7 +34,7 @@ h2 { font-size: var(--fs-title); color: var(--accent-dark); }
 h3 { font-size: var(--fs-body); color: var(--accent-dark); }
 /* Haupt-Überschriften stehen überall mittig (nur die Zwischenüberschriften der Regeln und des Guides bleiben linksbündig) */
 h1, h2, .dialog h3 { text-align: center; }
-p { margin: 0 0 var(--gap-stack); }
+p { margin: 0 0 var(--gap-row); }
 .panel p { margin: 0; }
 .muted, .field-label { color: var(--text-muted); }
 .accent { color: var(--accent-dark); }
@@ -44,11 +44,11 @@ p { margin: 0 0 var(--gap-stack); }
 .hint.center { text-align: center; }
 
 /* ===== 4 Bedienelemente ===== */
-.btn, input.text, textarea.text { font-family: var(--font-body); font-size: var(--fs-body); border: var(--border); border-radius: var(--radius); padding-block: var(--pad-control-y); }
+.btn, input.text, textarea.text { font-family: var(--font-body); font-size: var(--fs-body); border: var(--border); border-radius: var(--radius); padding-block: var(--gap-tight); }
 .btn {
   background: var(--surface-panel);
   color: var(--text-strong);
-  padding-inline: var(--pad-inner);
+  padding-inline: var(--gap-row);
   box-shadow: var(--sh-btn);
   cursor: pointer;
   line-height: var(--lh-base);
@@ -69,7 +69,7 @@ p { margin: 0 0 var(--gap-stack); }
 /* Leiste (Master): Kopf-, Fuß-, Status-Zeile auf Panel-Fläche, Hand- und Aktionsleiste auf Leisten-Fläche; Fuß- und Aktionsleiste teilen den Innenrand (unten mindestens der Sicherheitsrand des Geräts) */
 .viewbar, .footbar, .status { background: var(--surface-panel); }
 .hand-wrap, .actions { background: var(--surface-bar); }
-.footbar, .actions { padding: var(--pad-bar-y) var(--pad-bar-x); padding-bottom: max(var(--pad-bar-y), env(safe-area-inset-bottom)); }
+.footbar, .actions { padding: var(--gap-row) var(--gap-row); padding-bottom: max(var(--gap-row), env(safe-area-inset-bottom)); }
 .btn.icon { padding: var(--gap-hair); width: var(--size-btn-icon); height: var(--size-btn-icon); display: inline-flex; align-items: center; justify-content: center; }
 .btn.icon svg { width: var(--size-icon-glyph); height: var(--size-icon-glyph); shape-rendering: crispEdges; }
 
@@ -78,7 +78,7 @@ p { margin: 0 0 var(--gap-stack); }
   border: var(--border);
   border-radius: var(--radius);
   box-shadow: var(--sh-panel);
-  padding: var(--pad-inner);
+  padding: var(--gap-row);
 }
 .row, .spec-head, .swatch-row { display: flex; align-items: center; gap: var(--gap-row); }
 .row { flex-wrap: wrap; }
@@ -87,7 +87,7 @@ p { margin: 0 0 var(--gap-stack); }
 input.text, textarea.text {
   background: var(--surface-field);
   color: var(--text-strong);
-  padding-inline: var(--pad-input-x);
+  padding-inline: var(--gap-row);
   width: 100%;
   max-width: var(--w-input);
 }
@@ -100,7 +100,7 @@ details > * + * { margin-top: var(--gap-tight); }
 /* Spielweise neben dem Namen: Rommé unauffällig, Cheft orange */
 /* Chip (Master): kleines Schild mit Rahmen. Die Varianten setzen nur Farben (und Größe); Gold ist der Standard.
    Rommé-Chip: unauffällig, Cheft-Chip: orange. Ebenso Nummern im Familienalbum, Namensschild im Rückblick, Zahl beim Ziehen. */
-.badge, .spec-id, .peek-tag, .drag-badge, .ds-tag { --chip-bg: var(--gold); --chip-fg: var(--text-strong); --chip-line: var(--ink); display: inline-block; padding: 0 var(--pad-chip-x); background: var(--chip-bg); color: var(--chip-fg); border: var(--bw) solid var(--chip-line); font-family: var(--font-body); font-size: var(--fs-caption); line-height: var(--lh-chip); white-space: nowrap; }
+.badge, .spec-id, .peek-tag, .drag-badge, .ds-tag { --chip-bg: var(--gold); --chip-fg: var(--text-strong); --chip-line: var(--ink); display: inline-block; padding: 0 var(--gap-tight); background: var(--chip-bg); color: var(--chip-fg); border: var(--bw) solid var(--chip-line); font-family: var(--font-body); font-size: var(--fs-caption); line-height: var(--lh-chip); white-space: nowrap; }
 .badge { --chip-bg: var(--surface-page); --chip-fg: var(--text-muted); --chip-line: var(--line-soft); font-size: var(--fs-micro); }
 .badge.cheft, .drag-badge { --chip-bg: var(--accent); --chip-fg: var(--text-on-accent); }
 .badge.cheft { --chip-line: var(--accent-dark); }
@@ -114,7 +114,7 @@ details > * + * { margin-top: var(--gap-tight); }
 .back-scroller > .btn.icon:first-child { left: var(--gap-tight); }
 .back-scroller > .btn.icon:last-child { right: var(--gap-tight); }
 /* seitlicher Leerraum = Pfeilbreite, damit erste und letzte Karte am Rand frei vom Pfeil sind */
-.option .choices.back-choices { display: flex; gap: var(--gap-row); padding: var(--pad-inner) calc(var(--size-btn-icon) + var(--gap-row)); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.option .choices.back-choices { display: flex; gap: var(--gap-row); padding: var(--gap-row) calc(var(--size-btn-icon) + var(--gap-row)); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .option .choices.back-choices::-webkit-scrollbar { display: none; }
 .option .choices.back-choices .card { flex: none; }
 
@@ -180,10 +180,10 @@ details > * + * { margin-top: var(--gap-tight); }
 /* ===== 8 Seiten: Menü ===== */
 /* Mittig, aber bei zu wenig Höhe nicht oben abgeschnitten: automatische Ränder statt justify-content: center */
 .menu::before, .menu::after { content: ''; margin: auto; }
-.menu { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--gap-group); padding: var(--pad-screen); overflow: auto; }
+.menu { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--gap-group); padding: var(--gap-group); overflow: auto; }
 .menu .panel { width: 100%; max-width: var(--w-menu); }
 /* Stapel (Master): Elemente untereinander im Stapelabstand */
-.menu .panel, .menu-group, .overlay > .dialog, .guide-intro, .guide-wk-body { display: flex; flex-direction: column; gap: var(--gap-stack); }
+.menu .panel, .menu-group, .overlay > .dialog, .guide-intro, .guide-wk-body { display: flex; flex-direction: column; gap: var(--gap-row); }
 .menu-group + .menu-group { margin-top: var(--gap-group); }
 .menu .btn { width: 100%; text-align: center; }
 .menu .btn.icon { width: var(--size-btn-icon); flex: none; }
@@ -196,10 +196,10 @@ details > * + * { margin-top: var(--gap-tight); }
 /* ===== 8 Seiten: Ganzseitige Ansicht (Regeln, Familienalbum): Titelleiste, Inhalt, Fußleiste mit „Zurück“ ===== */
 .view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .view > * { flex: none; }
-.viewbar { border-bottom: var(--border); padding: var(--pad-bar-y) var(--pad-bar-x); text-align: center; }
+.viewbar { border-bottom: var(--border); padding: var(--gap-row) var(--gap-row); text-align: center; }
 .view > .view-body { flex: 1; min-height: 0; overflow-y: auto; width: 100%; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* Lesespalte von etwa 65 Zeichen; die Scrollleiste sitzt am Fensterrand, nicht an der Textspalte */
-.view-body.reading { padding: var(--pad-screen) max(var(--pad-screen), calc((100% - var(--w-rules)) / 2)); }
+.view-body.reading { padding: var(--gap-group) max(var(--gap-group), calc((100% - var(--w-rules)) / 2)); }
 .footbar { border-top: var(--border); }
 .endbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-overlay); }
 .rules h3 { margin: var(--gap-group) 0 var(--gap-tight); }
@@ -266,7 +266,7 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-label .sl-name { justify-self: end; text-align: right; }
 .seat-label .sl-cnt { justify-self: start; }
 /* Beide Badges („Rommé“, „Cheft“) immer gleich breit, unabhängig von der Schrift */
-.seat-label .badge { min-width: calc(5ch + 2 * var(--pad-chip-x) + 2 * var(--bw)); text-align: center; }
+.seat-label .badge { min-width: calc(5ch + 2 * var(--gap-tight) + 2 * var(--bw)); text-align: center; }
 .seat-label .sl-name { color: var(--text-strong); }
 .conn-lost { display: inline-block; width: var(--size-icon-status); height: var(--size-icon-status); margin-left: var(--gap-tight); vertical-align: middle; color: var(--text-muted); }
 .conn-lost svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
@@ -310,10 +310,10 @@ details > * + * { margin-top: var(--gap-tight); }
 .discard, .discard .card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
 /* ===== 6 Spielfeld: Status, Hand, Aktionen ===== */
-.status { padding: var(--gap-tight) var(--pad-inner); font-size: var(--fs-caption); flex-wrap: nowrap; border-top: var(--border); border-bottom: var(--border); min-height: var(--status-h); display: flex; justify-content: space-between; gap: var(--gap-row); align-items: center; }
+.status { padding: var(--gap-tight) var(--gap-row); font-size: var(--fs-caption); flex-wrap: nowrap; border-top: var(--border); border-bottom: var(--border); min-height: var(--status-h); display: flex; justify-content: space-between; gap: var(--gap-row); align-items: center; }
 .status .msg { color: var(--text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status .info { color: var(--accent-dark); white-space: nowrap; font-size: var(--fs-caption); margin-left: auto; }
-.hand-wrap { padding: var(--pad-bar-y) max(var(--pad-bar-x), var(--pad-screen)) 0; touch-action: none; }
+.hand-wrap { padding: var(--gap-row) max(var(--gap-row), var(--gap-group)) 0; touch-action: none; }
 .hand { position: relative; height: calc(var(--card-h) + var(--hand-gap)); }
 .hand.two-rows { height: calc(var(--card-h) * 2 + var(--hand-row-gap)); }
 .hand .card { position: absolute; transition: left var(--dur-hand), top var(--dur-hand); touch-action: none; }
@@ -335,7 +335,7 @@ details > * + * { margin-top: var(--gap-tight); }
 .peek-tag { margin-top: var(--gap-row); text-align: center; }
 
 /* ===== 7 Fenster und Meldungen ===== */
-.overlay { position: fixed; inset: 0; background: var(--c-scrim); display: flex; align-items: center; justify-content: center; padding: var(--pad-overlay); z-index: var(--z-overlay); }
+.overlay { position: fixed; inset: 0; background: var(--c-scrim); display: flex; align-items: center; justify-content: center; padding: var(--gap-group); z-index: var(--z-overlay); }
 .overlay > .dialog { max-width: var(--w-dialog); width: 100%; max-height: 100%; overflow: auto; }
 .dialog .btn { align-self: stretch; text-align: center; }
 /* Tabelle (Master): Auswertung und Familienalbum teilen Linien, Innenrand, Kopf und Zahlenspalte; die Schriftgröße setzt die Tabelle selbst */
@@ -357,7 +357,7 @@ table.scores tr.winner td { color: var(--accent-dark); font-weight: var(--fw-bol
 .toast { position: fixed; left: 50%; bottom: var(--toast-bottom); transform: translateX(-50%); max-width: 90vw; z-index: var(--z-toast); font-size: var(--fs-caption); text-align: center; }
 .toast.error { border-color: var(--danger); color: var(--danger); }
 /* Auswahl der Kombination */
-.choose-option { border: var(--border); padding: var(--pad-inner); cursor: pointer; background: var(--surface-field); display: flex; justify-content: space-between; align-items: center; gap: var(--gap-row); }
+.choose-option { border: var(--border); padding: var(--gap-row); cursor: pointer; background: var(--surface-field); display: flex; justify-content: space-between; align-items: center; gap: var(--gap-row); }
 .choose-option:active { background: var(--surface-highlight); }
 .choose-melds { display: flex; flex-wrap: wrap; gap: var(--gap-row); }
 .choose-meld { display: flex; }
@@ -388,16 +388,16 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .guide-toc { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap-tight); }
 .guide-toc .btn { flex: 0 0 auto; }
 .guide-chapter { margin: var(--gap-group) 0 var(--gap-tight); }
-.guide-chapter-intro { margin-bottom: var(--gap-stack); }
+.guide-chapter-intro { margin-bottom: var(--gap-row); }
 /* Familienalbum: Marke / Tisch, Nummernbereich am Kapitel, Werkstatt eingeklappt */
 .guide-tier { text-align: left; margin: var(--gap-group) 0 0; padding-top: var(--gap-row); border-top: var(--border); }
 .guide-chapter { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--gap-row); }
 .guide-ids { font-family: var(--font-body); font-weight: var(--fw-regular); letter-spacing: 0; }
 .guide-wk { padding: 0; margin-top: var(--gap-group); }
-.guide-wk > summary { cursor: pointer; padding: var(--pad-inner); list-style: none; }
+.guide-wk > summary { cursor: pointer; padding: var(--gap-row); list-style: none; }
 .guide-wk > summary::-webkit-details-marker { display: none; }
 .guide-wk > summary .guide-chapter { margin: 0; text-align: left; }
-.guide-wk-body { padding: 0 var(--pad-inner) var(--pad-inner); }
+.guide-wk-body { padding: 0 var(--gap-row) var(--gap-row); }
 .guide-sub { border-top: var(--border-soft); padding-top: var(--gap-tight); }
 .guide-sub > summary { cursor: pointer; }
 .guide-lazy { display: flex; flex-direction: column; gap: var(--gap-tight); margin-top: var(--gap-tight); }
@@ -425,7 +425,7 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .guide-group { text-align: left; margin: var(--gap-group) 0 var(--gap-tight); }
 .spec { margin-bottom: var(--gap-row); display: flex; flex-direction: column; gap: var(--gap-tight); min-width: 0; overflow-x: auto; }
 .spec-head .spec-name { color: var(--text-strong); font-size: var(--fs-caption); }
-.spec-stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: var(--gap-row); padding: var(--pad-inner); background: var(--surface-page); background-image: repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%); background-size: var(--tile) var(--tile); border: var(--border-soft); }
+.spec-stage { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: var(--gap-row); padding: var(--gap-row); background: var(--surface-page); background-image: repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%); background-size: var(--tile) var(--tile); border: var(--border-soft); }
 .spec-stage.col { flex-direction: column; align-items: stretch; }
 .spec-stage.dark { background: var(--ink); background-image: none; }
 .spec-stage.flat { background: var(--surface-panel); background-image: none; }

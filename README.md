@@ -170,8 +170,8 @@ bleiben. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. 
 Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die Nummer), damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
 
 - **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
-  auf sie zeigen; eine Rolle (`1.42`–`1.75`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
-  der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.38` geben ihnen Bedeutung. `styles.css` enthält
+  auf sie zeigen; eine Rolle (`1.42`–`1.75`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind vier
+  Werte `3.22`–`3.25` (1, 2, 4, 8 u; 1 u = 1 Pixel × Maßstab). `styles.css` enthält
   keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht. Was im Spiel gleich aussieht, steht
   in `styles.css` in einer gemeinsamen Regel (Master-Stile: Rahmen, Bedienelement, Chip, Knopfgruppe, Stapel, Panel, Tabelle, Leiste,
   kleiner Text); die Werkstatt im Familienalbum listet sie mit ihren Parametern.

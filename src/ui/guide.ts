@@ -39,7 +39,6 @@ import {
   SCALE_TOKENS,
   SIZE_TOKENS,
   SPACING_ROLES,
-  SPACING_SCALE,
   TYPE_MISC_TOKENS,
   WEIGHT_TOKENS,
   Z_TOKENS,
@@ -239,10 +238,6 @@ const sub = (main: string, note: string): HTMLElement => h('div', null, main, h(
 
 const sample = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz ÄÖÜ äöüß 0123456789 .,:;!?+-×·…';
 
-function unitsOfRole(css: string): number {
-  const r = SPACING_ROLES.find((x) => x.css === css)!;
-  return SPACING_SCALE.find((x) => x.css === r.ref)!.units;
-}
 
 // ---------------------------------------------------------------- Inhalt
 export function chapters(env: GuideEnv): Chapter[] {
@@ -339,26 +334,12 @@ export function chapters(env: GuideEnv): Chapter[] {
 
   // ----- 3 Maße
   const tokenTable = (head: string[], rows: () => Child[][], num: number[] = []) => () => table(head, rows(), num);
-  const spacingScaleGroup: Group = {
-    title: 'Abstandsskala (3.11–3.18)',
-    specs: SPACING_SCALE.map((s) => ({
-      id: s.id,
-      name: `${s.css} = ${s.units} u`,
-      stage: () => h('div', { class: 'space-bar', style: { width: `var(${s.css})`, height: 'var(--gap-row)' } }),
-      stageCls: 'flat' as const,
-      facts: [['Wert', `${s.units} u = ${s.units * rootScale()} px bei Maßstab ${rootScale()}`]],
-    })),
-  };
-  const spacingRoleGroup: Group = {
-    title: 'Abstands-Rollen (3.21–3.38)',
-    note: 'Einen Abstand im ganzen Spiel ändern: den Verweis auf die Skala ändern (tokens.ts › SPACING_ROLES).',
+  const spacingGroup: Group = {
+    title: 'Abstände (3.22–3.25)',
+    note: 'Vier Werte für alle Stellen im Spiel. Einen Abstand im ganzen Spiel ändern: den Wert in tokens.ts › SPACING_ROLES ändern. Wo welcher Abstand wirkt, steht darunter.',
     node: tokenTable(
-      ['Nr.', 'Rolle', 'Wert'],
-      () =>
-        SPACING_ROLES.map((r) => {
-          const un = SPACING_SCALE.find((s) => s.css === r.ref)!;
-          return [idChip(r.id), sub(r.name, `${r.css} → ${r.ref} · ${r.use}`), `${un.units} u`];
-        }),
+      ['Nr.', 'Abstand', 'Wert'],
+      () => SPACING_ROLES.map((r) => [idChip(r.id), h('div', null, h('div', { class: 'space-bar', style: { width: `var(${r.css})`, height: 'var(--gap-row)' } }), sub(r.name, `${r.css} · ${r.use}`)), `${r.units} u = ${r.units * rootScale()} px bei Maßstab ${rootScale()}`]),
       [2],
     ),
   };
@@ -366,23 +347,24 @@ export function chapters(env: GuideEnv): Chapter[] {
   // Abstände im Einsatz: Stelle, Teile (Rollen oder Stufen), Hinweis
   type Use = { where: string; parts: string[]; note?: string };
   const roleU = (css: string): number => {
-    if (SPACING_ROLES.some((x) => x.css === css)) return unitsOfRole(css);
+    const role = SPACING_ROLES.find((x) => x.css === css);
+    if (role) return role.units;
     const hand = HAND_TOKENS.find((x) => x.css === css);
     if (hand) return HAND[hand.key];
-    return SPACING_SCALE.find((x) => x.css === css)?.units ?? SIZE_TOKENS.find((x) => x.css === css)!.units!;
+    return SIZE_TOKENS.find((x) => x.css === css)!.units!;
   };
   const usage: [string, Use[]][] = [
     [
       'Menü und Seiten mit Panel (Neues Spiel, Online, Beitreten, Lobby)',
       [
-        { where: 'Seitenrand außen', parts: ['--pad-screen'], note: 'Rand um Logo und Panel' },
+        { where: 'Seitenrand außen', parts: ['--gap-group'], note: 'Rand um Logo und Panel' },
         { where: 'Logo ↔ Panel', parts: ['--gap-group'] },
         { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--gap-row'], note: '1 u Logo-Abstand + 4 u unter den Karten' },
         { where: 'Logo: Schriftzug ↔ Untertitel', parts: ['--gap-hair'] },
-        { where: 'Panel: Innenrand', parts: ['--pad-inner'] },
-        { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-stack'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
-        { where: 'Menü: Gruppe ↔ Gruppe (Weiterspielen/Neues Spiel | Online | Regeln/Guide/Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Stapelabstand + Gruppen-Zusatz' },
-        { where: 'Über „Zurück“ (Neues Spiel, Mit Freunden, Beitreten, Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Wie zwischen Menü-Gruppen: „Zurück“ steht immer abgesetzt' },
+        { where: 'Panel: Innenrand', parts: ['--gap-row'] },
+        { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-row'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
+        { where: 'Menü: Gruppe ↔ Gruppe (Weiterspielen/Neues Spiel | Online | Regeln/Guide/Einstellungen)', parts: ['--gap-row', '--gap-group'], note: 'Stapelabstand + Gruppen-Zusatz' },
+        { where: 'Über „Zurück“ (Neues Spiel, Mit Freunden, Beitreten, Einstellungen)', parts: ['--gap-row', '--gap-group'], note: 'Wie zwischen Menü-Gruppen: „Zurück“ steht immer abgesetzt' },
         { where: 'Auswahlzeile: Beschriftung ↔ Knöpfe', parts: ['--gap-hair'] },
         { where: 'Auswahlzeile: Knopf ↔ Knopf (an/aus)', parts: ['--gap-tight'] },
         { where: 'Bot-Auswahl: Stufe ↔ Spielweise', parts: ['--gap-row'] },
@@ -394,12 +376,12 @@ export function chapters(env: GuideEnv): Chapter[] {
     [
       'Fenster (Dialog, Einstellungen, Punkte, Auswertung, Pause, Auswahl)',
       [
-        { where: 'Fenster ↔ Bildschirmrand', parts: ['--pad-overlay'] },
-        { where: 'Fenster: Innenrand', parts: ['--pad-inner'] },
-        { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-stack'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
-        { where: 'Über „Zurück“', parts: ['--gap-stack', '--gap-group'] },
+        { where: 'Fenster ↔ Bildschirmrand', parts: ['--gap-group'] },
+        { where: 'Fenster: Innenrand', parts: ['--gap-row'] },
+        { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-row'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
+        { where: 'Über „Zurück“', parts: ['--gap-row', '--gap-group'] },
         { where: 'Zwei Knöpfe nebeneinander (Abbrechen | Aktion)', parts: ['--gap-row'] },
-        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--pad-inner'] },
+        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--gap-row'] },
         { where: 'Wahloption: Kombinationen untereinander', parts: ['--gap-row'] },
         { where: 'Tabelle: Zelle innen oben/unten', parts: ['--gap-hair'], note: 'links/rechts 2 u' },
         { where: 'Restkarten in der Auswertung: Karte ↔ Karte', parts: ['--gap-hair'] },
@@ -408,11 +390,11 @@ export function chapters(env: GuideEnv): Chapter[] {
     [
       'Ganzseitige Ansicht (Regeln, Familienalbum)',
       [
-        { where: 'Titelleiste: oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u' },
-        { where: 'Lesespalte: Rand oben/unten', parts: ['--pad-screen'] },
+        { where: 'Titelleiste: oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u' },
+        { where: 'Lesespalte: Rand oben/unten', parts: ['--gap-group'] },
         { where: 'Zwischenüberschrift: darüber', parts: ['--gap-group'], note: 'darunter 2 u' },
         { where: 'Listenpunkt ↔ Listenpunkt', parts: ['--gap-tight'] },
-        { where: 'Fußleiste: oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten mindestens der Sicherheitsrand des Geräts' },
+        { where: 'Fußleiste: oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u; unten mindestens der Sicherheitsrand des Geräts' },
       ],
     ],
     [
@@ -431,11 +413,11 @@ export function chapters(env: GuideEnv): Chapter[] {
         { where: 'Tischmitte: Stapel ↔ Ablage', parts: ['--pile-gap'] },
         { where: 'Stapel/Ablage ↔ Beschriftung', parts: ['--gap-hair'] },
         { where: 'Status-Zeile: Rand oben/unten', parts: ['--gap-tight'], note: 'links/rechts 4 u; Meldung ↔ Info 4 u' },
-        { where: 'Handleiste: Rand oben', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten 0, die Karten stehen an der Aktionsleiste' },
+        { where: 'Handleiste: Rand oben', parts: ['--gap-row'], note: 'links/rechts 4 u; unten 0, die Karten stehen an der Aktionsleiste' },
         { where: 'Hand: Zeile ↔ Zeile (zweizeilig)', parts: ['--hand-row-gap'] },
-        { where: 'Aktionsleiste: Rand oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; Knopf-Innenrand 2 u links/rechts' },
+        { where: 'Aktionsleiste: Rand oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u; Knopf-Innenrand 2 u links/rechts' },
         { where: 'Aktionsleiste: Knopf ↔ Knopf', parts: ['--gap-tight'] },
-        { where: 'Toast: Innenrand', parts: ['--pad-inner'], note: 'links/rechts 4 u; 90 u über dem unteren Rand' },
+        { where: 'Toast: Innenrand', parts: ['--gap-row'], note: 'links/rechts 4 u; 90 u über dem unteren Rand' },
       ],
     ],
     [
@@ -1027,11 +1009,11 @@ export function chapters(env: GuideEnv): Chapter[] {
         ['Master', 'Parameter', 'Wirkt auf'],
         [
           ['Rahmen', h('span', null, idChip('3.51'), ' ', idChip('3.53'), ' ', idChip('3.59'), ' ', idChip('3.60')), 'Panels, Buttons, Felder, Leisten, Chips, Tabellenlinien, Ablageziele'],
-          ['Bedienelement', h('span', null, idChip('3.30'), ' ', idChip('3.28'), ' ', idChip('3.33'), ' ', idChip('3.54')), 'Buttons und Eingabefelder: Schrift, Rahmen, Ecken, Innenrand oben/unten gemeinsam; links/rechts Button 3.28, Feld 3.33'],
-          ['Chip', h('span', null, idChip('3.38'), ' ', idChip('2.22'), ' --chip-bg · --chip-fg · --chip-line'), 'Rommé/Cheft (4.20), Nummern im Album, Namensschild im Rückblick, Zahl beim Ziehen (5.18), Nummern-Anzeige. Standard Gold, Varianten setzen nur Farben und Größe'],
+          ['Bedienelement', h('span', null, idChip('3.24'), ' ', idChip('3.23'), ' ', idChip('3.54')), 'Buttons und Eingabefelder: Schrift, Rahmen, Ecken und Innenrand gemeinsam (oben/unten 3.24, links/rechts 3.23)'],
+          ['Chip', h('span', null, idChip('3.24'), ' ', idChip('2.22'), ' --chip-bg · --chip-fg · --chip-line'), 'Rommé/Cheft (4.20), Nummern im Album, Namensschild im Rückblick, Zahl beim Ziehen (5.18), Nummern-Anzeige. Standard Gold, Varianten setzen nur Farben und Größe'],
           ['Knopfgruppe', h('span', null, idChip('3.23'), ' ', idChip('3.24'), ' --bgap'), 'Button-Reihe (4.09), Fußleiste, Aktionsleiste (3.24)'],
-          ['Stapel', idChip('3.21'), 'Menü-Panel und -Gruppen, Fenster, Einleitung des Albums, Werkstatt'],
-          ['Panel', h('span', null, idChip('3.28'), ' ', idChip('3.56'), ' ', idChip('1.53')), 'Panels, Dialoge, Toast (nur oben/unten enger)'],
+          ['Stapel', idChip('3.23'), 'Menü-Panel und -Gruppen, Fenster, Einleitung des Albums, Werkstatt'],
+          ['Panel', h('span', null, idChip('3.23'), ' ', idChip('3.56'), ' ', idChip('1.53')), 'Panels, Dialoge, Toast (nur oben/unten enger)'],
           ['Tabelle', h('span', null, idChip('3.59'), ' ', idChip('1.44')), 'Auswertung und Familienalbum teilen Linien, Innenrand, Kopf und Zahlenspalte; die Schriftgröße setzt die Tabelle selbst'],
           ['Kleiner Text', h('span', null, idChip('2.15'), ' ', idChip('2.16'), ' ', idChip('1.43')), 'Hinweis (Beschriftungen, Sitz, Familienalbum) und Mikro (Pile-Beschriftung, Faktoren, Titel der Startkarten)'],
         ],
@@ -1052,8 +1034,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   const werkGroups: Group[] = [
     masterGroup,
     scaleGroup,
-    spacingScaleGroup,
-    spacingRoleGroup,
+    spacingGroup,
     borderGroup,
     effectGroup,
     sizeTable,
@@ -1181,7 +1162,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       tier: 'werkstatt',
       title: 'Werkstatt',
       ids: '3.xx, 5.27',
-      intro: '1 u = 1 Pixel × Maßstab. Abstände sind Stufen der Skala (3.11–3.18), Rollen (3.21–3.38) geben ihnen Bedeutung; am Ende steht, wo im Spiel welcher Abstand wirkt.',
+      intro: '1 u = 1 Pixel × Maßstab. Abstände sind vier Werte (3.22–3.25); am Ende steht, wo im Spiel welcher Abstand wirkt.',
       groups: werkGroups,
     },
   ];

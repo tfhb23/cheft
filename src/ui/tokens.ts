@@ -160,29 +160,15 @@ export const BREAKPOINT_TOKENS: ValueToken[] = [
   { id: '3.06', css: '--bp-fan', name: 'Fächer', value: `${BREAKPOINTS.fan}px`, use: 'Ab hier: verdeckte Handkarten der Mitspieler sichtbar' },
 ];
 
-/** 3.11–3.18: Abstandsskala. Jede Stufe heißt nach ihren u. */
-export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
-  { id: '3.11', css: '--sp-1', units: 1 },
-  { id: '3.12', css: '--sp-2', units: 2 },
-  { id: '3.14', css: '--sp-4', units: 4 },
-  { id: '3.17', css: '--sp-8', units: 8 },
-];
-
-/** 3.21–3.49: Abstands-Rollen. Wer ändern will, ändert hier den Verweis auf die Skala. */
-export const SPACING_ROLES: { id: string; css: string; name: string; ref: string; use: string }[] = [
-  { id: '3.21', css: '--gap-stack', name: 'Abstand Stapel', ref: '--sp-4', use: 'Zwischen Knöpfen und Feldern untereinander in Panel, Dialog und Menü-Gruppe' },
-  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-8', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 12 u); auch zwischen Logo und Panel im Menü' },
-  { id: '3.23', css: '--gap-row', name: 'Abstand Reihe', ref: '--sp-4', use: 'Zwischen Knöpfen nebeneinander (btn-row), in Zeilen mit Feld und Knopf, Bot-Auswahl, Kopfleiste' },
-  { id: '3.24', css: '--gap-tight', name: 'Abstand eng', ref: '--sp-2', use: 'Wahlknöpfe (an/aus), Aktionsleiste, Sitzbeschriftung, Karten untereinander' },
-  { id: '3.25', css: '--gap-hair', name: 'Abstand haar', ref: '--sp-1', use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Karten in der Restkarten-Reihe' },
-  { id: '3.27', css: '--pad-screen', name: 'Rand Seite', ref: '--sp-8', use: 'Außenrand der Menü-Seiten' },
-  { id: '3.28', css: '--pad-inner', name: 'Innenrand (Master)', ref: '--sp-4', use: 'Innenrand von Panels, Dialogen und Toast; links/rechts in Buttons und in der Status-Zeile' },
-  { id: '3.29', css: '--pad-overlay', name: 'Rand Fenster', ref: '--sp-8', use: 'Außenrand um Fenster auf der Abdunkelung' },
-  { id: '3.30', css: '--pad-control-y', name: 'Innenrand Bedienelement oben/unten', ref: '--sp-2', use: 'Alle Buttons und Eingabefelder' },
-  { id: '3.33', css: '--pad-input-x', name: 'Innenrand Feld links/rechts', ref: '--sp-4', use: 'Eingabefelder' },
-  { id: '3.38', css: '--pad-chip-x', name: 'Innenrand Chip links/rechts', ref: '--sp-2', use: 'Alle Chips: Rommé/Cheft, Nummern, Namensschild im Rückblick, Zahl beim Ziehen' },
-  { id: '3.34', css: '--pad-bar-y', name: 'Innenrand Leiste oben/unten', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste oben' },
-  { id: '3.35', css: '--pad-bar-x', name: 'Innenrand Leiste links/rechts', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste, Kopfleiste' },
+/**
+ * 3.22–3.25: Abstände. Vier Werte, die alle Stellen im Spiel benutzen (1, 2, 4, 8 u); ihre Bedeutung steht in der Liste „Abstände im
+ * Einsatz“ im Familienalbum. Stellen mit gleichem Wert teilen sich einen Namen, es gibt keine Rohstufen daneben.
+ */
+export const SPACING_ROLES: { id: string; css: string; name: string; units: number; use: string }[] = [
+  { id: '3.25', css: '--gap-hair', name: 'Abstand haar', units: 1, use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Innenrand einer Kombination, Karten in der Restkarten-Reihe, Linienstärke' },
+  { id: '3.24', css: '--gap-tight', name: 'Abstand eng', units: 2, use: 'Wahlknöpfe (an/aus), Aktionsleiste, Karten untereinander; Innenrand oben/unten in Buttons und Feldern, links/rechts in Chips; Tisch, Kopfzeile, Status' },
+  { id: '3.23', css: '--gap-row', name: 'Abstand normal', units: 4, use: 'Zwischen Knöpfen und Feldern untereinander und nebeneinander; Innenrand von Panels, Dialogen, Toast, Buttons links/rechts, Feldern, Leisten' },
+  { id: '3.22', css: '--gap-group', name: 'Abstand groß', units: 8, use: 'Zwischen Gruppen (zusammen mit dem normalen Abstand 12 u): Menü-Gruppen, über „Zurück“, Logo und Panel; Außenrand von Seiten und Fenstern, Lesespalte' },
 ];
 
 /** 3.51–3.59: Rahmen, Schatten und Linien. */
@@ -352,8 +338,7 @@ export function tokenVars(): [string, string][] {
   for (const r of ROLE_COLORS) v.push([r.css, `var(${r.ref})`]);
   for (const f of [...FONT_TOKENS, ...WEIGHT_TOKENS, ...TYPE_MISC_TOKENS, ...BREAKPOINT_TOKENS, ...BORDER_TOKENS, ...EFFECT_TOKENS, ...Z_TOKENS]) v.push([f.css, f.value]);
   for (const f of FONT_SIZES) v.push([f.css, u(f.units)]);
-  for (const s of SPACING_SCALE) v.push([s.css, u(s.units)]);
-  for (const r of SPACING_ROLES) v.push([r.css, `var(${r.ref})`]);
+  for (const r of SPACING_ROLES) v.push([r.css, u(r.units)]);
   for (const s of SIZE_TOKENS) {
     if (s.px !== undefined) v.push([s.css, `${s.px}px`]);
     else if (s.of) v.push([s.css, `calc(var(${s.of}) * var(--s))`]);
@@ -425,7 +410,6 @@ export function allTokenIds(): string[] {
     ...TYPE_MISC_TOKENS.map((x) => x.id),
     SCALE_TOKENS.id,
     ...BREAKPOINT_TOKENS.map((x) => x.id),
-    ...SPACING_SCALE.map((x) => x.id),
     ...SPACING_ROLES.map((x) => x.id),
     ...BORDER_TOKENS.map((x) => x.id),
     ...EFFECT_TOKENS.map((x) => x.id),

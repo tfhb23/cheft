@@ -3,8 +3,6 @@ import { readFileSync } from 'node:fs';
 import {
   PALETTE_COLORS,
   ROLE_COLORS,
-  SPACING_ROLES,
-  SPACING_SCALE,
   allTokenIds,
   color,
   tokenVars,
@@ -28,11 +26,9 @@ describe('Design-Tokens', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('Rollen zeigen auf vorhandene Palettenfarben, Abstandsrollen auf vorhandene Stufen', () => {
+  it('Rollen zeigen auf vorhandene Palettenfarben', () => {
     const palette = new Set(PALETTE_COLORS.map((c) => c.css));
     for (const r of ROLE_COLORS) expect(palette.has(r.ref), `${r.css} → ${r.ref}`).toBe(true);
-    const scale = new Set(SPACING_SCALE.map((s) => s.css));
-    for (const r of SPACING_ROLES) expect(scale.has(r.ref), `${r.css} → ${r.ref}`).toBe(true);
   });
 
   it('Farben sind gültige Hex- oder rgba-Werte', () => {
