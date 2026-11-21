@@ -123,9 +123,8 @@ export const FONT_SIZES: { id: string; css: string; name: string; units: number;
   { id: '2.11', css: '--fs-display', name: 'Display', units: 22, use: 'Logo-Schriftzug (h1)' },
   { id: '2.12', css: '--fs-title', name: 'Titel', units: 12, use: 'Fenster- und Seitentitel (h2), Rückblick-Banner' },
   { id: '2.13', css: '--fs-body', name: 'Text', units: 10, use: 'Standardtext, Buttons, Eingaben, Zwischenüberschrift (h3), Zähler auf dem Stapel' },
-  { id: '2.14', css: '--fs-label', name: 'Label', units: 9, use: 'Status-Zeile, Auswertungstabelle, Toast, Spielername am Sitz' },
-  { id: '2.15', css: '--fs-caption', name: 'Hinweis', units: 8, use: 'Hinweise, Sitz-Beschriftung, Info-Zeile, Namensschild im Rückblick, Zählerchip beim Ziehen' },
-  { id: '2.16', css: '--fs-micro', name: 'Mikro', units: 7, use: 'Badge, Stapel-Beschriftung, Faktoren und Zuwachs in Tabellen, „genommen von“' },
+  { id: '2.15', css: '--fs-caption', name: 'Hinweis', units: 8, use: 'Hinweise, Sitz-Beschriftung und Spielername, Status-Zeile, Auswertungstabelle, Toast, Info-Zeile, Namensschilder, Chips mit Nummern' },
+  { id: '2.16', css: '--fs-micro', name: 'Mikro', units: 6, use: 'Badge, Stapel-Beschriftung, Faktoren und Zuwachs in Tabellen, „genommen von“' },
 ];
 
 export const TYPE_MISC_TOKENS: ValueToken[] = [
