@@ -171,7 +171,7 @@ details > * + * { margin-top: var(--gap-tight); }
     var(--bw) 0, var(--bw) 100%, 0 var(--bw), 100% var(--bw),
     var(--t) var(--t), calc(100% - var(--t)) var(--t), var(--t) calc(100% - var(--t)), calc(100% - var(--t)) calc(100% - var(--t));
 }
-.card.temp::before { --t: calc(var(--bw-mark) + var(--bw)); --c: var(--ink); }
+.card.temp::before { --t: var(--bw-temp); --c: var(--ink); }
 /* Abgeblendet ohne Durchscheinen (nicht gewählte Kartenrückseiten in den Einstellungen) */
 .card.dim { filter: var(--filter-dim); }
 .card.hidden-anim { visibility: hidden; }
@@ -248,16 +248,16 @@ details > * + * { margin-top: var(--gap-tight); }
 .open-card .meld { padding: 0; }
 /* Beschriftungen der Mitte entfallen, sobald am Tisch etwas kleiner als zum Start ist (ruhigeres Bild) */
 .table.shrunk .pile-label { display: none; }
-.seat-inner > .fan, .seat-inner > .fan-wrap { align-self: center; }
-/* Offene (vorübergehende) Karten des Spielers am Zug: am Ende des Fächers untereinander, am Handy nur die obere Hälfte am äußeren Rand */
-.fan-wrap { position: relative; }
-.temp-col { position: absolute; left: calc(100% + var(--gap-tight)); bottom: 0; display: flex; flex-direction: column; }
-.temp-col .card + .card { margin-top: calc(var(--px-card-h) * var(--so) * -0.6); }
+.seat-inner > .fan { align-self: center; }
+/* Offene (vorübergehende) Karten des Spielers am Zug: mit dem Fächer in einer Reihe, wie die verdeckten nur als obere Hälfte; ohne Fächer (Handy)
+   nur die obere Hälfte am äußeren Rand der Auslage. Der Rahmen (3.50) wird von der Überlappung abgezogen, damit von jeder Karte so viel
+   zu sehen bleibt wie ohne Rahmen; oben bekommt der Fächer Platz für den Rahmen. */
 .temp-edge { position: absolute; left: 0; right: 0; bottom: calc(-1 * var(--gap-tight)); display: flex; justify-content: center; pointer-events: none; }
 .seat-top .temp-edge { bottom: auto; top: calc(-1 * var(--gap-tight)); }
-.temp-half { display: flex; gap: var(--gap-hair); }
+.temp-half { display: flex; }
+.temp-half .half + .half { margin-left: calc(var(--px-ov-meld) * var(--so) + var(--bw-temp)); }
 /* Die halbe Karte ragt über den Spielfeldrand hinaus: Sie reicht bis zur Kante (Innenrand des Tisches mitgerechnet), und der Rahmen fehlt an der Außenseite. */
-.temp-half .half { width: calc(var(--px-card-w) * var(--so)); height: calc(var(--px-card-h) * var(--so) / 2 + var(--gap-tight)); overflow: hidden; outline: var(--bw-mark) solid var(--mark-temp); box-shadow: 0 0 0 calc(var(--bw-mark) + var(--bw)) var(--ink); clip-path: inset(calc(-1 * (var(--bw-mark) + var(--bw))) calc(-1 * (var(--bw-mark) + var(--bw))) 0 calc(-1 * (var(--bw-mark) + var(--bw)))); }
+.temp-half .half { width: calc(var(--px-card-w) * var(--so)); height: calc(var(--px-card-h) * var(--so) / 2 + var(--gap-tight)); overflow: hidden; outline: var(--bw-mark) solid var(--mark-temp); box-shadow: 0 0 0 var(--bw-temp) var(--ink); clip-path: inset(calc(-1 * (var(--bw-mark) + var(--bw))) calc(-1 * (var(--bw-mark) + var(--bw))) 0 calc(-1 * (var(--bw-mark) + var(--bw)))); }
 .flip180 .open-card > span { display: inline-block; transform: rotate(180deg); }
 .seat-left .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(90deg) translateY(-100%); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }
@@ -274,6 +274,8 @@ details > * + * { margin-top: var(--gap-tight); }
 .fan { display: flex; height: calc(var(--px-card-h) * var(--so) * 0.55); overflow: hidden; }
 .fan .card { margin-left: calc(var(--px-ov-back) * var(--so)); }
 .fan .card:first-child { margin-left: 0; }
+.fan.has-temp { height: calc(var(--px-card-h) * var(--so) * 0.55 + var(--bw-temp)); padding: var(--bw-temp) var(--bw-temp) 0; }
+.fan .card.temp { margin-left: calc(var(--px-ov-meld) * var(--so) + var(--bw-temp)); }
 .melds { display: flex; flex-wrap: wrap; gap: var(--gap-tight) var(--gap-row); align-content: flex-start; }
 .seat-top .melds, .seat-left .melds, .seat-right .melds, .seat-left .reveal, .seat-right .reveal { justify-content: center; }
 .seat-left .seat-inner, .seat-right .seat-inner { justify-content: center; }

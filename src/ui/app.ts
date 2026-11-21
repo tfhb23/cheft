@@ -1476,13 +1476,10 @@ export class App {
       const backId = this.seatBack(seat.pid);
       const temps = seat.pid === current(s) && !r.ended ? pr.hand.filter((c) => tempIds.has(c.id) && c.id >= 0) : [];
       const fanHand = (r.waiting && seat.pid === r.starter ? pr.hand.slice(carpetJk.length, -1) : pr.hand).filter((c) => !temps.includes(c));
-      const fanEl = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
-      // Vorübergehende Karten liegen offen am Ende des Fächers (untereinander); ohne Fächer (Handy) ragt von jeder nur die obere
-      // Hälfte am äußeren Rand der Auslage herein.
-      let fan: HTMLElement | null = fanEl;
-      if (temps.length && showFan) {
-        fan = h('div', { class: 'fan-wrap' }, fanEl, h('div', { class: 'temp-col' }, ...temps.map((c) => this.cardEl(c, { small: true, temp: true }))));
-      }
+      // Vorübergehende Karten stehen offen am Ende des Fächers (wie die verdeckten nur als obere Hälfte); ohne Fächer (Handy) ragt von
+      // jeder nur die obere Hälfte am äußeren Rand der Auslage herein.
+      const fanCards = [...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId })), ...(showFan ? temps.map((c) => this.cardEl(c, { small: true, temp: true })) : [])];
+      const fan: HTMLElement | null = showFan && fanCards.length ? h('div', { class: `fan${temps.length ? ' has-temp' : ''}` }, ...fanCards) : null;
       const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true })))) : null;
       const inner =
         seat.pos === 'top'

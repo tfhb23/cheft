@@ -189,6 +189,7 @@ export const SPACING_ROLES: { id: string; css: string; name: string; ref: string
 export const BORDER_TOKENS: ValueToken[] = [
   { id: '3.51', css: '--bw', name: 'Rahmenstärke', value: u(1), use: 'Rahmen aller Panels, Buttons, Felder, Karten-Rückblick (1 u)' },
   { id: '3.52', css: '--bw-mark', name: 'Markierungsstärke', value: u(2), use: 'Auswahl, Leuchten, rote Markierung vorübergehender Karten, Ablagezone (2 u)' },
+  { id: '3.50', css: '--bw-temp', name: 'Rahmen vorübergehende Karte', value: 'calc(var(--bw-mark) + var(--bw))', use: 'Roter Rahmen (2 u) plus dunkler Ring (1 u) um eine vorübergehende Karte; diese Breite wird bei Mitspielern von der Überlappung abgezogen' },
   { id: '3.53', css: '--border', name: 'Rahmen', value: 'var(--bw) solid var(--ink)', use: 'Standardrahmen aller Panels, Buttons, Felder, Leisten und Namensschilder (Master)' },
   { id: '3.59', css: '--border-soft', name: 'Rahmen weich', value: 'var(--bw) solid var(--line-soft)', use: 'Tabellenlinien und Zeilentrenner (Master)' },
   { id: '3.60', css: '--border-drop', name: 'Rahmen Ablageziel', value: 'var(--bw-mark) dashed var(--accent)', use: 'Gestrichelte Ablageziele: Halbkreis, Kombination, Ablage (Master)' },
