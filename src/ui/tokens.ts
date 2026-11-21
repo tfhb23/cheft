@@ -178,11 +178,11 @@ export const BORDER_TOKENS: ValueToken[] = [
   { id: '3.50', css: '--bw-temp', name: 'Rahmen vorübergehende Karte', value: 'calc(var(--bw-mark) + var(--bw))', use: 'Roter Rahmen (2 u) plus dunkler Ring (1 u) um eine vorübergehende Karte; diese Breite wird bei Mitspielern von der Überlappung abgezogen' },
   { id: '3.53', css: '--border', name: 'Rahmen', value: 'var(--bw) solid var(--ink)', use: 'Standardrahmen aller Panels, Buttons, Felder, Leisten und Namensschilder (Master)' },
   { id: '3.59', css: '--border-soft', name: 'Rahmen weich', value: 'var(--bw) solid var(--line-soft)', use: 'Tabellenlinien und Zeilentrenner (Master)' },
-  { id: '3.60', css: '--border-drop', name: 'Rahmen Ablageziel', value: 'var(--bw-mark) dashed var(--accent)', use: 'Gestrichelte Ablageziele: Halbkreis, Kombination, Ablage (Master)' },
+  { id: '3.60', css: '--border-drop', name: 'Rahmen Ablageziel', value: 'var(--bw-mark) dashed var(--accent)', use: 'Gestrichelte Ablageziele: Halbkreis, Kombination, Kontur der Ablage (Master)' },
   { id: '3.54', css: '--radius', name: 'Eckenradius', value: '0', use: 'Keine abgerundeten Ecken (Pixel-Look). Die Kartenecken sind in den Sprites abgerundet' },
   { id: '3.55', css: '--sh-btn', name: 'Schatten Button', value: `${u(1)} ${u(1)} 0 var(--ink)`, use: 'Buttons (gedrückt: kein Schatten, 1 u verschoben)' },
   { id: '3.56', css: '--sh-panel', name: 'Schatten Panel', value: `${u(2)} ${u(2)} 0 var(--line-soft)`, use: 'Panels, Dialoge, Toast, gezogener Sitz in der Lobby' },
-  { id: '3.57', css: '--sh-card', name: 'Schatten klein', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Stapel, Teppichkarte, Ablage, Porträts, Logo-Schriftzug' },
+  { id: '3.57', css: '--sh-card', name: 'Schatten klein', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Stapel, Teppichkarte, Ablage (als drop-shadow: folgt der Kartenform mit den abgerundeten Pixelecken), Porträts, Logo-Schriftzug' },
 ];
 
 /** 3.61–3.69: Wirkung auf Karten. */
@@ -249,6 +249,7 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.99', css: '--discard-pad-y', name: 'Ablage Zusatzhöhe', units: 18, use: 'dito' },
   { id: '3.100', css: '--discard-x', name: 'Ablage Versatz links', units: 12, use: 'Oberste Karte in der Ablage' },
   { id: '3.101', css: '--discard-y', name: 'Ablage Versatz oben', units: 9, use: 'dito' },
+  { id: '3.116', css: '--discard-gap', name: 'Ablageziel Abstand', units: 8, use: 'Abstand der gestrichelten Kontur um alle Ablagekarten (wie der Halbkreis zum Auslegen Abstand zur Scheibe hat)' },
   { id: '3.102', css: '--count-size', name: 'Größe Zähler auf Stapel', units: 14, use: 'Kästchen mit der Restzahl (ab 7 Karten)' },
   { id: '3.103', css: '--count-x', name: 'Zähler Position links', units: 9, use: 'Kästchen auf dem Stapel' },
   { id: '3.104', css: '--count-y', name: 'Zähler Position oben', units: 15, use: 'Kästchen auf dem Stapel' },
@@ -355,7 +356,7 @@ export function tokenVars(): [string, string][] {
  * Im Bereich `.center` gilt darum --s = --sc, und diese Maße werden dort neu berechnet (benutzerdefinierte Variablen erben ihren
  * berechneten Wert, sie rechnen nicht selbst nach).
  */
-export const CENTER_VARS = ['--card-w', '--card-h', '--atlas-w', '--atlas-h', '--pile-gap', '--stock-shift', '--carpet-shift', '--discard-pad-x', '--discard-pad-y', '--discard-x', '--discard-y', '--count-size', '--count-x', '--count-y'];
+export const CENTER_VARS = ['--card-w', '--card-h', '--atlas-w', '--atlas-h', '--pile-gap', '--stock-shift', '--carpet-shift', '--discard-pad-x', '--discard-pad-y', '--discard-x', '--discard-y', '--discard-gap', '--count-size', '--count-x', '--count-y'];
 
 /** Kompletter CSS-Text mit allen Variablen (und den Umschaltpunkten, die keine Variablen können). */
 export function tokensCss(): string {

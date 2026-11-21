@@ -164,6 +164,8 @@ function liveRows(el: Element, kind: Live): [string, string][] {
     if (pad.some((x) => x)) rows.push(['Innenabstand', `${pad.join(' / ')} u (oben / rechts / unten / links)`]);
     const r = el.getBoundingClientRect();
     rows.push(['Größe', `${Math.round((r.width / s) * 10) / 10} × ${Math.round((r.height / s) * 10) / 10} u`]);
+    const ds = cs.filter.match(/drop-shadow\((rgba?\([^)]+\))\s+(-?[\d.]+)px\s+(-?[\d.]+)px/);
+    if (cs.boxShadow === 'none' && ds) rows.push(['Schatten', `${Math.round((parseFloat(ds[2]) / s) * 10) / 10} / ${Math.round((parseFloat(ds[3]) / s) * 10) / 10} u, ${colorLabel(ds[1])}, folgt der Kartenform`]);
     if (cs.boxShadow !== 'none') {
       const m = cs.boxShadow.match(/(rgba?\([^)]+\))\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/);
       rows.push(['Schatten', m ? `${Math.round((parseFloat(m[2]) / s) * 10) / 10} / ${Math.round((parseFloat(m[3]) / s) * 10) / 10} u, ${colorLabel(m[1])}${m[5] && parseFloat(m[5]) ? `, Ausbreitung ${Math.round((parseFloat(m[5]) / s) * 10) / 10} u` : ''}` : 'ja']);
@@ -725,20 +727,20 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '6.30', name: 'Kombination Folge', where: 'Auslage jedes Sitzes, auch der eigenen: gleiche Stufe (--so, 6.18)', code: 'meldEl(cards) · cardEl(card, { small: true })', sel: '.meld', stage: () => melds('run', true), live: 'box' },
     { id: '6.31', name: 'Kombination Satz mit Joker', where: 'Auslage', code: 'meldEl(cards)', stage: () => melds('set', true) },
     { id: '6.32', name: 'Cheft-Paar', where: 'Auslage: zwei gleiche Karten, gleich überlappt wie jede Kombination', code: "meldEl(cards, { pair: true }) · .meld.pair", sel: '.meld.pair', stage: () => melds('pair', true) },
-    { id: '6.40', name: 'Stapel', where: 'Tischmitte: Rücken mit Dicke (eine Kante je angefangene 8 Karten, höchstens 7)', code: 'App.stockEl()', sel: '.stock-wrap > .card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0, marginRight: 'calc(7 * var(--s))', marginBottom: 'calc(7 * var(--s))' } }, (() => { const e = c('back'); const sh: string[] = []; for (let i = 7; i >= 1; i--) sh.push(`calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 0 var(--c-cream)`, `calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 1px var(--c-sand-dark)`); e.style.boxShadow = sh.join(', '); return e; })()) },
+    { id: '6.40', name: 'Stapel', where: 'Tischmitte: Rücken mit Dicke (eine Kante je angefangene 8 Karten, höchstens 7); die Kanten folgen der Kartenform samt abgerundeten Ecken (drop-shadow)', code: 'App.stockEl()', sel: '.stock-wrap > .card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0, marginRight: 'calc(7 * var(--s))', marginBottom: 'calc(7 * var(--s))' } }, (() => { const e = c('back'); const sh: string[] = []; for (let i = 0; i < 7; i++) sh.push('drop-shadow(calc(var(--s) - 1px) calc(var(--s) - 1px) 0 var(--c-cream))', 'drop-shadow(1px 1px 0 var(--c-sand-dark))'); e.style.filter = sh.join(' '); return e; })()) },
     { id: '6.41', name: 'Teppichkarte', where: 'Quer unter dem Stapel, offen', code: '.carpet', sel: '.carpet', stage: () => h('div', { style: { position: 'relative', width: 'calc(1.4 * var(--card-h))', height: 'calc(1.2 * var(--card-w))' } }, h('div', { class: 'carpet', style: { left: 'calc(0.2 * var(--card-h))' } }, c(card('S', 11, -520)))) },
     { id: '6.42', name: 'Ablage', where: 'Tischmitte: Karten liegen verstreut; die oberste ist ziehbar', code: '.discard', sel: '.discard', stage: () => h('div', { class: 'discard' }, ...[[0, 0, -10], [3, -2, 14], [-2, 4, -20]].map(([dx, dy, rot], i) => { const e = c(card('C', 4 + i, -530 - i)); e.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`; e.style.zIndex = String(i); return e; })), stageCls: 'flat' },
     {
       id: '6.44',
       name: 'Ablageziel',
-      where: 'Beim Ziehen von Karten: wohin man sie legen kann. Gestrichelt in Orange (2 u); fährt man darüber, kommt die Hervorhebung (1.57) dazu. Drei Formen: Halbkreis hinter der eigenen Auslage (Auslegen), Kombination (Anlegen, auch Joker klauen) und Ablage (Abwerfen)',
-      code: '.drop-halo · .meld.can · .discard.drop',
-      sel: '.drop-halo, .meld.can, .discard.drop',
+      where: 'Beim Ziehen von Karten: wohin man sie legen kann. Gestrichelt in Orange (2 u); fährt man darüber, kommt die Hervorhebung (1.57) dazu. Drei Formen: Halbkreis hinter der eigenen Auslage (Auslegen), Kombination (Anlegen, auch Joker klauen) und Ablage (Abwerfen): eine Kontur im Abstand 3.116 um alle Ablagekarten, deren Fläche zum Loslassen zählt',
+      code: '.drop-halo · .meld.can · .discard-zone',
+      sel: '.drop-halo, .meld.can, .discard-zone',
       stage: () => {
         const box = (extra: Record<string, string>, over: boolean) => h('div', { style: { border: 'var(--border-drop)', boxSizing: 'border-box', background: over ? 'color-mix(in srgb, var(--surface-highlight) 50%, transparent)' : 'transparent', ...extra } });
         const form = (label: string, extra: Record<string, string>) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--gap-hair)' } }, h('div', { style: { display: 'flex', gap: 'var(--gap-row)' } }, box(extra, false), box(extra, true)), hint(label));
         const w = { width: 'calc(3 * var(--card-w))', height: 'var(--card-h)' };
-        return [form('Eigene Auslage: möglich | darüber', { ...w, borderRadius: '50%' }), form('Kombination: möglich | darüber', w), form('Ablage: möglich | darüber', { width: 'var(--card-w)', height: 'var(--card-h)' })];
+        return [form('Eigene Auslage: möglich | darüber', { ...w, borderRadius: '50%' }), form('Kombination: möglich | darüber', w), form('Ablage (Kontur um alle Karten): möglich | darüber', { width: 'calc(var(--card-w) + 2 * var(--discard-gap))', height: 'calc(var(--card-h) + 2 * var(--discard-gap))', borderRadius: 'var(--discard-gap)' })];
       },
       stageCls: 'flat',
     },

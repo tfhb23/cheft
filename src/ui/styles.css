@@ -240,10 +240,13 @@ details > * + * { margin-top: var(--gap-tight); }
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
 .drop-halo { position: absolute; border: var(--border-drop); border-radius: 50%; box-sizing: border-box; pointer-events: none; }
 .table.drag-on .meld.can { outline: var(--border-drop); outline-offset: calc(-1 * var(--bw-mark)); }
-/* Ablage als Ablageziel: gleiche gestrichelte Linie wie der Halbkreis zum Auslegen */
-.discard::after { content: ''; position: absolute; inset: 0; border: var(--border-drop); box-sizing: border-box; pointer-events: none; display: none; }
-.table.drag-on .discard::after { display: block; }
-.discard.drop::after, .table.drop-own .drop-halo { background: var(--surface-highlight); opacity: 0.5; }
+/* Ablage als Ablageziel: gleiche gestrichelte Linie wie der Halbkreis zum Auslegen, als Kontur im Abstand 3.116 um alle Ablagekarten
+   (Pfad kommt aus dropzone.ts, nur beim Ziehen vorhanden). Die Fläche innerhalb der Linie ist die Fläche zum Loslassen. */
+.discard-zone { position: absolute; overflow: visible; pointer-events: none; }
+.discard-zone path { fill: transparent; stroke: var(--accent); stroke-width: var(--bw-mark); stroke-dasharray: calc(3 * var(--bw-mark)) calc(2 * var(--bw-mark)); stroke-linejoin: round; pointer-events: all; }
+.discard.drop .discard-zone { opacity: 0.5; }
+.discard.drop .discard-zone path { fill: var(--surface-highlight); }
+.table.drop-own .drop-halo { background: var(--surface-highlight); opacity: 0.5; }
 .own-label { margin: var(--gap-hair) auto 0; width: fit-content; }
 .own .melds { justify-content: center; }
 .seat-inner { position: relative; transform-origin: top left; display: flex; flex-direction: column; gap: var(--gap-tight); }
@@ -297,7 +300,7 @@ details > * + * { margin-top: var(--gap-tight); }
 .meld.hover { background: var(--surface-highlight); }
 .meld.clickable { cursor: pointer; }
 
-/* Stapel, Teppichkarte, Ablage */
+/* Stapel, Teppichkarte, Ablage. Der Schatten der Karten ist ein drop-shadow (folgt der Kartenform samt abgerundeten Pixelecken), kein box-shadow (Rechteck) */
 .piles { display: grid; grid-template-columns: auto auto; align-items: start; justify-content: center; column-gap: var(--pile-gap); row-gap: var(--gap-hair); }
 /* Beschriftungen alle in derselben Schrift, ganz nah an der Karte: „Stapel“ unter dem Stapel, „Ablage“ unter dem leeren Ablagefeld
    (später von Karten verdeckt, das stört nicht), „Teppich“ gedreht links neben der Teppichkarte, zentriert zu ihrer Mitte */
@@ -311,10 +314,10 @@ details > * + * { margin-top: var(--gap-tight); }
 .stock-wrap { position: relative; margin-left: var(--stock-shift); margin-top: var(--discard-y); } /* Stapelkarte und Ablage-Platz beginnen auf gleicher Höhe, egal wie dick der Stapel ist */
 .stock-wrap .count-on-card { pointer-events: none; position: absolute; left: var(--count-x); top: var(--count-y); width: var(--count-size); height: var(--count-size); background: var(--surface-field); border: var(--border); color: var(--text-strong); font-size: var(--fs-body); line-height: calc(var(--count-size) - 2 * var(--bw)); text-align: center; z-index: 2; }
 .carpet { position: absolute; top: 0; left: var(--carpet-shift); transform: rotate(-90deg); transform-origin: center; z-index: 0; }
-.carpet .card { box-shadow: var(--sh-card); }
-.stock-wrap > .card { position: relative; z-index: 1; box-shadow: var(--sh-card); }
+.carpet .card { filter: drop-shadow(var(--sh-card)); }
+.stock-wrap > .card { position: relative; z-index: 1; filter: drop-shadow(var(--sh-card)); }
 .discard { position: relative; width: calc(var(--card-w) + var(--discard-pad-x)); height: calc(var(--card-h) + var(--discard-pad-y)); }
-.discard .card { position: absolute; left: var(--discard-x); top: var(--discard-y); box-shadow: var(--sh-card); }
+.discard .card { position: absolute; left: var(--discard-x); top: var(--discard-y); filter: drop-shadow(var(--sh-card)); }
 .discard .slot-hint { position: absolute; left: var(--discard-x); top: var(--discard-y); }
 .discard, .discard .card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 

@@ -45,6 +45,7 @@ import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DIS
 import { ScaleStep, crispScale, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
+import { discardContour, Pt } from './dropzone';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl, SNAPSHOT_TTL_MS } from '../net/client';
 import { RoundView } from '../engine/view';
@@ -1895,9 +1896,11 @@ export class App {
     const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { onClick: clickable ? () => this.pileTap('stock') : undefined });
     if (n > 0) {
       const layers = Math.min(7, Math.ceil(n / 8));
-      const shadows: string[] = [];
-      for (let i = 1; i <= layers; i++) shadows.push(`calc(${i} * var(--s)) calc(${i} * var(--s)) 0 0 var(--surface-field)`, `calc(${i} * var(--s)) calc(${i} * var(--s)) 0 1px var(--line-soft)`);
-      el.style.boxShadow = shadows.reverse().join(', ');
+      // Je Lage ein Streifen Feldfarbe (1 u minus 1 Pixel) und eine feine weiche Linie (1 Pixel). Jeder drop-shadow wirft den Schatten des bisherigen
+      // Ergebnisses, die Lagen stapeln sich also von selbst und folgen der Kartenform samt abgerundeten Ecken (anders als box-shadow).
+      const parts: string[] = [];
+      for (let i = 0; i < layers; i++) parts.push('drop-shadow(calc(var(--s) - 1px) calc(var(--s) - 1px) 0 var(--surface-field))', 'drop-shadow(1px 1px 0 var(--line-soft))');
+      el.style.filter = parts.join(' ');
       el.style.marginBottom = `calc(${layers} * var(--s))`;
       el.style.marginRight = `calc(${layers} * var(--s))`;
     }
@@ -2281,6 +2284,12 @@ export class App {
       });
     }
     table?.querySelector('.drop-halo')?.remove();
+    table?.querySelector('.discard-zone')?.remove();
+    const disc = table?.querySelector('.discard') as HTMLElement | null;
+    if (on && disc) {
+      const zone = this.discardZoneEl(disc);
+      if (zone) disc.appendChild(zone);
+    }
     const c = on ? this.discZoneCircle() : null;
     const clip = table?.querySelector('.turn-clip') as HTMLElement | null;
     if (c && clip && table) {
@@ -2292,6 +2301,40 @@ export class App {
       halo.style.top = `${c.cy - c.r - tr.top}px`;
       clip.appendChild(halo);
     }
+  }
+
+  /** Gestrichelte Kontur um alle Ablagekarten (6.44): Eckpunkte der gedrehten Karten, Abstand --discard-gap. */
+  private discardZoneEl(disc: HTMLElement): SVGSVGElement | null {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--discard-gap)';
+    disc.appendChild(probe);
+    const gap = probe.offsetWidth;
+    probe.remove();
+    const cards = Array.from(disc.children).filter((e): e is HTMLElement => e instanceof HTMLElement && e.classList.contains('card'));
+    const polys: Pt[][] = cards.map((c) => {
+      const m = new DOMMatrix(getComputedStyle(c).transform);
+      const cx = c.offsetLeft + c.offsetWidth / 2;
+      const cy = c.offsetTop + c.offsetHeight / 2;
+      return ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as Pt[]).map(([sx, sy]) => {
+        const dx = (sx * c.offsetWidth) / 2;
+        const dy = (sy * c.offsetHeight) / 2;
+        return [cx + m.a * dx + m.c * dy + m.e, cy + m.b * dx + m.d * dy + m.f] as Pt;
+      });
+    });
+    const ct = discardContour(polys, gap);
+    if (!ct) return null;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'discard-zone');
+    svg.setAttribute('width', String(ct.w));
+    svg.setAttribute('height', String(ct.h));
+    svg.style.left = `${ct.x}px`;
+    svg.style.top = `${ct.y}px`;
+    svg.style.zIndex = String(cards.length + 2);
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', ct.d);
+    svg.appendChild(path);
+    return svg;
   }
 
   private setOver(zone: HTMLElement | null): void {
