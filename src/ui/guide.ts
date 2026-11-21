@@ -578,7 +578,14 @@ export function chapters(env: GuideEnv): Chapter[] {
     S: { id: '5.53', world: 'Die Bösen · weiße Haare, Brille, Monokel, Zylinder, blasse Haut, Schwarz', chars: { 11: ['weißer Topfschnitt, runde Brille', ''], 12: ['Beret, Schönheitspunkt', 'weißer Bob, Brille, Melone mit rotem Band'], 13: ['Zylinder, Monokel, weißes langes Haar', 'breiter Zylinder, Glatze, Schnurrbart'] }, colors: ['skin-s', 'eye-s'] },
   };
   const fold = (title: string, ...children: Child[]): HTMLElement => h('details', { class: 'fold' }, h('summary', { class: 'hint' }, title), ...children);
-  const colorRows = (names: string[]): HTMLElement => colorGrid(names.map((n) => PALETTE_COLORS.find((x) => x.css === `--c-${n}`)!), false);
+  const colorRows = (names: string[]): HTMLElement =>
+    table(
+      ['Nr.', 'Farbe', 'Wert'],
+      names.map((n) => {
+        const col = PALETTE_COLORS.find((x) => x.css === `--c-${n}`)!;
+        return [idChip(col.id), h('span', null, h('span', { class: 'swatch', style: { background: col.value } }), ` ${col.name}`), col.value];
+      }),
+    );
   /** Person ohne Karte: der Ausschnitt mit Kopf und Schultern (Spalten 10–23, Zeilen 8–32 der Karte). */
   const portrait = (su: string, rank: number, deck: 0 | 1): HTMLElement => {
     const rows = FACE_ART[`${su}${rank}`][deck].slice(8, 33).map((r) => r.slice(10, 24));
@@ -595,8 +602,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       h('div', { class: 'spec-head fam-head' }, h('span', { class: 'fam-suit', style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink } }, art(SUIT_SHAPES[su], undefined, 2)), h('h3', null, suitName[su]), idChip(f.id)),
       h('div', { class: 'hint fam-world' }, f.world),
       h('div', { class: 'fam-chars' }, ...chars),
-      h('div', { class: 'hint fam-world' }, `Farben dieser Familie (${f.colors.length}, nur für die Figuren)`),
-      colorRows(f.colors),
+      fold(`Farben dieser Familie (${f.colors.length}, nur für die Figuren)`, colorRows(f.colors)),
     );
   };
   const familiesNode = (): HTMLElement =>

@@ -461,6 +461,7 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .spec-also { display: flex; flex-direction: column; gap: var(--gap-hair); }
 .spec-vals dt { color: var(--text-muted); }
 .spec-vals dd { margin: 0; color: var(--text-strong); }
+.swatch { display: inline-block; vertical-align: middle; width: var(--size-btn-icon); height: var(--size-btn-icon); border: var(--border); flex: none; }
 .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--w-fam-char) * 0.62), 1fr)); gap: var(--gap-group) var(--gap-tight); }
 .color-tile { display: flex; flex-direction: column; gap: var(--gap-hair); min-width: 0; text-align: center; align-items: center; }
 .color-chip { width: 100%; height: calc(2.5 * var(--size-btn-icon)); border: var(--border); box-sizing: border-box; }
