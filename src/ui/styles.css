@@ -411,7 +411,8 @@ table.rounds .delta { display: block; font-size: var(--fs-micro); color: var(--t
 .fam-world { text-align: center; }
 .fam-pair { display: flex; gap: var(--gap-tight); }
 .fam-name { color: var(--text-strong); }
-.portrait { background: var(--surface-field); border: var(--border); box-shadow: var(--sh-card); line-height: 0; }
+/* Porträts ohne eigenen Rahmen: Die Figuren stehen direkt auf der Panel-Fläche */
+.portrait { line-height: 0; }
 .portrait svg { display: block; }
 /* Rückseiten: alle gleichwertig, Paar nebeneinander, darunter Name und Nummer */
 /* Mittig auf der Achse: auch die letzte, kürzere Reihe steht in der Mitte */
