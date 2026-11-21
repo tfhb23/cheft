@@ -28,14 +28,31 @@ export interface ColorToken {
   use: string;
 }
 
+/** Mischt zwei Farben (#rrggbb): t = 0 ergibt a, t = 1 ergibt b, dazwischen je Farbkanal linear, auf ganze Zahlen gerundet. */
+export function mixHex(a: string, b: string, t: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+  const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t));
+  return `#${out.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Sandleiter: zehn gleich große Schritte von Creme (Stufe 0) bis Sand (Stufe 9). Nur diese beiden Enden sind festgelegt,
+ * alle Stufen dazwischen ergeben sich per Formel (sandStep). Stufe 3 und 6 sind der Seitenhintergrund, ein Teppich-Hintergrund
+ * würde vier Stufen aus der Mitte nutzen und die Stufen neben Creme und Sand freilassen (Abstand zu Karten und Leiste).
+ */
+const CREAM_HEX = '#fbf6ea';
+const SAND_HEX = '#cdbb94';
+export const SAND_STEPS = 9;
+export const sandStep = (n: number): string => mixHex(CREAM_HEX, SAND_HEX, n / SAND_STEPS);
+
 /** 1.01–1.36: Palette. Echte Farbwerte, jeder nur einmal. */
 export const PALETTE_COLORS: ColorToken[] = [
   { id: '1.01', css: '--c-ink', name: 'Tinte', value: '#23201f', group: 'Tinte und Text', use: 'Kartenkontur und alle schwarzen Farben der Karten' },
   { id: '1.02', css: '--c-ink-soft', name: 'Tinte weich', value: '#5a4d44', group: 'Tinte und Text', use: '' },
-  { id: '1.05', css: '--c-cream', name: 'Creme', value: '#fbf6ea', group: 'Flächen', use: 'Kartenvorderseite' },
-  { id: '1.06', css: '--c-sand', name: 'Sand', value: '#efe2c6', group: 'Flächen', use: '' },
-  { id: '1.07', css: '--c-sand-light', name: 'Sand hell', value: '#f4eadb', group: 'Flächen', use: '' },
-  { id: '1.08', css: '--c-sand-dark', name: 'Sand dunkel', value: '#cdbb94', group: 'Flächen', use: '' },
+  { id: '1.05', css: '--c-cream', name: 'Creme', value: CREAM_HEX, group: 'Flächen', use: 'Kartenvorderseite; Stufe 0 der Sandleiter' },
+  { id: '1.06', css: '--c-sand-3', name: 'Sandstufe 3', value: sandStep(3), group: 'Flächen', use: 'Stufe 3 von 9 der Sandleiter, per Formel aus Creme und Sand' },
+  { id: '1.07', css: '--c-sand-6', name: 'Sandstufe 6', value: sandStep(6), group: 'Flächen', use: 'Stufe 6 von 9 der Sandleiter, per Formel aus Creme und Sand' },
+  { id: '1.08', css: '--c-sand', name: 'Sand', value: SAND_HEX, group: 'Flächen', use: 'Stufe 9 (Ende) der Sandleiter' },
   { id: '1.09', css: '--c-gray', name: 'Grau', value: '#c9c0b2', group: 'Flächen', use: '' },
   { id: '1.10', css: '--c-orange', name: 'Cheft-Orange', value: '#f06a2d', group: 'Marke', use: 'Kartenrücken Deck 1' },
   { id: '1.11', css: '--c-orange-dark', name: 'Orange dunkel', value: '#b94718', group: 'Marke', use: 'Muster der Rückseiten in Deck 1' },
@@ -79,16 +96,16 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.43', css: '--text-muted', name: 'Text gedämpft', ref: '--c-ink-soft', group: 'Text', use: 'Feldbeschriftungen, Hinweise, Stapel-Beschriftung, Badge, Rahmen deaktivierter Buttons' },
   { id: '1.44', css: '--accent-dark', name: 'Orange dunkel', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Gedächtnis und Spielweise im Bot-Info-Fenster, Rahmen des Cheft-Chips' },
   { id: '1.46', css: '--text-on-accent', name: 'Text auf Fläche', ref: '--c-cream', group: 'Text', use: 'Schrift auf Orange, Dunkel, Rot und auf dem abgedunkelten Tisch' },
-  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel), Chip Rommé' },
-  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-light', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
+  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand-6', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel), Chip Rommé' },
+  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-3', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
   { id: '1.53', css: '--surface-panel', name: 'Panel', ref: '--c-cream', group: 'Fläche', use: 'Panels, Dialoge, Buttons, Kopf- und Fußleisten, Toast, Sitzreihen in der Lobby' },
   { id: '1.54', css: '--surface-field', name: 'Feld', ref: '--c-cream', group: 'Fläche', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel' },
-  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand-dark', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
+  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
   { id: '1.57', css: '--surface-highlight', name: 'Hervorhebung', ref: '--c-orange-pale', group: 'Fläche', use: 'Ablagezone, Hover auf Kombination, angetippte Wahloption, Balken im Punkteverlauf' },
   { id: '1.58', css: '--surface-disabled', name: 'Deaktiviert', ref: '--c-gray', group: 'Fläche', use: 'Deaktivierte Buttons' },
   { id: '1.59', css: '--surface-positive', name: 'Positiv', ref: '--c-green-pale', group: 'Fläche', use: 'Balken des Rundensiegers' },
   { id: '1.64', css: '--ink', name: 'Tinte', ref: '--c-ink', group: 'Linie', use: 'Standardrahmen, Trennlinien der Leisten, harte Schatten der Buttons, dunkler Button (Cheft)' },
-  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand-dark', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen, weiche Schatten von Panels, Karten, Toast und Überschrift' },
+  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen, weiche Schatten von Panels, Karten, Toast und Überschrift' },
   { id: '1.71', css: '--accent', name: 'Orange', ref: '--c-orange', group: 'Marke und Signal', use: 'Primär-Button, Logo-Schriftzug, Cheft-Chip, ausgewählte Karte, Ablagezone, Auswahl-Rahmen, Zählerchip beim Ziehen' },
   { id: '1.62', css: '--danger', name: 'Gefahr', ref: '--c-red', group: 'Marke und Signal', use: 'Gefahr-Button, Fehlermeldung (Text und Rahmen)' },
   { id: '1.63', css: '--gold', name: 'Gold', ref: '--c-gold', group: 'Marke und Signal', use: 'Namensschild des aktiven Spielers, Namensschild und Linie im Rückblick, Nummern-Punkte' },

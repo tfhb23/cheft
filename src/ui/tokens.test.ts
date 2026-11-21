@@ -4,6 +4,7 @@ import {
   PALETTE_COLORS,
   ROLE_COLORS,
   allTokenIds,
+  SAND_STEPS,
   sandStep,
   color,
   tokenVars,
