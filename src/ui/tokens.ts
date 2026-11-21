@@ -166,7 +166,6 @@ export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
   { id: '3.12', css: '--sp-2', units: 2 },
   { id: '3.14', css: '--sp-4', units: 4 },
   { id: '3.17', css: '--sp-8', units: 8 },
-  { id: '3.18', css: '--sp-16', units: 16 },
 ];
 
 /** 3.21–3.49: Abstands-Rollen. Wer ändern will, ändert hier den Verweis auf die Skala. */
@@ -208,6 +207,7 @@ export const EFFECT_TOKENS: ValueToken[] = [
   { id: '3.64', css: '--op-taken', name: 'Deckkraft genommen', value: '0.55', use: 'Im Rückblick: Karte, die schon jemand genommen hat' },
   { id: '3.65', css: '--op-peek-line', name: 'Deckkraft Rückblick-Linie', value: '0.8', use: 'Gestrichelte Linie von der Ablage zum Namensschild' },
   { id: '3.66', css: '--lift-selected', name: 'Anheben', value: u(6), use: 'Markierte Handkarte schiebt sich nach oben (6 u)' },
+  { id: '3.69', css: '--lift-logo', name: 'Anheben Logo-Karte', value: u(2), use: 'Mittlere Karte im Logo steht 2 u höher' },
   { id: '3.67', css: '--rot-logo', name: 'Neigung Logo-Karten', value: '6deg', use: 'Linke und rechte Karte im Logo (mittlere gerade)' },
 ];
 
@@ -234,21 +234,20 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.72', css: '--px-card-h', name: 'Karte Höhe (Basis)', px: CARD_PX.h, use: 'dito' },
   { id: '3.73', css: '--px-atlas-w', name: 'Atlas Breite (Basis)', px: CARD_PX.atlasW, use: 'Sprite-Atlas: 8 Spalten × 32 Pixel' },
   { id: '3.74', css: '--px-atlas-h', name: 'Atlas Höhe (Basis)', px: CARD_PX.atlasH, use: 'Sprite-Atlas: 9 Zeilen × 44 Pixel' },
-  { id: '3.75', css: '--px-ov-meld', name: 'Überlappung Kombination (Basis)', px: -18, use: 'Karten einer Auslage; auch Mini-Karten in „Wie auslegen?“' },
-  { id: '3.76', css: '--px-ov-pair', name: 'Überlappung Paar (Basis)', px: -20, use: 'Cheft-Paar' },
-  { id: '3.77', css: '--px-ov-fan', name: 'Überlappung Fächer (Basis)', px: -26, use: 'Verdeckte Handkarten der Mitspieler' },
-  { id: '3.78', css: '--px-ov-mini-back', name: 'Überlappung Mini-Rücken', px: -22, use: 'Verdeckte Restkarten in der Auswertung' },
+  { id: '3.75', css: '--px-ov-meld', name: 'Überlappung offene Karten (Basis)', px: -20, use: 'Karten einer Auslage, auch das Cheft-Paar; Mini-Karten in „Wie auslegen?“' },
+  { id: '3.77', css: '--px-ov-back', name: 'Überlappung verdeckte Karten (Basis)', px: -24, use: 'Fächer der Mitspieler und verdeckte Restkarten in der Auswertung' },
   { id: '3.79', css: '--card-w', name: 'Karte Breite', of: '--px-card-w', use: 'Handkarten (Basis × --s). Tischmitte (Stapel, Ablage, Teppichkarte): Basis × --sc, im Bereich .center neu berechnet. Alle Auslagen, auch die eigene: Basis × --so (Klasse .o)' },
   { id: '3.80', css: '--card-h', name: 'Karte Höhe', of: '--px-card-h', use: 'dito' },
   { id: '3.81', css: '--atlas-w', name: 'Atlas Breite', of: '--px-atlas-w', use: 'Hintergrundgröße der Karten (Basis × --s)' },
   { id: '3.82', css: '--atlas-h', name: 'Atlas Höhe', of: '--px-atlas-h', use: 'dito' },
-  { id: '3.83', css: '--ov-meld', name: 'Überlappung Kombination', of: '--px-ov-meld', use: 'Karten einer eigenen Auslage' },
-  { id: '3.84', css: '--ov-pair', name: 'Überlappung Paar', of: '--px-ov-pair', use: 'Cheft-Paar in der eigenen Auslage' },
+  { id: '3.83', css: '--ov-meld', name: 'Überlappung offene Karten', of: '--px-ov-meld', use: 'Karten einer eigenen Auslage, auch Cheft-Paar' },
   { id: '3.86', css: '--w-menu', name: 'Breite Menü-Panel', units: 170, use: 'Panels der Menü-Seiten' },
   { id: '3.87', css: '--w-dialog', name: 'Breite Dialog', units: 230, use: 'Alle Fenster (Overlay)' },
   { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Familienalbum (ca. 65 Zeichen)' },
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
+  { id: '3.113', css: '--center-extra', name: 'Mindesthöhe Mitte: Zusatz', units: 16, use: 'Tischmitte ist mindestens so hoch wie eine Karte plus dieser Wert' },
+  { id: '3.114', css: '--w-fam-char', name: 'Breite Figur im Familienalbum', units: 80, use: 'Eine Figur mit Paar im Familienalbum (zwei Porträts nebeneinander)' },
   { id: '3.111', css: '--size-dot', name: 'Größe Nummern-Punkt', units: 5, use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
