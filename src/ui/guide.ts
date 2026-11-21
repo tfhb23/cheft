@@ -71,6 +71,8 @@ export interface Spec {
   /** Welche berechneten Werte angezeigt werden und an welchem Element sie gemessen werden. */
   live?: Live;
   liveSel?: string;
+  /** Weitere Nummern, die im Spiel denselben Stil teilen: Sie stehen bei diesem Eintrag, ihre Nummern-Punkte im Spiel bleiben. */
+  also?: { id: string; name: string; where?: string; sel?: string }[];
   /** Zusätzliche feste Angaben (Zeile für Zeile: Name, Wert). */
   facts?: [string, string][];
 }
@@ -196,6 +198,7 @@ function specEl(sp: Spec): HTMLElement {
     'div',
     { class: 'panel spec', id: `${NS}-${sp.id}` },
     h('div', { class: 'spec-head' }, idChip(sp.id), h('span', { class: 'spec-name' }, sp.name)),
+    sp.also?.length ? h('div', { class: 'spec-where spec-also' }, ...sp.also.map((a) => h('div', null, idChip(a.id), ` ${a.name}${a.where ? ': ' + a.where : ''}`))) : null,
     stage,
     vals.childElementCount || sp.live ? vals : null,
     sp.where ? h('div', { class: 'spec-where' }, `Wo: ${sp.where}`) : null,
@@ -210,6 +213,25 @@ function table(head: string[], rows: Child[][], numCols: number[] = []): HTMLEle
     h('thead', null, h('tr', null, ...head.map((x, i) => h('th', { class: numCols.includes(i) ? 'num' : '' }, x)))),
     h('tbody', null, ...rows.map((r) => h('tr', null, ...r.map((c, i) => h('td', { class: numCols.includes(i) ? 'num' : '' }, c))))),
   );
+}
+
+const flat = (x: Child | Child[]): Child[] => (Array.isArray(x) ? x : [x]);
+
+/**
+ * Fasst Einträge zusammen, die im Spiel denselben Stil teilen (nur Größe, Ausrichtung oder Breite unterscheiden sich). Der erste
+ * Eintrag der Gruppe bleibt; die Nummern der übrigen stehen bei ihm als „auch“, damit die Nummern-Punkte im Spiel bleiben.
+ */
+function mergeSpecs(list: Spec[], ...groups: string[][]): Spec[] {
+  let out = list;
+  for (const [mainId, ...ids] of groups) {
+    const main = out.find((x) => x.id === mainId);
+    const parts = ids.map((i) => out.find((x) => x.id === i));
+    if (!main || parts.some((p) => !p)) throw new Error(`mergeSpecs: ${mainId} ${ids.join(' ')}`);
+    const all = [main, ...(parts as Spec[])];
+    const merged: Spec = { ...main, stageCls: 'flat', stage: () => all.flatMap((p) => flat(p.stage())), also: (parts as Spec[]).map((p) => ({ id: p.id, name: p.name, where: p.where, sel: p.sel })) };
+    out = out.filter((x) => !ids.includes(x.id)).map((x) => (x.id === mainId ? merged : x));
+  }
+  return out;
 }
 
 /** Zelle mit Haupttext und kleiner Zeile darunter. */
@@ -261,7 +283,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   }));
 
   // ----- 2 Typografie
-  const typeRoles: Spec[] = [
+  const typeRolesRaw: Spec[] = [
     { id: '2.30', name: 'Logo-Schriftzug (h1)', where: 'Menü', code: 'h1', sel: 'h1', stage: () => h('h1', null, t('app.title')), live: 'text' },
     { id: '2.31', name: 'Titel (h2)', where: 'Seiten- und Fenstertitel, immer zentriert', code: 'h2', sel: 'h2', stage: () => h('h2', null, t('btn.settings')), live: 'text' },
     { id: '2.32', name: 'Zwischenüberschrift links (h3)', where: 'Regeln, Familienalbum: Abschnitte', code: '.rules h3', sel: '.rules h3', stage: () => h('div', { class: 'rules' }, h('h3', null, 'Spielablauf')), live: 'text', liveSel: 'h3' },
@@ -285,6 +307,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe: Schild an jeder Karte', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
   ];
+  const typeRoles = mergeSpecs(typeRolesRaw, ['2.32', '2.33'], ['2.37', '2.38', '2.44'], ['2.40', '2.36'], ['2.41', '2.43'], ['2.39', '2.54'], ['2.35', '2.46']);
 
   const fontSpecs: Spec[] = FONT_TOKENS.map((f) => ({
     id: f.id,
@@ -327,7 +350,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     })),
   };
   const spacingRoleGroup: Group = {
-    title: 'Abstands-Rollen (3.21–3.37)',
+    title: 'Abstands-Rollen (3.21–3.38)',
     note: 'Einen Abstand im ganzen Spiel ändern: den Verweis auf die Skala ändern (tokens.ts › SPACING_ROLES).',
     node: tokenTable(
       ['Nr.', 'Rolle', 'Wert'],
@@ -348,10 +371,10 @@ export function chapters(env: GuideEnv): Chapter[] {
       'Menü und Seiten mit Panel (Neues Spiel, Online, Beitreten, Lobby)',
       [
         { where: 'Seitenrand außen', parts: ['--pad-screen'], note: 'Rand um Logo und Panel' },
-        { where: 'Logo ↔ Panel', parts: ['--gap-screen'] },
+        { where: 'Logo ↔ Panel', parts: ['--gap-group'] },
         { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--sp-3'], note: '1 u Logo-Abstand + 3 u unter den Karten' },
         { where: 'Logo: Schriftzug ↔ Untertitel', parts: ['--gap-hair'] },
-        { where: 'Panel: Innenrand', parts: ['--pad-panel'] },
+        { where: 'Panel: Innenrand', parts: ['--pad-inner'] },
         { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-stack'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
         { where: 'Menü: Gruppe ↔ Gruppe (Weiterspielen/Neues Spiel | Online | Regeln/Guide/Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Stapelabstand + Gruppen-Zusatz' },
         { where: 'Über „Zurück“ (Neues Spiel, Mit Freunden, Beitreten, Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Wie zwischen Menü-Gruppen: „Zurück“ steht immer abgesetzt' },
@@ -367,7 +390,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       'Fenster (Dialog, Einstellungen, Punkte, Auswertung, Pause, Auswahl)',
       [
         { where: 'Fenster ↔ Bildschirmrand', parts: ['--pad-overlay'] },
-        { where: 'Fenster: Innenrand', parts: ['--pad-panel'] },
+        { where: 'Fenster: Innenrand', parts: ['--pad-inner'] },
         { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-stack'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
         { where: 'Über „Zurück“', parts: ['--gap-stack', '--gap-group'] },
         { where: 'Zwei Knöpfe nebeneinander (Abbrechen | Aktion)', parts: ['--gap-row'] },
@@ -451,8 +474,8 @@ export function chapters(env: GuideEnv): Chapter[] {
         if (b.css === '--bw') return h('div', { class: 'panel', style: { boxShadow: 'none' } }, 'Rahmen 1 u');
         if (b.css === '--bw-mark') return h('div', { style: { width: 'calc(4 * var(--size-btn-icon))', height: 'var(--size-btn-icon)', outline: 'var(--bw-mark) solid var(--accent)', background: 'var(--surface-panel)' } });
         if (b.css === '--radius') return h('div', { class: 'panel', style: { boxShadow: 'none' } }, 'Ecken eckig (0)');
-        if (b.css === '--sh-heading') return h('h1', null, 'Cheft');
-        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--bw) solid var(--ink)', boxShadow: `var(${b.css})`, margin: 'var(--sp-6)' } });
+        if (b.css === '--sh-card') return h('h1', null, 'Cheft');
+        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--border)', boxShadow: `var(${b.css})`, margin: 'var(--sp-6)' } });
       };
       return { id: b.id, name: b.name, where: b.use, code: `${b.css}: ${b.value}`, stage };
     }),
@@ -464,7 +487,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
 
   // ----- 4 Bedienelemente
-  const btnSpecs: Spec[] = [
+  const btnSpecsRaw: Spec[] = [
     { id: '4.01', name: 'Button Standard', where: 'Alle normalen Aktionen, inaktive Wahlknöpfe', code: 'btn(label, onClick)', sel: '.btn:not(.primary):not(.dark):not(.danger):not(.icon):not(.back):not(:disabled)', stage: () => btn(t('btn.newGame')), live: 'both' },
     { id: '4.02', name: 'Button Primär', where: 'Die eine Hauptaktion einer Ansicht, gewählte Wahlknöpfe', code: "btn(label, onClick, { variant: 'primary' })", sel: '.btn.primary:not(:disabled)', stage: () => btn(t('btn.start'), undefined, { variant: 'primary' }), live: 'both' },
     { id: '4.03', name: 'Button Dunkel', where: 'Cheft ansagen (Aktionsleiste, ganz links)', code: "variant: 'dark'", sel: '.btn.dark:not(:disabled)', stage: () => btn(t('btn.cheft'), undefined, { variant: 'dark' }), live: 'both' },
@@ -473,25 +496,27 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '4.06', name: 'Button Zurück', where: 'Letzter Knopf jedes Fensters und jeder Seite (Neues Spiel, Online, Beitreten, Einstellungen, Punkte, Info-Dialog, Regeln, Familienalbum)', code: 'backBtn(onClick) → this.back()', sel: '.btn.back', stage: () => backBtn(() => undefined), live: 'both', facts: [['Regel', 'Immer „Zurück“, immer Standard-Variante, immer ganz unten. In Stapeln steht ein Gruppen-Zusatzabstand (3.22) darüber.']] },
     { id: '4.07', name: 'Button Piktogramm', where: 'Kopfzeile im Spiel, Entfernen in der Lobby', code: 'iconBtn(icon, title, onClick)', sel: '.btn.icon', stage: () => ICONS.map((i) => iconBtn(pixelIcon(i.rows), i.name)), live: 'box' },
     { id: '4.08', name: 'Button gedrückt', where: 'Beim Antippen: Schatten weg, 1 u nach unten rechts', code: '.btn:active / .btn.active', stage: () => h('button', { class: 'btn active' }, t('btn.newGame')), live: 'box' },
-    { id: '4.09', name: 'Button-Reihe', where: 'Zwei Knöpfe nebeneinander in Fenstern (Abbrechen | Aktion, Tisch ansehen | Nächste Runde)', code: '.btn-row', sel: '.btn-row', stage: () => h('div', { class: 'btn-row', style: { width: '100%' } }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' })), live: 'box', liveSel: '.btn-row' },
+    { id: '4.09', name: 'Knopfgruppe', where: 'Zwei Knöpfe nebeneinander in Fenstern (Abbrechen | Aktion, Tisch ansehen | Nächste Runde)', code: '.btn-row', sel: '.btn-row', stage: () => h('div', { class: 'btn-row', style: { width: '100%' } }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' })), live: 'box', liveSel: '.btn-row' },
     { id: '4.10', name: 'Button in Aktionsleiste', where: 'Cheft, Auslegen, Anlegen, Abwerfen (innen schmaler: 2 u links/rechts)', code: '.actions .btn', stage: () => h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.discard'))), live: 'box', liveSel: '.btn' },
   ];
+  const btnSpecs = mergeSpecs(btnSpecsRaw, ['4.09', '4.10']);
   const choiceDemo = (): HTMLElement =>
     h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.speed')), h('div', { class: 'choices' }, btn(t('settings.speed.normal'), undefined, { variant: 'primary' }), btn(t('settings.speed.fast'))));
-  const inputSpecs: Spec[] = [
+  const inputSpecsRaw: Spec[] = [
     { id: '4.11', name: 'Auswahlzeile', where: 'Alle Einstellungen: Bot-Tempo, Vibration, Sounds, Runden, Sitzplätze …', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
     { id: '4.12', name: 'Bot-Auswahl', where: 'Neues Spiel, Lobby: Stufe und Spielweise', code: 'App.botPicker() · .bot-pick', sel: '.bot-pick', stage: () => h('div', { class: 'bot-pick', style: { width: '100%' } }, h('div', { class: 'bot-col' }, hint(t('setup.level')), btn(t('level.hard'), undefined, { variant: 'primary' })), h('div', { class: 'bot-col' }, hint(t('setup.style')), btn(t('setup.random')))), stageCls: 'flat', live: 'box', liveSel: '.bot-pick' },
-    { id: '4.13', name: 'Texteingabe', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
+    { id: '4.13', name: 'Eingabefeld', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
     { id: '4.14', name: 'Namensfeld', where: 'Lobby und Einstellungen online: eigener Name', code: 'input.text.name-edit', sel: 'input.text.name-edit', stage: () => h('input', { class: 'text name-edit', type: 'text', value: 'Tobi' }), stageCls: 'flat', live: 'box' },
     { id: '4.15', name: 'Codefeld', where: 'Raumcode eingeben', code: 'input.text.code', sel: 'input.text.code', stage: () => h('input', { class: 'text code', type: 'text', value: '232' }), stageCls: 'flat', live: 'both' },
     { id: '4.16', name: 'Mehrzeiliges Feld', where: 'Spielstand-Code einfügen/kopieren, Link kopieren', code: 'textarea.text', sel: 'textarea.text', stage: () => h('textarea', { class: 'text', rows: '3' }, 'CHEFT1-ABCDEFGH…'), stageCls: 'flat', live: 'box' },
     { id: '4.17', name: 'Auf-/Zuklapper', where: 'Online: Server-Adresse', code: 'details > summary.hint', sel: 'details', stage: () => h('details', { open: 'open' }, h('summary', { class: 'hint' }, t('online.server')), hint(t('online.serverHint'))), stageCls: 'flat', live: 'box', liveSel: 'details' },
     { id: '4.18', name: 'Einstellungs-Zeile (nur lesen)', where: 'Lobby für Mitspieler ohne Rechte', code: '.summary-row', sel: '.summary-row', stage: () => h('div', { class: 'row spread summary-row', style: { width: '100%' } }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, '7')), stageCls: 'flat', live: 'box', liveSel: '.summary-row' },
     { id: '4.19', name: 'Sortier-Griff', where: 'Lobby: Sitzordnung ziehen (nur Gastgeber)', code: '.handle', sel: '.handle', stage: () => h('span', { class: 'handle' }), live: 'box' },
-    { id: '4.20', name: 'Chip Rommé', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
+    { id: '4.20', name: 'Chip (Rommé, Cheft)', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
     { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange mit Rahmen (5.12), die übrigen dunkel und abgeblendet (5.15). Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
     { id: '4.21', name: 'Chip Cheft', where: 'Sitz-Beschriftung: Spieler hat Cheft angesagt', code: "badge(text, 'cheft')", sel: '.badge.cheft', stage: () => badge(t('mode.cheft'), 'cheft'), live: 'both' },
   ];
+  const inputSpecs = mergeSpecs(inputSpecsRaw, ['4.13', '4.14', '4.15', '4.16'], ['4.20', '4.21']);
 
   // ----- 5 Karten und Grafiken
   const numberCards: Spec = {
@@ -590,8 +615,8 @@ export function chapters(env: GuideEnv): Chapter[] {
     return h(
       'div',
       { class: 'panel fam', id: `${NS}-${f.id}` },
-      h('div', { class: 'spec-head' }, h('span', { class: 'fam-suit', style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink } }, art(SUIT_SHAPES[su], undefined, 2)), h('h3', null, suitName[su]), idChip(f.id)),
-      h('div', { class: 'hint' }, f.world),
+      h('div', { class: 'spec-head fam-head' }, h('span', { class: 'fam-suit', style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink } }, art(SUIT_SHAPES[su], undefined, 2)), h('h3', null, suitName[su]), idChip(f.id)),
+      h('div', { class: 'hint fam-world' }, f.world),
       h('div', { class: 'fam-chars' }, ...chars),
       fold(`Farben dieser Familie (${f.colors.length}, nur für die Figuren)`, colorRows(f.colors)),
     );
@@ -641,7 +666,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'Hintergrundmuster',
       where: 'Hinter allen Seiten: Schachbrett aus Sand (1.06) und Sand hell (1.07), Kachel 8 u',
       code: 'body · --tile',
-      stage: () => h('div', { style: { width: 'calc(8 * var(--tile))', height: 'calc(3 * var(--tile))', background: 'var(--surface-page)', backgroundImage: 'repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%)', backgroundSize: 'var(--tile) var(--tile)', border: 'var(--bw) solid var(--ink)' } }),
+      stage: () => h('div', { style: { width: 'calc(8 * var(--tile))', height: 'calc(3 * var(--tile))', background: 'var(--surface-page)', backgroundImage: 'repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%)', backgroundSize: 'var(--tile) var(--tile)', border: 'var(--border)' } }),
       stageCls: 'flat',
     },
     {
@@ -721,7 +746,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       code: '.drop-halo · .meld.can · .discard.drop',
       sel: '.drop-halo, .meld.can, .discard.drop',
       stage: () => {
-        const box = (extra: Record<string, string>, over: boolean) => h('div', { style: { border: 'var(--bw-mark) dashed var(--accent)', boxSizing: 'border-box', background: over ? 'color-mix(in srgb, var(--surface-highlight) 50%, transparent)' : 'transparent', ...extra } });
+        const box = (extra: Record<string, string>, over: boolean) => h('div', { style: { border: 'var(--border-drop)', boxSizing: 'border-box', background: over ? 'color-mix(in srgb, var(--surface-highlight) 50%, transparent)' : 'transparent', ...extra } });
         const form = (label: string, extra: Record<string, string>) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--gap-hair)' } }, h('div', { style: { display: 'flex', gap: 'var(--gap-row)' } }, box(extra, false), box(extra, true)), hint(label));
         const w = { width: 'calc(3 * var(--card-w))', height: 'var(--card-h)' };
         return [form('Eigene Auslage: möglich | darüber', { ...w, borderRadius: '50%' }), form('Kombination: möglich | darüber', w), form('Ablage: möglich | darüber', { width: 'var(--card-w)', height: 'var(--card-h)' })];
@@ -771,7 +796,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   ];
 
   // ----- 7 Fenster
-  const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { margin: '0 auto' } }, ...children);
+  const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { width: 'var(--w-dialog)', maxWidth: '100%' } }, ...children);
   // Standard sind vier Spieler: Spalten in Spielreihenfolge ab dem Startspieler der ersten Runde (App.renderRoundsTable)
   const players4 = ['Emil', 'Tobi', 'Zhao', 'Neo'];
   const roundPoints = [
@@ -797,9 +822,9 @@ export function chapters(env: GuideEnv): Chapter[] {
       h('td', { class: 'num' }, total),
       h('td', { class: 'num' }, sum),
     );
-  const windows: Spec[] = [
+  const windowsRaw: Spec[] = [
     { id: '7.01', name: 'Fenster (Grundform)', where: 'Alle Fenster: Titel, Inhalt, Knöpfe auf Abdunkelung; max. 230 u breit', code: 'windowEl(children, onBackdrop?)', sel: '.overlay > .dialog', stage: () => dlg(h('h2', null, t('pause.title')), h('p', null, t('pause.text')), btn(t('pause.resume'), undefined, { variant: 'primary' })), stageCls: 'flat', live: 'box', liveSel: '.dialog' },
-    { id: '7.02', name: 'Entscheidung', where: 'Cheft ansagen: Abbrechen | Aktion (primär)', code: 'askDialog({ buttons: [Abbrechen, Aktion] })', stage: () => dlg(h('h2', null, t('confirm.cheft.title')), h('p', null, t('confirm.cheft')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
+    { id: '7.02', name: 'Dialog: Entscheidung, Gefahr, Eingabe, Information', where: 'Cheft ansagen: Abbrechen | Aktion (primär)', code: 'askDialog({ buttons: [Abbrechen, Aktion] })', stage: () => dlg(h('h2', null, t('confirm.cheft.title')), h('p', null, t('confirm.cheft')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.03', name: 'Entscheidung mit Gefahr', where: 'Spiel abbrechen, Raum verlassen: Aktion rot', code: "askDialog({ buttons: [… { danger: true }] })", stage: () => dlg(h('h2', null, t('confirm.quit.title')), h('p', null, t('confirm.quit')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.quit'), undefined, { variant: 'danger' }))), stageCls: 'flat' },
     { id: '7.04', name: 'Eingabe', where: 'Spielstand-Code einfügen', code: 'askDialog({ input })', stage: () => dlg(h('h2', null, t('btn.importSave')), h('p', null, t('save.prompt')), h('textarea', { class: 'text', rows: '3', placeholder: '…' }), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.load'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.05', name: 'Information', where: 'Code zum Kopieren, wenn die Zwischenablage nicht geht', code: 'askDialog({ back: true })', stage: () => dlg(h('h2', null, t('lobby.copy')), h('textarea', { class: 'text', rows: '2', readonly: 'readonly' }, 'https://cheft.beigi.eu/232'), backBtn(() => undefined)), stageCls: 'flat' },
@@ -861,6 +886,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '7.21', name: 'Toast Fehler', where: 'Unerlaubte Aktion, Verbindungsfehler: rot', code: 'toastEl(msg, true)', stage: () => staticToast(t('err.cannotAdd'), true), stageCls: 'flat', live: 'both', liveSel: '.toast' },
     { id: '7.30', name: 'Abdunkelung', where: 'Hinter jedem Fenster; ein Tipp daneben = „Zurück“, aber nur bei Fenstern, die nur anzeigen', code: '.overlay', stage: () => h('div', { class: 'overlay', style: { position: 'relative', width: '100%', height: 'calc(2 * var(--size-btn-icon))', inset: 'auto', padding: 0, zIndex: 'auto' } }, hint('Abdunkelung 1.18')), stageCls: 'flat', live: 'box', liveSel: '.overlay' },
   ];
+  const windows = mergeSpecs(windowsRaw, ['7.01', '7.09'], ['7.02', '7.03', '7.04', '7.05'], ['7.10', '7.12'], ['7.20', '7.21']);
 
   // ----- 8 Seiten
   const anatomy = (rows: [string, string][]): (() => HTMLElement) => () => table(['Nr.', 'Element'], rows.map(([id, text]) => [idChip(id), text]));
@@ -901,8 +927,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { title: '8.04 Beitreten (Spiel läuft)', node: anatomy([['2.31', 'Titel'], ['2.37', 'Hinweis'], ['4.01', 'Ein Knopf je übernehmbarem Platz'], ['4.06', 'Zurück']]) },
     { title: '8.05 Lobby', node: anatomy([['2.31', 'Titel (Raumcode)'], ['4.01', 'Link / Raumcode kopieren'], ['4.19', 'Sitzreihen mit Griff, Name (4.14), Chips (4.20), Entfernen (4.07), Bot-Auswahl (4.12)'], ['4.01', 'Bot hinzufügen'], ['4.11', 'Einstellungen (Gastgeber) oder 4.18 (Mitspieler)'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.04', 'Raum verlassen']]) },
     { title: '8.06 Regeln', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['2.32', 'Zwischenüberschriften'], ['2.35', 'Listen'], ['4.06', 'Zurück (zum Menü oder ins Spiel)']]) },
-    { title: '8.07 Familienalbum', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['2.32', 'Kapitel (2.31) und Gruppen (2.32)'], ['4.11', 'Nummern im Spiel (in der Werkstatt)'], ['4.06', 'Zurück zum Menü']]) },
-    { title: '8.08 Spielfeld', node: anatomy([['6.01', 'Kopfzeile'], ['6.11–6.15', 'Sitze, Mitte, eigene Auslage'], ['6.50', 'Status'], ['6.60', 'Hand'], ['6.62', 'Aktionen']]) },
+    { title: '8.07 Familienalbum', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['4.01', 'Kapitel-Knöpfe (zentriert)'], ['2.32', 'Marke / Tisch (Überschriften) und Kapitel mit Nummernbereich'], ['4.06', 'Zurück zum Menü']]) },
   ];
 
   // ----- 9 Sound
@@ -989,6 +1014,24 @@ export function chapters(env: GuideEnv): Chapter[] {
     stageCls: 'flat',
     facts: [['Zellen', `H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55 · Bildkarten Deck 2: ${FACE2_CELL}–${ATLAS_CELLS - 1} (H, D, C, S je Bube, Dame, König)`]],
   };
+  const masterGroup: Group = {
+    title: 'Master-Stile',
+    note: 'Elemente, die im Spiel denselben Stil teilen, stehen in styles.css in einer gemeinsamen Regel und lesen ihre Werte aus denselben Variablen. Ein Wert ändert alle Stellen; die Varianten setzen nur, was sie anders machen.',
+    node: () =>
+      table(
+        ['Master', 'Parameter', 'Wirkt auf'],
+        [
+          ['Rahmen', h('span', null, idChip('3.51'), ' ', idChip('3.53'), ' ', idChip('3.59'), ' ', idChip('3.60')), 'Panels, Buttons, Felder, Leisten, Chips, Tabellenlinien, Ablageziele'],
+          ['Bedienelement', h('span', null, idChip('3.30'), ' ', idChip('3.28'), ' ', idChip('3.33'), ' ', idChip('3.54')), 'Buttons und Eingabefelder: Schrift, Rahmen, Ecken, Innenrand oben/unten gemeinsam; links/rechts Button 3.28, Feld 3.33'],
+          ['Chip', h('span', null, idChip('3.38'), ' ', idChip('2.22'), ' --chip-bg · --chip-fg · --chip-line'), 'Rommé/Cheft (4.20), Nummern im Album, Namensschild im Rückblick, Zahl beim Ziehen (5.18), Nummern-Anzeige. Standard Gold, Varianten setzen nur Farben und Größe'],
+          ['Knopfgruppe', h('span', null, idChip('3.23'), ' ', idChip('3.24'), ' --bgap'), 'Button-Reihe (4.09), Fußleiste, Aktionsleiste (3.24)'],
+          ['Stapel', idChip('3.21'), 'Menü-Panel und -Gruppen, Fenster, Einleitung des Albums, Werkstatt'],
+          ['Panel', h('span', null, idChip('3.28'), ' ', idChip('3.56'), ' ', idChip('1.53')), 'Panels, Dialoge, Toast (nur oben/unten enger)'],
+          ['Tabelle', h('span', null, idChip('3.59'), ' ', idChip('1.44')), 'Auswertung und Familienalbum teilen Linien, Innenrand, Kopf und Zahlenspalte; die Schriftgröße setzt die Tabelle selbst'],
+          ['Kleiner Text', h('span', null, idChip('2.15'), ' ', idChip('2.16'), ' ', idChip('1.43')), 'Hinweis (Beschriftungen, Sitz, Familienalbum) und Mikro (Pile-Beschriftung, Faktoren, Titel der Startkarten)'],
+        ],
+      ),
+  };
   const scaleGroup: Group = {
           title: 'Maßstab (3.01) und Umschaltpunkte (3.05–3.06)',
           node: tokenTable(
@@ -1002,6 +1045,7 @@ export function chapters(env: GuideEnv): Chapter[] {
           ),
         };
   const werkGroups: Group[] = [
+    masterGroup,
     scaleGroup,
     spacingScaleGroup,
     spacingRoleGroup,
@@ -1132,7 +1176,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       tier: 'werkstatt',
       title: 'Werkstatt',
       ids: '3.xx, 5.27',
-      intro: '1 u = 1 Pixel × Maßstab. Abstände sind Stufen der Skala (3.11–3.18), Rollen (3.21–3.37) geben ihnen Bedeutung; am Ende steht, wo im Spiel welcher Abstand wirkt.',
+      intro: '1 u = 1 Pixel × Maßstab. Abstände sind Stufen der Skala (3.11–3.18), Rollen (3.21–3.38) geben ihnen Bedeutung; am Ende steht, wo im Spiel welcher Abstand wirkt.',
       groups: werkGroups,
     },
   ];
@@ -1142,7 +1186,10 @@ export function chapters(env: GuideEnv): Chapter[] {
 export function labelTargets(): { id: string; sel: string; name: string }[] {
   const stub = {} as GuideEnv;
   const out: { id: string; sel: string; name: string }[] = [];
-  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) if (sp.sel) out.push({ id: sp.id, sel: sp.sel, name: sp.name });
+  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) {
+    if (sp.sel) out.push({ id: sp.id, sel: sp.sel, name: sp.name });
+    for (const a of sp.also ?? []) if (a.sel) out.push({ id: a.id, sel: a.sel, name: a.name });
+  }
   return out;
 }
 
@@ -1150,7 +1197,7 @@ export function labelTargets(): { id: string; sel: string; name: string }[] {
 export function allSpecIds(): string[] {
   const stub = {} as GuideEnv;
   const out: string[] = [];
-  for (const ch of chapters(stub)) for (const g of ch.groups) out.push(...(g.specs ?? []).map((sp) => sp.id), ...(g.ids ?? []));
+  for (const ch of chapters(stub)) for (const g of ch.groups) out.push(...(g.specs ?? []).flatMap((sp) => [sp.id, ...(sp.also ?? []).map((a) => a.id)]), ...(g.ids ?? []));
   return out;
 }
 

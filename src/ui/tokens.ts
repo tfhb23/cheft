@@ -176,33 +176,31 @@ export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
 /** 3.21–3.49: Abstands-Rollen. Wer ändern will, ändert hier den Verweis auf die Skala. */
 export const SPACING_ROLES: { id: string; css: string; name: string; ref: string; use: string }[] = [
   { id: '3.21', css: '--gap-stack', name: 'Abstand Stapel', ref: '--sp-4', use: 'Zwischen Knöpfen und Feldern untereinander in Panel, Dialog und Menü-Gruppe' },
-  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-6', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 10 u)' },
+  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-6', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 10 u); auch zwischen Logo und Panel im Menü' },
   { id: '3.23', css: '--gap-row', name: 'Abstand Reihe', ref: '--sp-3', use: 'Zwischen Knöpfen nebeneinander (btn-row), in Zeilen mit Feld und Knopf, Bot-Auswahl, Kopfleiste' },
   { id: '3.24', css: '--gap-tight', name: 'Abstand eng', ref: '--sp-2', use: 'Wahlknöpfe (an/aus), Aktionsleiste, Sitzbeschriftung, Karten untereinander' },
   { id: '3.25', css: '--gap-hair', name: 'Abstand haar', ref: '--sp-1', use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Karten in der Restkarten-Reihe' },
-  { id: '3.26', css: '--gap-screen', name: 'Abstand Seitenelemente', ref: '--sp-6', use: 'Menü: zwischen Logo und Panel' },
   { id: '3.27', css: '--pad-screen', name: 'Rand Seite', ref: '--sp-8', use: 'Außenrand der Menü-Seiten' },
-  { id: '3.28', css: '--pad-panel', name: 'Innenrand Panel', ref: '--sp-5', use: 'Panels und Dialoge' },
+  { id: '3.28', css: '--pad-inner', name: 'Innenrand (Master)', ref: '--sp-5', use: 'Innenrand von Panels, Dialogen und Toast; links/rechts in Buttons und in der Status-Zeile' },
   { id: '3.29', css: '--pad-overlay', name: 'Rand Fenster', ref: '--sp-6', use: 'Außenrand um Fenster auf der Abdunkelung' },
-  { id: '3.30', css: '--pad-btn-y', name: 'Innenrand Button oben/unten', ref: '--sp-2', use: 'Alle Buttons' },
-  { id: '3.31', css: '--pad-btn-x', name: 'Innenrand Button links/rechts', ref: '--sp-5', use: 'Alle Buttons (Aktionsleiste: 2 u)' },
-  { id: '3.32', css: '--pad-input-y', name: 'Innenrand Feld oben/unten', ref: '--sp-2', use: 'Eingabefelder' },
+  { id: '3.30', css: '--pad-control-y', name: 'Innenrand Bedienelement oben/unten', ref: '--sp-2', use: 'Alle Buttons und Eingabefelder' },
   { id: '3.33', css: '--pad-input-x', name: 'Innenrand Feld links/rechts', ref: '--sp-3', use: 'Eingabefelder' },
+  { id: '3.38', css: '--pad-chip-x', name: 'Innenrand Chip links/rechts', ref: '--sp-2', use: 'Alle Chips: Rommé/Cheft, Nummern, Namensschild im Rückblick, Zahl beim Ziehen' },
   { id: '3.34', css: '--pad-bar-y', name: 'Innenrand Leiste oben/unten', ref: '--sp-3', use: 'Aktionsleiste, Fußleiste, Handleiste oben' },
   { id: '3.35', css: '--pad-bar-x', name: 'Innenrand Leiste links/rechts', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste, Kopfleiste' },
-  { id: '3.36', css: '--pad-status-x', name: 'Innenrand Status', ref: '--sp-5', use: 'Status-Zeile links/rechts' },
-  { id: '3.37', css: '--pad-toast-x', name: 'Innenrand Toast', ref: '--sp-5', use: 'Toast links/rechts (oben/unten 3 u)' },
 ];
 
 /** 3.51–3.59: Rahmen, Schatten und Linien. */
 export const BORDER_TOKENS: ValueToken[] = [
   { id: '3.51', css: '--bw', name: 'Rahmenstärke', value: u(1), use: 'Rahmen aller Panels, Buttons, Felder, Karten-Rückblick (1 u)' },
   { id: '3.52', css: '--bw-mark', name: 'Markierungsstärke', value: u(2), use: 'Auswahl, Leuchten, rote Markierung vorübergehender Karten, Ablagezone (2 u)' },
+  { id: '3.53', css: '--border', name: 'Rahmen', value: 'var(--bw) solid var(--ink)', use: 'Standardrahmen aller Panels, Buttons, Felder, Leisten und Namensschilder (Master)' },
+  { id: '3.59', css: '--border-soft', name: 'Rahmen weich', value: 'var(--bw) solid var(--line-soft)', use: 'Tabellenlinien und Zeilentrenner (Master)' },
+  { id: '3.60', css: '--border-drop', name: 'Rahmen Ablageziel', value: 'var(--bw-mark) dashed var(--accent)', use: 'Gestrichelte Ablageziele: Halbkreis, Kombination, Ablage (Master)' },
   { id: '3.54', css: '--radius', name: 'Eckenradius', value: '0', use: 'Keine abgerundeten Ecken (Pixel-Look). Die Kartenecken sind in den Sprites abgerundet' },
   { id: '3.55', css: '--sh-btn', name: 'Schatten Button', value: `${u(1)} ${u(1)} 0 var(--ink)`, use: 'Buttons (gedrückt: kein Schatten, 1 u verschoben)' },
   { id: '3.56', css: '--sh-panel', name: 'Schatten Panel', value: `${u(2)} ${u(2)} 0 var(--line-soft)`, use: 'Panels, Dialoge, Toast, gezogener Sitz in der Lobby' },
-  { id: '3.57', css: '--sh-card', name: 'Schatten Karte', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Stapel, Teppichkarte, Ablage' },
-  { id: '3.58', css: '--sh-heading', name: 'Schatten Schrift', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Logo-Schriftzug (text-shadow)' },
+  { id: '3.57', css: '--sh-card', name: 'Schatten klein', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Stapel, Teppichkarte, Ablage, Porträts, Logo-Schriftzug' },
 ];
 
 /** 3.61–3.69: Wirkung auf Karten. */

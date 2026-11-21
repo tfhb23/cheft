@@ -1035,7 +1035,7 @@ export class App {
   // ------------------------------------------------------------ Rückblick auf Abwürfe
   private peekSuppress = false;
   private peekLayer: HTMLElement | null = null;
-  private peekShown = new Set<string>();
+  private peekShown = new Set<number>();
   private peekTimer: number | null = null;
 
   /** Rückblick ist erlaubt (Einstellung), sobald Abwürfe vorliegen, auch wenn man nicht an der Reihe ist. */
@@ -1126,7 +1126,7 @@ export class App {
   }
 
   /** Baut die Karten des Rückblicks neu auf; nur Karten, die nicht in `keep` stehen, fliegen animiert ein. Liefert false, wenn nichts anzuzeigen ist. */
-  private fillPeek(layer: HTMLElement, keep: Set<string>): boolean {
+  private fillPeek(layer: HTMLElement, keep: Set<number>): boolean {
     const s = this.state!;
     const r = s.round;
     const entries = this.lastDiscards();

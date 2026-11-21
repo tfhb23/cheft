@@ -81,7 +81,7 @@ export function windowEl(children: Child[], onBackdrop?: () => void): HTMLElemen
 
 /** 7.20: Meldung unten im Bild. */
 export function toastEl(msg: string, error = false): HTMLElement {
-  return h('div', { class: `toast${error ? ' error' : ''}` }, msg);
+  return h('div', { class: `panel toast${error ? ' error' : ''}` }, msg);
 }
 
 /** Zeigt einen Toast und räumt ihn nach der Standarddauer ab. Gibt den Timer zurück. */
