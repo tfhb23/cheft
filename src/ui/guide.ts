@@ -879,7 +879,6 @@ export function chapters(env: GuideEnv): Chapter[] {
   const windows = mergeSpecs(windowsRaw, ['7.01', '7.09'], ['7.02', '7.03', '7.04', '7.05'], ['7.10', '7.12'], ['7.20', '7.21']);
 
   // ----- 8 Seiten
-  const anatomy = (rows: [string, string][]): (() => HTMLElement) => () => table(['Nr.', 'Element'], rows.map(([id, text]) => [idChip(id), text]));
   const viewDemo: Spec = {
     id: '8.10',
     name: 'Ganzseitige Ansicht',
@@ -910,15 +909,6 @@ export function chapters(env: GuideEnv): Chapter[] {
     live: 'box',
     liveSel: '.lobby-seat',
   };
-  const pages: Group[] = [
-    { title: '8.01 Menü', node: anatomy([['5.30', 'Logo'], ['4.02', 'Weiterspielen (nur mit Spielstand, primär)'], ['4.01/4.02', 'Neues Spiel (primär, wenn nichts zum Weiterspielen)'], ['4.01', 'Spielstand-Code einfügen'], ['4.01', 'Mit Freunden spielen'], ['4.02', 'Zurück in den Raum (nur wenn ein Raum gespeichert ist)'], ['4.01', 'Regeln'], ['4.01', 'Familienalbum'], ['4.01', 'Einstellungen (Fenster 7.06)']]) },
-    { title: '8.02 Neues Spiel', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.11', 'Bots (2 | 3)'], ['4.12', 'Je Bot: Stufe | Spielweise'], ['4.01', 'Alle zufällig'], ['4.11', 'Sitzplätze, Rauskommen im ersten Zug, Karten beim Austeilen, Rückblick, Runden'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.06', 'Zurück']]) },
-    { title: '8.03 Mit Freunden spielen', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.02', 'Raum eröffnen'], ['4.15', 'Raumcode + Beitreten (4.01)'], ['4.17', 'Server-Adresse (aufklappbar)'], ['4.06', 'Zurück']]) },
-    { title: '8.04 Beitreten (Spiel läuft)', node: anatomy([['2.31', 'Titel'], ['2.37', 'Hinweis'], ['4.01', 'Ein Knopf je übernehmbarem Platz'], ['4.06', 'Zurück']]) },
-    { title: '8.05 Lobby', node: anatomy([['2.31', 'Titel (Raumcode)'], ['4.01', 'Link / Raumcode kopieren'], ['4.19', 'Sitzreihen mit Griff, Name (4.14), Chips (4.20), Entfernen (4.07), Bot-Auswahl (4.12)'], ['4.01', 'Bot hinzufügen'], ['4.11', 'Einstellungen (Gastgeber) oder 4.18 (Mitspieler)'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.04', 'Raum verlassen']]) },
-    { title: '8.06 Regeln', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['2.32', 'Zwischenüberschriften'], ['2.35', 'Listen'], ['4.06', 'Zurück (zum Menü oder ins Spiel)']]) },
-    { title: '8.07 Familienalbum', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['4.01', 'Kapitel-Knöpfe (zentriert)'], ['2.32', 'Marke / Tisch (Überschriften) und Kapitel mit Nummernbereich'], ['4.06', 'Zurück zum Menü']]) },
-  ];
 
   // ----- 9 Sound
   const vibFor = (use: string) => VIBRATION_CATALOG.find((v) => v.use === use);
@@ -1148,8 +1138,8 @@ export function chapters(env: GuideEnv): Chapter[] {
       tier: 'tisch',
       title: 'Seiten',
       ids: '8.xx',
-      intro: 'Jede Seite als Liste ihrer Elemente von oben nach unten, mit den Nummern der Bausteine.',
-      groups: [{ title: 'Ganzseitige Ansicht und Lobby', specs: [viewDemo, lobbyRow] }, ...pages],
+      intro: 'Aus welchen Elementen eine Seite besteht, zeigt „Nummern im Spiel“ (Werkstatt): Die echte Seite bekommt an jedem Element einen Punkt mit seiner Nummer. Hier stehen nur die Bausteine, die es ausschließlich auf Seiten gibt.',
+      groups: [{ title: 'Ganzseitige Ansicht und Lobby', specs: [viewDemo, lobbyRow] }],
     },
     {
       key: 'verhalten',

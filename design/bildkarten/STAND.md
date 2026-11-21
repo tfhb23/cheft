@@ -131,3 +131,7 @@ Alle zwölf Bildkarten haben zwei verschiedene, freigegebene Personen. Die zweit
 ## 11. Deck 1 und Deck 2 getauscht
 
 Bei Herz Dame, Herz König, Karo König, Pik Dame und Kreuz Bube zeigt Deck 1 jetzt die frühere zweite Person und Deck 2 die frühere erste (`SWAP` in `code/export_ts.py`; die Tabelle in Abschnitt 2 nennt weiter die Entwurfsreihenfolge). Das Familienalbum (`FAMILIES` in `guide.ts`) folgt dieser Reihenfolge.
+
+## 12. Falkner mit Goldband
+
+Der Falkner (`kreuz_bube_a`, jetzt Deck 2) hat die unterste Kappenreihe in Gold 1.13 (`goldband()` in `code/export_ts.py`), damit sich die Kappe vom Haar absetzt. Zeile 17, Spalten 12 bis 20 der Karte; freigegeben.
