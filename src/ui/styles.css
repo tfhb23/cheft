@@ -256,8 +256,9 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-top .temp-edge { bottom: auto; top: calc(-1 * var(--gap-tight)); }
 .temp-half { display: flex; }
 .temp-half .half + .half { margin-left: calc(var(--px-ov-meld) * var(--so) + var(--bw-temp)); }
-/* Die halbe Karte ragt über den Spielfeldrand hinaus: Sie reicht bis zur Kante (Innenrand des Tisches mitgerechnet), und der Rahmen fehlt an der Außenseite. */
-.temp-half .half { width: calc(var(--px-card-w) * var(--so)); height: calc(var(--px-card-h) * var(--so) / 2 + var(--gap-tight)); overflow: hidden; outline: var(--bw-mark) solid var(--mark-temp); box-shadow: 0 0 0 var(--bw-temp) var(--ink); clip-path: inset(calc(-1 * (var(--bw-mark) + var(--bw))) calc(-1 * (var(--bw-mark) + var(--bw))) 0 calc(-1 * (var(--bw-mark) + var(--bw)))); }
+/* Die halbe Karte ragt über den Spielfeldrand hinaus: Sie reicht bis zur Kante (Innenrand des Tisches mitgerechnet), und der Rahmen fehlt an der Außenseite.
+   Der Rahmen ist derselbe wie bei jeder vorübergehenden Karte (.card.temp, Ecken 1 Pixel abgerundet); das Umschlag-Element schneidet nur die Karte ab. */
+.temp-half .half { width: calc(var(--px-card-w) * var(--so)); height: calc(var(--px-card-h) * var(--so) / 2 + var(--gap-tight)); clip-path: inset(calc(-1 * var(--bw-temp)) calc(-1 * var(--bw-temp)) 0 calc(-1 * var(--bw-temp))); }
 .flip180 .open-card > span { display: inline-block; transform: rotate(180deg); }
 .seat-left .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(90deg) translateY(-100%); }
 .seat-right .seat-inner { position: absolute; left: 0; top: 0; transform: rotate(-90deg) translateX(-100%); }

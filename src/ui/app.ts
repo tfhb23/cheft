@@ -1480,7 +1480,7 @@ export class App {
       // jeder nur die obere Hälfte am äußeren Rand der Auslage herein.
       const fanCards = [...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId })), ...(showFan ? temps.map((c) => this.cardEl(c, { small: true, temp: true })) : [])];
       const fan: HTMLElement | null = showFan && fanCards.length ? h('div', { class: `fan${temps.length ? ' has-temp' : ''}` }, ...fanCards) : null;
-      const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true })))) : null;
+      const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true, temp: true })))) : null;
       const inner =
         seat.pos === 'top'
           ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl), halves ? h('div', { class: 'flip180 temp-edge' }, halves) : null)
