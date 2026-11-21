@@ -1,15 +1,20 @@
 /**
- * Design Guide: zeigt jedes Element der App mit fester Nummer, echtem Aussehen (aus denselben Bausteinen und
- * Stilen wie das Spiel) und den tatsächlich berechneten Werten. Nummern stammen aus tokens.ts (Kapitel 1–3) und
- * stehen hier (Kapitel 4–11). Mit „Nummern im Spiel“ erscheinen sie als Punkte über dem laufenden Spiel.
+ * Familienalbum (Design Guide): zeigt jedes Element der App mit fester Nummer, echtem Aussehen (aus denselben Bausteinen und
+ * Stilen wie das Spiel) und den tatsächlich berechneten Werten. Nummern stammen aus tokens.ts (Farben, Maße) und stehen hier
+ * (alle übrigen Kapitel). Die Nummer ist ein Name, keine Seitenposition: Ein Element behält sie, auch wenn sein Kapitel wandert.
+ * Mit „Nummern im Spiel“ (Werkstatt) erscheinen die Nummern als Punkte über dem laufenden Spiel.
+ *
+ * Aufbau: Marke (Familien, Rückseiten, Blatt, Farben, Schrift und Pixel, Klang), Tisch (Spielfeld, Bausteine, Fenster, Seiten,
+ * Verhalten) und Werkstatt (Maße, Abstände, Atlas; eingeklappt).
  *
  * Neues Element aufnehmen: unten in chapters() einen Eintrag mit neuer Nummer ergänzen. Ein Test prüft, dass die Nummern
  * eindeutig sind und jeder Selektor existiert.
  */
 import { Card } from '../engine/cards';
+import { CHEAT_NAMES, type CheatId } from '../engine/cheatnames';
 import { h, Child } from './dom';
 import { t } from '../i18n';
-import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
+import { backBtn, backChoiceRow, badge, btn, checkRow, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
 import { ICONS, ICON_INFO, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
@@ -35,19 +40,20 @@ import {
   SCALE_TOKENS,
   SIZE_TOKENS,
   SPACING_ROLES,
-  SPACING_SCALE,
   TYPE_MISC_TOKENS,
   WEIGHT_TOKENS,
   Z_TOKENS,
 } from './tokens';
 
 export interface GuideEnv {
-  cardEl: (card: Card | 'back' | 'back2' | 'slot', opts?: { selected?: boolean; glow?: boolean; dim?: boolean; temp?: boolean; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; title?: string }) => HTMLElement;
+  cardEl: (card: Card | 'back' | 'back2' | 'slot', opts?: { selected?: boolean; dim?: boolean; temp?: boolean; small?: boolean; mini?: boolean; fresh?: boolean; cls?: string; title?: string }) => HTMLElement;
   atlasUrl: string;
   atlasIndex: (card: Card | 'back' | 'back2' | 'slot') => number;
   labelsOn: boolean;
   setLabels: (on: boolean) => void;
   onBack: () => void;
+  /** Zeigt ein Fenster mit „Zurück“ (das Album dahinter bleibt stehen). */
+  showInfo: (title: string, body: HTMLElement) => void;
 }
 
 type Live = 'text' | 'box' | 'both';
@@ -67,6 +73,8 @@ export interface Spec {
   /** Welche berechneten Werte angezeigt werden und an welchem Element sie gemessen werden. */
   live?: Live;
   liveSel?: string;
+  /** Weitere Nummern, die im Spiel denselben Stil teilen: Sie stehen bei diesem Eintrag, ihre Nummern-Punkte im Spiel bleiben. */
+  also?: { id: string; name: string; where?: string; sel?: string }[];
   /** Zusätzliche feste Angaben (Zeile für Zeile: Name, Wert). */
   facts?: [string, string][];
 }
@@ -76,11 +84,20 @@ interface Group {
   note?: string;
   specs?: Spec[];
   node?: () => HTMLElement;
+  /** Nummern, die der Knoten selbst trägt (für die Prüfung auf eindeutige Nummern). */
+  ids?: string[];
+  /** Knoten ohne den Rahmen eines Eintrags (bringt sein eigenes Panel mit). */
+  bare?: boolean;
 }
 
+type Tier = 'marke' | 'tisch' | 'werkstatt';
+
 interface Chapter {
-  n: number;
+  key: string;
+  tier: Tier;
   title: string;
+  /** Nummernbereich zur Orientierung, z. B. „5.50–5.53“. */
+  ids?: string;
   intro?: string;
   groups: Group[];
 }
@@ -147,6 +164,8 @@ function liveRows(el: Element, kind: Live): [string, string][] {
     if (pad.some((x) => x)) rows.push(['Innenabstand', `${pad.join(' / ')} u (oben / rechts / unten / links)`]);
     const r = el.getBoundingClientRect();
     rows.push(['Größe', `${Math.round((r.width / s) * 10) / 10} × ${Math.round((r.height / s) * 10) / 10} u`]);
+    const ds = cs.filter.match(/drop-shadow\((rgba?\([^)]+\))\s+(-?[\d.]+)px\s+(-?[\d.]+)px/);
+    if (cs.boxShadow === 'none' && ds) rows.push(['Schatten', `${Math.round((parseFloat(ds[2]) / s) * 10) / 10} / ${Math.round((parseFloat(ds[3]) / s) * 10) / 10} u, ${colorLabel(ds[1])}, folgt der Kartenform`]);
     if (cs.boxShadow !== 'none') {
       const m = cs.boxShadow.match(/(rgba?\([^)]+\))\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/);
       rows.push(['Schatten', m ? `${Math.round((parseFloat(m[2]) / s) * 10) / 10} / ${Math.round((parseFloat(m[3]) / s) * 10) / 10} u, ${colorLabel(m[1])}${m[5] && parseFloat(m[5]) ? `, Ausbreitung ${Math.round((parseFloat(m[5]) / s) * 10) / 10} u` : ''}` : 'ja']);
@@ -183,6 +202,7 @@ function specEl(sp: Spec): HTMLElement {
     'div',
     { class: 'panel spec', id: `${NS}-${sp.id}` },
     h('div', { class: 'spec-head' }, idChip(sp.id), h('span', { class: 'spec-name' }, sp.name)),
+    sp.also?.length ? h('div', { class: 'spec-where spec-also' }, ...sp.also.map((a) => h('div', null, idChip(a.id), ` ${a.name}${a.where ? ': ' + a.where : ''}`))) : null,
     stage,
     vals.childElementCount || sp.live ? vals : null,
     sp.where ? h('div', { class: 'spec-where' }, `Wo: ${sp.where}`) : null,
@@ -199,15 +219,30 @@ function table(head: string[], rows: Child[][], numCols: number[] = []): HTMLEle
   );
 }
 
+const flat = (x: Child | Child[]): Child[] => (Array.isArray(x) ? x : [x]);
+
+/**
+ * Fasst Einträge zusammen, die im Spiel denselben Stil teilen (nur Größe, Ausrichtung oder Breite unterscheiden sich). Der erste
+ * Eintrag der Gruppe bleibt; die Nummern der übrigen stehen bei ihm als „auch“, damit die Nummern-Punkte im Spiel bleiben.
+ */
+function mergeSpecs(list: Spec[], ...groups: string[][]): Spec[] {
+  let out = list;
+  for (const [mainId, ...ids] of groups) {
+    const main = out.find((x) => x.id === mainId);
+    const parts = ids.map((i) => out.find((x) => x.id === i));
+    if (!main || parts.some((p) => !p)) throw new Error(`mergeSpecs: ${mainId} ${ids.join(' ')}`);
+    const all = [main, ...(parts as Spec[])];
+    const merged: Spec = { ...main, stageCls: 'flat', stage: () => all.flatMap((p) => flat(p.stage())), also: (parts as Spec[]).map((p) => ({ id: p.id, name: p.name, where: p.where, sel: p.sel })) };
+    out = out.filter((x) => !ids.includes(x.id)).map((x) => (x.id === mainId ? merged : x));
+  }
+  return out;
+}
+
 /** Zelle mit Haupttext und kleiner Zeile darunter. */
 const sub = (main: string, note: string): HTMLElement => h('div', null, main, h('div', { class: 'hint' }, note));
 
 const sample = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz ÄÖÜ äöüß 0123456789 .,:;!?+-×·…';
 
-function unitsOfRole(css: string): number {
-  const r = SPACING_ROLES.find((x) => x.css === css)!;
-  return SPACING_SCALE.find((x) => x.css === r.ref)!.units;
-}
 
 // ---------------------------------------------------------------- Inhalt
 export function chapters(env: GuideEnv): Chapter[] {
@@ -219,16 +254,17 @@ export function chapters(env: GuideEnv): Chapter[] {
 
   // ----- 1 Farben
   const swatch = (value: string, lg = false) => h('span', { class: `swatch${lg ? ' lg' : ''}`, style: { background: value } });
-  const paletteGroups: Group[] = [];
-  for (const g of [...new Set(PALETTE_COLORS.map((x) => x.group))]) {
-    paletteGroups.push({
-      title: `Palette: ${g}`,
-      node: () =>
-        h(
-          'div',
-          { class: 'spec' },
-          ...PALETTE_COLORS.filter((x) => x.group === g).map((x) => {
-            const roles = ROLE_COLORS.filter((r) => r.ref === x.css).map((r) => r.id);
+  const uiColors = PALETTE_COLORS.filter((x) => x.group !== 'Figuren');
+  const paletteGroups: Group[] = [...new Set(uiColors.map((x) => x.group))].map((g) => ({
+    title: g,
+    node: () =>
+      h(
+        'div',
+        { class: 'spec' },
+        ...uiColors
+          .filter((x) => x.group === g)
+          .map((x) => {
+            const roles = ROLE_COLORS.filter((r) => r.ref === x.css);
             return h(
               'div',
               { class: 'swatch-row' },
@@ -237,45 +273,20 @@ export function chapters(env: GuideEnv): Chapter[] {
                 'div',
                 { class: 'swatch-text' },
                 h('div', { class: 'spec-head' }, idChip(x.id), h('span', { class: 'spec-name' }, x.name), h('span', { class: 'muted' }, x.value)),
-                h('div', { class: 'spec-where' }, `${x.css}${roles.length ? ` · Rollen: ${roles.join(', ')}` : ''}`),
-                h('div', { class: 'spec-where' }, x.use),
+                h('div', { class: 'spec-where' }, x.css),
+                x.use ? h('div', { class: 'spec-where' }, x.use) : null,
+                ...roles.map((r) => h('div', { class: 'spec-where' }, idChip(r.id), ` ${r.name} (${r.css}): ${r.use}`)),
               ),
             );
           }),
-        ),
-    });
-  }
-  const roleGroups: Group[] = [];
-  for (const g of [...new Set(ROLE_COLORS.map((x) => x.group))]) {
-    roleGroups.push({
-      title: `Rollen: ${g}`,
-      node: () =>
-        h(
-          'div',
-          { class: 'spec' },
-          ...ROLE_COLORS.filter((x) => x.group === g).map((x) => {
-            const p = PALETTE_COLORS.find((pc) => pc.css === x.ref)!;
-            return h(
-              'div',
-              { class: 'swatch-row' },
-              swatch(p.value),
-              h(
-                'div',
-                { class: 'swatch-text' },
-                h('div', { class: 'spec-head' }, idChip(x.id), h('span', { class: 'spec-name' }, x.name), h('span', { class: 'muted' }, `→ ${p.id} ${p.name}`)),
-                h('div', { class: 'spec-where' }, `${x.css} · ${x.use}`),
-              ),
-            );
-          }),
-        ),
-    });
-  }
+      ),
+  }));
 
   // ----- 2 Typografie
-  const typeRoles: Spec[] = [
+  const typeRolesRaw: Spec[] = [
     { id: '2.30', name: 'Logo-Schriftzug (h1)', where: 'Menü', code: 'h1', sel: 'h1', stage: () => h('h1', null, t('app.title')), live: 'text' },
     { id: '2.31', name: 'Titel (h2)', where: 'Seiten- und Fenstertitel, immer zentriert', code: 'h2', sel: 'h2', stage: () => h('h2', null, t('btn.settings')), live: 'text' },
-    { id: '2.32', name: 'Zwischenüberschrift links (h3)', where: 'Regeln, Design Guide: Abschnitte', code: '.rules h3', sel: '.rules h3', stage: () => h('div', { class: 'rules' }, h('h3', null, 'Spielablauf')), live: 'text', liveSel: 'h3' },
+    { id: '2.32', name: 'Zwischenüberschrift links (h3)', where: 'Regeln, Familienalbum: Abschnitte', code: '.rules h3', sel: '.rules h3', stage: () => h('div', { class: 'rules' }, h('h3', null, 'Spielablauf')), live: 'text', liveSel: 'h3' },
     { id: '2.33', name: 'Zwischenüberschrift im Fenster (h3)', where: 'Punkteverlauf (Spielende)', code: '.dialog h3', sel: '.dialog h3', stage: () => h('div', { class: 'dialog' }, h('h3', null, t('gameEnd.rounds'))), stageCls: 'flat', live: 'text', liveSel: 'h3' },
     { id: '2.34', name: 'Rückblick-Banner', where: 'Rückblick auf Abwürfe: Banner oben', code: '.peek-banner', sel: '.peek-banner', stage: () => h('div', { class: 'peek-banner', style: { position: 'static' } }, t('peek.title')), stageCls: 'dark', live: 'text' },
     { id: '2.35', name: 'Fließtext', where: 'Meldungen im Fenster, Regeln, Bestätigungen', code: 'p / body', stage: () => h('div', { class: 'panel' }, h('p', null, t('confirm.quit'))), stageCls: 'flat', live: 'text', liveSel: 'p' },
@@ -296,6 +307,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe: Schild an jeder Karte', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
   ];
+  const typeRoles = mergeSpecs(typeRolesRaw, ['2.32', '2.33'], ['2.37', '2.38', '2.44'], ['2.40', '2.36'], ['2.41', '2.43'], ['2.39', '2.54'], ['2.35', '2.46']);
 
   const fontSpecs: Spec[] = FONT_TOKENS.map((f) => ({
     id: f.id,
@@ -327,104 +339,96 @@ export function chapters(env: GuideEnv): Chapter[] {
 
   // ----- 3 Maße
   const tokenTable = (head: string[], rows: () => Child[][], num: number[] = []) => () => table(head, rows(), num);
-  const spacingScaleGroup: Group = {
-    title: 'Abstandsskala (3.11–3.18)',
-    specs: SPACING_SCALE.map((s) => ({
-      id: s.id,
-      name: `${s.css} = ${s.units} u`,
-      stage: () => h('div', { class: 'space-bar', style: { width: `var(${s.css})`, height: 'var(--sp-4)' } }),
-      stageCls: 'flat' as const,
-      facts: [['Wert', `${s.units} u = ${s.units * rootScale()} px bei Maßstab ${rootScale()}`]],
-    })),
-  };
-  const spacingRoleGroup: Group = {
-    title: 'Abstands-Rollen (3.21–3.37)',
-    note: 'Einen Abstand im ganzen Spiel ändern: den Verweis auf die Skala ändern (tokens.ts › SPACING_ROLES).',
+  const spacingGroup: Group = {
+    title: 'Abstände (3.22–3.25)',
+    note: 'Vier Werte für alle Stellen im Spiel. Einen Abstand im ganzen Spiel ändern: den Wert in tokens.ts › SPACING_ROLES ändern. Wo welcher Abstand wirkt, steht darunter.',
     node: tokenTable(
-      ['Nr.', 'Rolle', 'Wert'],
-      () =>
-        SPACING_ROLES.map((r) => {
-          const un = SPACING_SCALE.find((s) => s.css === r.ref)!;
-          return [idChip(r.id), sub(r.name, `${r.css} → ${r.ref} · ${r.use}`), `${un.units} u`];
-        }),
+      ['Nr.', 'Abstand', 'Wert'],
+      () => SPACING_ROLES.map((r) => [idChip(r.id), h('div', null, h('div', { class: 'space-bar', style: { width: `var(${r.css})`, height: 'var(--gap-row)' } }), sub(r.name, `${r.css} · ${r.use}`)), `${r.units} u = ${r.units * rootScale()} px bei Maßstab ${rootScale()}`]),
       [2],
     ),
   };
 
   // Abstände im Einsatz: Stelle, Teile (Rollen oder Stufen), Hinweis
   type Use = { where: string; parts: string[]; note?: string };
-  const roleU = (css: string): number => (css.startsWith('--gap') || css.startsWith('--pad-') ? unitsOfRole(css) : (SPACING_SCALE.find((x) => x.css === css)?.units ?? SIZE_TOKENS.find((x) => x.css === css)!.units!));
+  const roleU = (css: string): number => {
+    const role = SPACING_ROLES.find((x) => x.css === css);
+    if (role) return role.units;
+    const hand = HAND_TOKENS.find((x) => x.css === css);
+    if (hand) return HAND[hand.key];
+    return SIZE_TOKENS.find((x) => x.css === css)!.units!;
+  };
   const usage: [string, Use[]][] = [
     [
       'Menü und Seiten mit Panel (Neues Spiel, Online, Beitreten, Lobby)',
       [
-        { where: 'Seitenrand außen', parts: ['--pad-screen'], note: 'Rand um Logo und Panel' },
-        { where: 'Logo ↔ Panel', parts: ['--gap-screen'] },
-        { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--sp-3'], note: '1 u Logo-Abstand + 3 u unter den Karten' },
+        { where: 'Seitenrand außen', parts: ['--gap-group'], note: 'Rand um Logo und Panel' },
+        { where: 'Logo ↔ Panel', parts: ['--gap-group'] },
+        { where: 'Logo: Karten ↔ Schriftzug', parts: ['--gap-hair', '--gap-row'], note: '1 u Logo-Abstand + 4 u unter den Karten' },
         { where: 'Logo: Schriftzug ↔ Untertitel', parts: ['--gap-hair'] },
-        { where: 'Panel: Innenrand', parts: ['--pad-panel'] },
-        { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-stack'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
-        { where: 'Menü: Gruppe ↔ Gruppe (Weiterspielen/Neues Spiel | Online | Regeln/Guide/Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Stapelabstand + Gruppen-Zusatz' },
-        { where: 'Über „Zurück“ (Neues Spiel, Mit Freunden, Beitreten, Einstellungen)', parts: ['--gap-stack', '--gap-group'], note: 'Wie zwischen Menü-Gruppen: „Zurück“ steht immer abgesetzt' },
+        { where: 'Panel: Innenrand', parts: ['--gap-row'] },
+        { where: 'Knopf ↔ Knopf (untereinander)', parts: ['--gap-row'], note: 'auch Feld ↔ Feld und Feld ↔ Knopf' },
+        { where: 'Menü: Gruppe ↔ Gruppe (Weiterspielen/Neues Spiel | Online | Regeln/Guide/Einstellungen)', parts: ['--gap-row', '--gap-group'], note: 'Stapelabstand + Gruppen-Zusatz' },
+        { where: 'Über „Zurück“ (Neues Spiel, Mit Freunden, Beitreten, Einstellungen)', parts: ['--gap-row', '--gap-group'], note: 'Wie zwischen Menü-Gruppen: „Zurück“ steht immer abgesetzt' },
         { where: 'Auswahlzeile: Beschriftung ↔ Knöpfe', parts: ['--gap-hair'] },
         { where: 'Auswahlzeile: Knopf ↔ Knopf (an/aus)', parts: ['--gap-tight'] },
         { where: 'Bot-Auswahl: Stufe ↔ Spielweise', parts: ['--gap-row'] },
         { where: 'Bot-Auswahl: Hinweis ↔ Knopf', parts: ['--gap-hair'] },
         { where: 'Feld ↔ Knopf in einer Zeile (Raumcode, Beitreten)', parts: ['--gap-row'] },
-        { where: 'Einstellungen-Zusammenfassung: Zeilenabstand innen', parts: ['--sp-1'], note: 'oben/unten je 1 u, Spalten 3 u' },
+        { where: 'Einstellungen-Zusammenfassung: Zeilenabstand innen', parts: ['--gap-hair'], note: 'oben/unten je 1 u, Spalten 4 u' },
       ],
     ],
     [
       'Fenster (Dialog, Einstellungen, Punkte, Auswertung, Pause, Auswahl)',
       [
-        { where: 'Fenster ↔ Bildschirmrand', parts: ['--pad-overlay'] },
-        { where: 'Fenster: Innenrand', parts: ['--pad-panel'] },
-        { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-stack'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
-        { where: 'Über „Zurück“', parts: ['--gap-stack', '--gap-group'] },
+        { where: 'Fenster ↔ Bildschirmrand', parts: ['--gap-group'] },
+        { where: 'Fenster: Innenrand', parts: ['--gap-row'] },
+        { where: 'Element ↔ Element (Titel, Text, Felder, Knöpfe)', parts: ['--gap-row'], note: 'Absätze haben im Fenster keinen eigenen Abstand mehr' },
+        { where: 'Über „Zurück“', parts: ['--gap-row', '--gap-group'] },
         { where: 'Zwei Knöpfe nebeneinander (Abbrechen | Aktion)', parts: ['--gap-row'] },
-        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--sp-3'] },
-        { where: 'Wahloption: Kombinationen untereinander', parts: ['--sp-3'] },
-        { where: 'Tabelle: Zelle innen oben/unten', parts: ['--sp-1'], note: 'links/rechts 2 u' },
+        { where: 'Wahloption in „Wie auslegen?“: Innenrand', parts: ['--gap-row'] },
+        { where: 'Wahloption: Kombinationen untereinander', parts: ['--gap-row'] },
+        { where: 'Tabelle: Zelle innen oben/unten', parts: ['--gap-hair'], note: 'links/rechts 2 u' },
         { where: 'Restkarten in der Auswertung: Karte ↔ Karte', parts: ['--gap-hair'] },
       ],
     ],
     [
-      'Ganzseitige Ansicht (Regeln, Design Guide)',
+      'Ganzseitige Ansicht (Regeln, Familienalbum)',
       [
-        { where: 'Titelleiste: oben/unten', parts: ['--sp-3'], note: 'links/rechts 4 u' },
-        { where: 'Lesespalte: Rand oben/unten', parts: ['--sp-6'] },
-        { where: 'Zwischenüberschrift: darüber', parts: ['--sp-6'], note: 'darunter 2 u' },
-        { where: 'Listenpunkt ↔ Listenpunkt', parts: ['--sp-2'] },
-        { where: 'Fußleiste: oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten mindestens der Sicherheitsrand des Geräts' },
+        { where: 'Titelleiste: oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u' },
+        { where: 'Lesespalte: Rand oben/unten', parts: ['--gap-group'] },
+        { where: 'Zwischenüberschrift: darüber', parts: ['--gap-group'], note: 'darunter 2 u' },
+        { where: 'Listenpunkt ↔ Listenpunkt', parts: ['--gap-tight'] },
+        { where: 'Fußleiste: oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u; unten mindestens der Sicherheitsrand des Geräts' },
       ],
     ],
     [
       'Spielfeld',
       [
-        { where: 'Kopfzeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 3 u' },
-        { where: 'Kopfzeile: Zähler ↔ Piktogramme', parts: ['--sp-4'] },
+        { where: 'Kopfzeile: Rand oben/unten', parts: ['--gap-tight'], note: 'links/rechts 4 u' },
+        { where: 'Kopfzeile: Zähler ↔ Piktogramme', parts: ['--gap-row'] },
         { where: 'Kopfzeile: Piktogramm ↔ Piktogramm', parts: ['--gap-tight'] },
-        { where: 'Tisch: Innenrand', parts: ['--sp-2'] },
+        { where: 'Tisch: Innenrand', parts: ['--gap-tight'] },
         { where: 'Sitz: Beschriftung ↔ Auslage ↔ Fächer', parts: ['--gap-tight'] },
         { where: 'Eigener Sitz: Beschriftung ↔ Auslage', parts: ['--gap-hair'] },
-        { where: 'Auslage: Kombination ↔ Kombination (Zeile / Spalte)', parts: ['--gap-tight', '--sp-4'], note: '2 u zwischen den Zeilen, 4 u daneben' },
-        { where: 'Kombination: Innenrand', parts: ['--sp-1'] },
-        { where: 'Sitz-Beschriftung: Name ↔ Chip ↔ Kartenzahl', parts: ['--sp-3'] },
-        { where: 'Aktiver Sitz: Innenrand links/rechts', parts: ['--sp-3'] },
+        { where: 'Auslage: Kombination ↔ Kombination (Zeile / Spalte)', parts: ['--gap-tight', '--gap-row'], note: '2 u zwischen den Zeilen, 4 u daneben' },
+        { where: 'Kombination: Innenrand', parts: ['--gap-hair'] },
+        { where: 'Sitz-Beschriftung: Name ↔ Chip ↔ Kartenzahl', parts: ['--gap-row'] },
+        { where: 'Aktiver Sitz: Innenrand links/rechts', parts: ['--gap-row'] },
         { where: 'Tischmitte: Stapel ↔ Ablage', parts: ['--pile-gap'] },
         { where: 'Stapel/Ablage ↔ Beschriftung', parts: ['--gap-hair'] },
-        { where: 'Status-Zeile: Rand oben/unten', parts: ['--sp-2'], note: 'links/rechts 5 u; Meldung ↔ Info 4 u' },
-        { where: 'Handleiste: Rand oben', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; unten 0, die Karten stehen an der Aktionsleiste' },
-        { where: 'Hand: Zeile ↔ Zeile (zweizeilig)', parts: ['--sp-4'] },
-        { where: 'Aktionsleiste: Rand oben/unten', parts: ['--pad-bar-y'], note: 'links/rechts 4 u; Knopf-Innenrand 2 u links/rechts' },
+        { where: 'Status-Zeile: Rand oben/unten', parts: ['--gap-tight'], note: 'links/rechts 4 u; Meldung ↔ Info 4 u' },
+        { where: 'Handleiste: Rand oben', parts: ['--gap-row'], note: 'links/rechts 4 u; unten 0, die Karten stehen an der Aktionsleiste' },
+        { where: 'Hand: Zeile ↔ Zeile (zweizeilig)', parts: ['--hand-row-gap'] },
+        { where: 'Aktionsleiste: Rand oben/unten', parts: ['--gap-row'], note: 'links/rechts 4 u; Knopf-Innenrand 2 u links/rechts' },
         { where: 'Aktionsleiste: Knopf ↔ Knopf', parts: ['--gap-tight'] },
-        { where: 'Toast: Innenrand oben/unten', parts: ['--sp-3'], note: 'links/rechts 5 u; 90 u über dem unteren Rand' },
+        { where: 'Toast: Innenrand', parts: ['--gap-row'], note: 'links/rechts 4 u; 90 u über dem unteren Rand' },
       ],
     ],
     [
       'Lobby',
       [
-        { where: 'Sitzreihe: Innenrand oben/unten', parts: ['--sp-2'] },
+        { where: 'Sitzreihe: Innenrand oben/unten', parts: ['--gap-tight'] },
         { where: 'Sitzreihe: Name ↔ Chips ↔ Entfernen', parts: ['--gap-row'] },
         { where: 'Sitzreihe: Zeile ↔ Bot-Auswahl', parts: ['--gap-tight'] },
       ],
@@ -462,8 +466,8 @@ export function chapters(env: GuideEnv): Chapter[] {
         if (b.css === '--bw') return h('div', { class: 'panel', style: { boxShadow: 'none' } }, 'Rahmen 1 u');
         if (b.css === '--bw-mark') return h('div', { style: { width: 'calc(4 * var(--size-btn-icon))', height: 'var(--size-btn-icon)', outline: 'var(--bw-mark) solid var(--accent)', background: 'var(--surface-panel)' } });
         if (b.css === '--radius') return h('div', { class: 'panel', style: { boxShadow: 'none' } }, 'Ecken eckig (0)');
-        if (b.css === '--sh-heading') return h('h1', null, 'Cheft');
-        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--bw) solid var(--line)', boxShadow: `var(${b.css})`, margin: 'var(--sp-6)' } });
+        if (b.css === '--sh-card') return h('h1', null, 'Cheft');
+        return h('div', { style: { width: 'calc(6 * var(--size-btn-icon))', height: 'calc(2 * var(--size-btn-icon))', background: 'var(--surface-panel)', border: 'var(--border)', boxShadow: `var(${b.css})`, margin: 'var(--gap-group)' } });
       };
       return { id: b.id, name: b.name, where: b.use, code: `${b.css}: ${b.value}`, stage };
     }),
@@ -475,53 +479,58 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
 
   // ----- 4 Bedienelemente
-  const btnSpecs: Spec[] = [
+  const btnSpecsRaw: Spec[] = [
     { id: '4.01', name: 'Button Standard', where: 'Alle normalen Aktionen, inaktive Wahlknöpfe', code: 'btn(label, onClick)', sel: '.btn:not(.primary):not(.dark):not(.danger):not(.icon):not(.back):not(:disabled)', stage: () => btn(t('btn.newGame')), live: 'both' },
     { id: '4.02', name: 'Button Primär', where: 'Die eine Hauptaktion einer Ansicht, gewählte Wahlknöpfe', code: "btn(label, onClick, { variant: 'primary' })", sel: '.btn.primary:not(:disabled)', stage: () => btn(t('btn.start'), undefined, { variant: 'primary' }), live: 'both' },
     { id: '4.03', name: 'Button Dunkel', where: 'Cheft ansagen (Aktionsleiste, ganz links)', code: "variant: 'dark'", sel: '.btn.dark:not(:disabled)', stage: () => btn(t('btn.cheft'), undefined, { variant: 'dark' }), live: 'both' },
     { id: '4.04', name: 'Button Gefahr', where: 'Spiel abbrechen, Raum verlassen', code: "variant: 'danger'", sel: '.btn.danger:not(:disabled)', stage: () => btn(t('btn.quit'), undefined, { variant: 'danger' }), live: 'both' },
     { id: '4.05', name: 'Button Deaktiviert', where: 'Alle Varianten, wenn die Aktion gerade nicht geht', code: '{ disabled: true }', sel: '.btn:disabled', stage: () => [btn(t('btn.lay'), undefined, { disabled: true }), btn(t('btn.start'), undefined, { variant: 'primary', disabled: true })], live: 'both' },
-    { id: '4.06', name: 'Button Zurück', where: 'Letzter Knopf jedes Fensters und jeder Seite (Neues Spiel, Online, Beitreten, Einstellungen, Punkte, Info-Dialog, Regeln, Design Guide)', code: 'backBtn(onClick) → this.back()', sel: '.btn.back', stage: () => backBtn(() => undefined), live: 'both', facts: [['Regel', 'Immer „Zurück“, immer Standard-Variante, immer ganz unten. In Stapeln steht ein Gruppen-Zusatzabstand (3.22) darüber.']] },
+    { id: '4.06', name: 'Button Zurück', where: 'Letzter Knopf jedes Fensters und jeder Seite (Neues Spiel, Online, Beitreten, Einstellungen, Punkte, Info-Dialog, Regeln, Familienalbum)', code: 'backBtn(onClick) → this.back()', sel: '.btn.back', stage: () => backBtn(() => undefined), live: 'both', facts: [['Regel', 'Immer „Zurück“, immer Standard-Variante, immer ganz unten. In Stapeln steht ein Gruppen-Zusatzabstand (3.22) darüber.']] },
     { id: '4.07', name: 'Button Piktogramm', where: 'Kopfzeile im Spiel, Entfernen in der Lobby', code: 'iconBtn(icon, title, onClick)', sel: '.btn.icon', stage: () => ICONS.map((i) => iconBtn(pixelIcon(i.rows), i.name)), live: 'box' },
     { id: '4.08', name: 'Button gedrückt', where: 'Beim Antippen: Schatten weg, 1 u nach unten rechts', code: '.btn:active / .btn.active', stage: () => h('button', { class: 'btn active' }, t('btn.newGame')), live: 'box' },
-    { id: '4.09', name: 'Button-Reihe', where: 'Zwei Knöpfe nebeneinander in Fenstern (Abbrechen | Aktion, Tisch ansehen | Nächste Runde)', code: '.btn-row', sel: '.btn-row', stage: () => h('div', { class: 'btn-row', style: { width: '100%' } }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' })), live: 'box', liveSel: '.btn-row' },
+    { id: '4.09', name: 'Knopfgruppe', where: 'Zwei Knöpfe nebeneinander in Fenstern (Abbrechen | Aktion, Tisch ansehen | Nächste Runde)', code: '.btn-row', sel: '.btn-row', stage: () => h('div', { class: 'btn-row', style: { width: '100%' } }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' })), live: 'box', liveSel: '.btn-row' },
     { id: '4.10', name: 'Button in Aktionsleiste', where: 'Cheft, Auslegen, Anlegen, Abwerfen (innen schmaler: 2 u links/rechts)', code: '.actions .btn', stage: () => h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.discard'))), live: 'box', liveSel: '.btn' },
   ];
+  const btnSpecs = mergeSpecs(btnSpecsRaw, ['4.09', '4.10']);
   const choiceDemo = (): HTMLElement =>
-    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('setup.peek')), h('div', { class: 'choices' }, btn(t('setup.yes'), undefined, { variant: 'primary' }), btn(t('setup.no'))));
-  const inputSpecs: Spec[] = [
-    { id: '4.11', name: 'Auswahlzeile', where: 'Alle Einstellungen: Vibration, Sounds, Runden, Sitzplätze …', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
+    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('setup.rounds')), h('div', { class: 'choices' }, ...['3', '5', '7', '9'].map((n) => btn(n, undefined, { variant: n === '7' ? 'primary' : 'default' }))));
+  const inputSpecsRaw: Spec[] = [
+    { id: '4.11', name: 'Auswahlzeile', where: 'Mehrfachauswahl: Runden, Bots (2 | 3)', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
+    { id: '4.23', name: 'Schalter', where: 'Alle Ja/Nein-Einstellungen: Sitzplätze zufällig, Rauskommen, Handkarten vorsortiert, Rückblick, Vibration, Sounds, Bildschirm. Der Text sagt, was „an“ bedeutet. Aus: helles leeres Kästchen; an: orange mit hellem Haken (Kästchen 3.117, Zeilenhöhe 3.118, Schatten wie ein Button, gedrückt ohne Schatten). Nur lesen (Lobby ohne Rechte): grau, ohne Schatten', code: 'checkRow() · .check-row', sel: '.check-row', stage: () => h('div', { style: { display: 'flex', flexDirection: 'column', width: '100%' } }, checkRow(t('setup.sortedDeal'), true, () => undefined), checkRow(t('setup.firstTurn'), false, () => undefined), checkRow(t('setup.peek'), true)), stageCls: 'flat', live: 'box', liveSel: '.check' },
     { id: '4.12', name: 'Bot-Auswahl', where: 'Neues Spiel, Lobby: Stufe und Spielweise', code: 'App.botPicker() · .bot-pick', sel: '.bot-pick', stage: () => h('div', { class: 'bot-pick', style: { width: '100%' } }, h('div', { class: 'bot-col' }, hint(t('setup.level')), btn(t('level.hard'), undefined, { variant: 'primary' })), h('div', { class: 'bot-col' }, hint(t('setup.style')), btn(t('setup.random')))), stageCls: 'flat', live: 'box', liveSel: '.bot-pick' },
-    { id: '4.13', name: 'Texteingabe', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
+    { id: '4.13', name: 'Eingabefeld', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
     { id: '4.14', name: 'Namensfeld', where: 'Lobby und Einstellungen online: eigener Name', code: 'input.text.name-edit', sel: 'input.text.name-edit', stage: () => h('input', { class: 'text name-edit', type: 'text', value: 'Tobi' }), stageCls: 'flat', live: 'box' },
     { id: '4.15', name: 'Codefeld', where: 'Raumcode eingeben', code: 'input.text.code', sel: 'input.text.code', stage: () => h('input', { class: 'text code', type: 'text', value: '232' }), stageCls: 'flat', live: 'both' },
     { id: '4.16', name: 'Mehrzeiliges Feld', where: 'Spielstand-Code einfügen/kopieren, Link kopieren', code: 'textarea.text', sel: 'textarea.text', stage: () => h('textarea', { class: 'text', rows: '3' }, 'CHEFT1-ABCDEFGH…'), stageCls: 'flat', live: 'box' },
     { id: '4.17', name: 'Auf-/Zuklapper', where: 'Online: Server-Adresse', code: 'details > summary.hint', sel: 'details', stage: () => h('details', { open: 'open' }, h('summary', { class: 'hint' }, t('online.server')), hint(t('online.serverHint'))), stageCls: 'flat', live: 'box', liveSel: 'details' },
     { id: '4.18', name: 'Einstellungs-Zeile (nur lesen)', where: 'Lobby für Mitspieler ohne Rechte', code: '.summary-row', sel: '.summary-row', stage: () => h('div', { class: 'row spread summary-row', style: { width: '100%' } }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, '7')), stageCls: 'flat', live: 'box', liveSel: '.summary-row' },
     { id: '4.19', name: 'Sortier-Griff', where: 'Lobby: Sitzordnung ziehen (nur Gastgeber)', code: '.handle', sel: '.handle', stage: () => h('span', { class: 'handle' }), live: 'box' },
-    { id: '4.20', name: 'Chip Rommé', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
-    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange und leuchtend (5.13), die übrigen dunkel und abgeblendet (5.15). Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
+    { id: '4.20', name: 'Chip (Rommé, Cheft)', where: 'Sitz-Beschriftung, Auswertung; „Gastgeber“, „getrennt“, „Bot“ in der Lobby', code: 'badge(text) · .badge', sel: '.badge:not(.cheft)', stage: () => badge(t('mode.romme'), 'romme'), live: 'both' },
+    { id: '4.22', name: 'Auswahl Kartenrückseite', where: 'Einstellungen (Menü und im Spiel): Rückseiten als Karten in Spielgröße; die gewählte orange mit Rahmen (5.12), die übrigen dunkel und abgeblendet. Wirkt sofort, nur für den eigenen Bildschirm', code: 'backChoiceRow() · .back-choices · backs.ts', sel: '.back-choices', also: [{ id: '5.15', name: 'Karte abgeblendet', where: 'die nicht gewählten Rückseiten (Filter 3.61)', sel: '.card.dim' }], stage: () => h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.cardBack')), backChoiceRow(BACK_DESIGNS.map((d) => ({ id: d.id, name: d.name, orange: backThumb(d.id, 'a'), dark: backThumb(d.id, 'b') })), BACK_DESIGNS[0].id, () => undefined)), stageCls: 'flat' },
     { id: '4.21', name: 'Chip Cheft', where: 'Sitz-Beschriftung: Spieler hat Cheft angesagt', code: "badge(text, 'cheft')", sel: '.badge.cheft', stage: () => badge(t('mode.cheft'), 'cheft'), live: 'both' },
   ];
+  const inputSpecs = mergeSpecs(inputSpecsRaw, ['4.13', '4.14', '4.15', '4.16'], ['4.20', '4.21']);
 
   // ----- 5 Karten und Grafiken
-  const suitRows: Spec[] = (['H', 'D', 'C', 'S'] as const).map((su, i) => ({
-    id: `5.0${i + 2}`,
-    name: `Kartensatz ${suitName[su]} (13 Karten)`,
-    code: `sprites.ts › drawFace · Atlas-Zellen ${i * 13}–${i * 13 + 12}`,
-    stage: () => h('div', { class: 'card-grid' }, ...Array.from({ length: 13 }, (_, k) => c(card(su, k + 1, -200 - k), { title: `${suitName[su]} ${rankName(k + 1)}` }))),
-    stageCls: 'flat' as const,
-  }));
+  const numberCards: Spec = {
+    id: '5.02',
+    name: 'Zahlenkarten (Ass bis 10)',
+    code: 'sprites.ts › drawFace · Atlas-Zellen 0–9 (Herz) und je 13 für Karo, Kreuz, Pik',
+    stage: () => h('div', { class: 'card-grid' }, ...Array.from({ length: 10 }, (_, k) => c(card('H', k + 1, -200 - k), { title: `Herz ${rankName(k + 1)}` }))),
+    stageCls: 'flat',
+    facts: [
+      ['Farben', 'Beispiel Herz. Herz und Karo tragen Zahl und Symbol in Rot, Kreuz und Pik in Tinte, sonst sind alle vier Farben gleich gebaut'],
+      ['Maße', 'Ziffern 5 × 7 Pixel (die 0 nur 4 × 7), Symbole 7 × 7 Pixel (5.21, 5.22)'],
+    ],
+  };
   const stateCard = (cls: Parameters<GuideEnv['cardEl']>[1]) => c(card('H', 12), cls);
   const cardStates: Spec[] = [
     { id: '5.11', name: 'Karte normal', where: 'Hand, Auslage, Ablage', code: '.card', stage: () => stateCard({}) },
-    { id: '5.12', name: 'Karte ausgewählt', where: 'Hand: angetippt (hebt sich 6 u an)', code: '.card.selected', sel: '.card.selected', stage: () => stateCard({ selected: true }) },
-    { id: '5.13', name: 'Karte leuchtet', where: 'Nur die gewählte Kartenrückseite in den Einstellungen. Im Spiel leuchtet nie etwas: Ob Ablage- oder Teppichkarte nutzbar ist, muss jeder selbst sehen', code: '.card.glow', sel: '.card.glow', stage: () => stateCard({ glow: true }), stageCls: 'flat' },
-    { id: '5.15', name: 'Karte abgeblendet', where: 'Nicht gewählte Kartenrückseiten in den Einstellungen', code: '.card.dim', sel: '.card.dim', stage: () => stateCard({ dim: true }), stageCls: 'flat' },
-    { id: '5.14', name: 'Karte frisch gezogen', where: 'Hand: gerade gezogene Karte (grün)', code: '.card.fresh', sel: '.card.fresh', stage: () => stateCard({ fresh: true }), stageCls: 'flat' },
-    { id: '5.17', name: 'Vorübergehende Karte', where: 'Roter Rand mit dünnem dunklem Ring: Ablagekarte (nur als Rommé-Spieler), Teppichkarte (nicht bei leerem Stapel) und geklauter Joker. Muss im selben Zug verwendet werden. Die Mitspieler sehen sie offen (Fächer am Desktop, halbe Karte am Handy)', code: '.card.temp', sel: '.card.temp', stage: () => h('div', { class: 'hand', style: { height: 'auto', width: 'var(--card-w)', padding: 'var(--sp-4)' } }, (() => { const e = stateCard({ temp: true }); e.style.position = 'static'; return e; })()), stageCls: 'flat', liveSel: '.card' },
+    { id: '5.12', name: 'Karte ausgewählt', where: 'Hand: angetippt (hebt sich 6 u an). Rückseiten-Auswahl in den Einstellungen: die gewählte Rückseite', code: '.card.selected', sel: '.card.selected', stage: () => stateCard({ selected: true }), stageCls: 'flat', facts: [['Rahmen', 'Orange, 2 u stark, außen direkt an der Kartenkontur, Außenecken um 1 Pixel abgerundet wie die Karte. Grün (5.14) und Rot (5.17) haben genau dieselbe Form']] },
+    { id: '5.14', name: 'Karte frisch gezogen', where: 'Hand: gerade gezogene Karte; auch Teppich-Joker und geklauter Joker (grün)', code: '.card.fresh', sel: '.card.fresh', stage: () => stateCard({ fresh: true }), stageCls: 'flat' },
+    { id: '5.17', name: 'Vorübergehende Karte', where: 'Roter Rahmen mit dünnem dunklem Ring: Ablagekarte (nur als Rommé-Spieler), Teppichkarte (nicht bei leerem Stapel) und geklauter Joker. Muss im selben Zug verwendet werden. Die Mitspieler sehen sie offen (Fächer am Desktop, halbe Karte am Handy)', code: '.card.temp', sel: '.card.temp', stage: () => h('div', { style: { padding: 'var(--gap-row)' } }, stateCard({ temp: true })), stageCls: 'flat', liveSel: '.card' },
     { id: '5.18', name: 'Karte unter dem Finger', where: 'Ziehen: leicht durchsichtig und größer, mit Zahl der Gruppe', code: '.hand .card.dragging · .drag-badge', sel: '.drag-badge', stage: () => h('div', { style: { opacity: 'var(--op-drag)', transform: 'scale(var(--scale-drag))', position: 'relative' } }, stateCard({}), h('div', { class: 'drag-badge' }, '×3')), stageCls: 'flat' },
-    { id: '5.19', name: 'Platzhalter', where: 'Leere Ablage', code: "cardEl('slot') · .slot-hint", stage: () => c('slot'), stageCls: 'flat' },
+    { id: '5.19', name: 'Platzhalter', where: 'Leere Ablage und leere Restkartenzeile in der Auswertung', code: "cardEl('slot') · .slot-hint", stage: () => c('slot'), stageCls: 'flat' },
   ];
   const sizes: Spec = {
     id: '5.10',
@@ -541,26 +550,11 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
   const cardArt: Spec[] = [
     {
-      id: '5.20',
-      name: 'Bildkarten-Personen (je 32 × 44 Pixel, zwei Decks)',
-      where: 'Bube, Dame, König in Herz, Karo, Kreuz, Pik: Person 1 im ersten Deck (Karten 0–51), Person 2 im zweiten Deck (Karten 52–103). Bei sieben Karten steht dort vorerst dieselbe Person doppelt',
-      code: 'face-art.ts (erzeugt von design/bildkarten/code/export_ts.py) · sprites.ts › drawPerson()',
-      stage: () => (['H', 'D', 'C', 'S'] as const).flatMap((su) => [11, 12, 13].flatMap((r) => FACE_ART[`${su}${r}`].map((rows) => art(rows, faceColors(), 1)))),
-      stageCls: 'flat',
-      facts: [
-        ['Familien', 'Herz: Dichtkunst, Rot, Gold, Weiß · Karo: Schätze, Gold · Kreuz: Königsfamilie, Schwarz, Gold · Pik: die Bösen, Weiß, Schwarz'],
-        ['Farben je Familie', 'Haut 1.20–1.23 · Haar 1.26–1.29 · Augen 1.30–1.33 (1 Pixel) · Gold 1.13 · Tinte 1.01 · Rot 1.14 · Orange 1.10 (Federn, Edelsteine, Hutbänder) · Weiß 1.24'],
-        ['Per Formel abgeleitet', 'Licht links/oben: Helligkeit +0,12, Sättigung ×0,92 · Schatten rechts/unten: Helligkeit −0,13, Sättigung ×1,10 (bei Weiß nur −0,06) · Nase: Haut −0,18 · Lippen: Rot 1.14 mit 50 % (Männer) und 90 % (Damen) Deckkraft auf der Haut · Falten: eine Stufe dunkler · Saumlinien auf Schwarz und Zylinderglanz: Schwarz +0,17 · Weiß-Kante: Creme −0,16'],
-        ['Saum', 'König: drei Goldlinien mit 1 Pixel Abstand · Dame: zwei Goldlinien plus Schattenlinie · Bube: eine Goldlinie plus zwei Schattenlinien'],
-        ['Neu erzeugen', 'Figuren und Formeln: design/bildkarten/code (Python, Pillow). Nach jeder Änderung an Palette 1.20–1.33 dort export_ts.py ausführen; die Datei face-art.ts nie von Hand ändern'],
-      ],
-    },
-    {
       id: '5.21',
       name: 'Ziffern- und Buchstaben-Glyphen (5 × 7 Pixel, die 0 nur 4 × 7)',
       where: 'Eckmarken aller Karten: 2–10, A, B (Bube), D (Dame), K, J (Joker)',
       code: 'sprites.ts › GLYPHS',
-      stage: () => Object.entries(GLYPHS).map(([k, rows]) => h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1)', color: 'var(--text-strong)' } }, art(rows, undefined, 1.5), hint(k))),
+      stage: () => Object.entries(GLYPHS).map(([k, rows]) => h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--gap-hair)', color: 'var(--text-strong)' } }, art(rows, undefined, 1.5), hint(k))),
       stageCls: 'flat',
     },
     {
@@ -568,40 +562,78 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'Farbsymbole (7 × 7 Pixel)',
       where: 'Eckmarken und Mitte der Zahlenkarten (Herz/Karo rot, Pik/Kreuz Tinte)',
       code: 'sprites.ts › SUIT_SHAPES',
-      stage: () => (['H', 'D', 'C', 'S'] as const).map((su) => h('div', { style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1)' } }, art(SUIT_SHAPES[su], undefined, 3), hint(suitName[su]))),
+      stage: () => (['H', 'D', 'C', 'S'] as const).map((su) => h('div', { style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--gap-hair)' } }, art(SUIT_SHAPES[su], undefined, 3), hint(suitName[su]))),
       stageCls: 'flat',
     },
-    {
-      id: '5.23',
-      name: 'Joker-Stern (13 × 13 Pixel)',
-      where: 'Joker-Karte: Stern in Orange dunkel und Gold (1 Pixel versetzt)',
-      code: 'sprites.ts › STAR',
-      stage: () => [art(STAR, { '#': PALETTE.orangeDark }, 3), art(STAR, { '#': PALETTE.gold }, 3)],
-      stageCls: 'flat',
-    },
-    { id: '5.24', name: 'Joker', where: 'Zwei Joker im Spiel', code: 'sprites.ts › drawJoker · Atlas-Zelle 52', stage: () => c(jack), stageCls: 'flat' },
-    { id: '5.25', name: 'Kartenrücken A (Orange)', where: 'Stapel, erstes Deck, Mitspieler-Hände, Austeilen', code: "sprites.ts › drawBack · 'back' · Zelle 53", stage: () => c('back'), stageCls: 'flat' },
-    { id: '5.26', name: 'Kartenrücken B (Dunkel)', where: 'Zweites Deck (Karten 52–103)', code: "sprites.ts › drawBack · 'back2' · Zelle 55", stage: () => c('back2'), stageCls: 'flat' },
-    {
-      id: '5.27',
-      name: 'Atlas (alle Zellen)',
-      where: 'Alle Karten stecken in einem Bild, das beim Start gezeichnet wird (Canvas, kein Bilddatei)',
-      code: 'sprites.ts › buildAtlas()',
-      stage: () => {
-        const img = h('img', { src: env.atlasUrl, alt: 'Atlas' }) as HTMLImageElement;
-        img.style.cssText = 'image-rendering:pixelated;width:calc(var(--px-atlas-w) * var(--s) * 0.75);height:auto;display:block';
-        return img;
-      },
-      stageCls: 'flat',
-      facts: [['Zellen', `H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55 · Bildkarten Deck 2: ${FACE2_CELL}–${ATLAS_CELLS - 1} (H, D, C, S je Bube, Dame, König)`]],
-    },
+    { id: '5.24', name: 'Joker', where: 'Zwei Joker im Spiel', code: 'sprites.ts › drawJoker · Atlas-Zelle 52 · STAR', stage: () => [c(jack), art(STAR, { '#': PALETTE.orangeDark }, 3), art(STAR, { '#': PALETTE.gold }, 3)], stageCls: 'flat', facts: [['Stern (5.23)', '13 × 13 Pixel in Orange dunkel und Gold, 1 Pixel versetzt']] },
   ];
-  const backThumbs = (d: (typeof BACK_DESIGNS)[number]): HTMLElement[] => (['a', 'b'] as const).map((deck) => h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, deck)})`, width: 'var(--card-w)', height: 'var(--card-h)' } }));
-  const backGrid = (): HTMLElement =>
+  const backThumbs = (d: (typeof BACK_DESIGNS)[number]): HTMLElement[] => (['a', 'b'] as const).map((deck) => h('span', { class: 'thumb', style: { backgroundImage: `url(${backThumb(d.id, deck)})` } }));
+  /** Alle Rückseiten gleichwertig: Paar (Deck 1 orange, Deck 2 dunkel) nebeneinander, darunter Name und Nummer. */
+  const backGallery = (): HTMLElement =>
     h(
       'div',
-      { style: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-6) var(--sp-8)' } },
-      ...BACK_DESIGNS.map((d, i) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--gap-tight)' } }, h('div', { style: { display: 'flex', gap: 'var(--gap-hair)' } }, ...backThumbs(d)), h('div', null, idChip(`5.${61 + i}`), ` ${d.name}`))),
+      { class: 'panel back-gallery' },
+      ...BACK_DESIGNS.map((d, i) => h('div', { class: 'back-item', id: `${NS}-5.${61 + i}` }, h('div', { class: 'back-pair' }, ...backThumbs(d)), h('div', { class: 'back-name' }, d.name), idChip(`5.${61 + i}`))),
+    );
+  const backIds = BACK_DESIGNS.map((_, i) => `5.${61 + i}`);
+
+  // ----- Familien: Figuren ohne Spielkarte, beide Decks als Paar. Beschreibungen aus design/bildkarten (STAND.md, zwillinge.py).
+  type Fam = { id: string; world: string; chars: Record<11 | 12 | 13, [string, string]>; colors: string[] };
+  const FAMILIES: Record<'H' | 'D' | 'C' | 'S', Fam> = {
+    H: { id: '5.50', world: 'Die Guten · persische Dichtkunst, Liebe · Rot, Gold, Weiß, Braun, nicht zu bunt', chars: { 11: ['Turbanform, Gold, Mond', 'kleiner Turban mit steiler Feder'], 12: ['Goldkamm, schmale Lippen', 'Schleier, Mond und Sterne, schmaler Mund'], 13: ['Dreibogen-Goldkrone, graues Haar, kleiner Schnurrbart', 'Moghul-Turban, Feder, grauer Bart'] }, colors: ['skin-h', 'hair-h', 'eye-h', 'hair-gray'] },
+    D: { id: '5.51', world: 'Orient, Schätze, Gold · blondes Haar, goldene Elemente · roter Fez als Familienmotiv', chars: { 11: ['roter Fez, Quaste', 'Takke und Stirnlocken'], 12: ['Juwelenkönigin, Diamant-Diadem', 'Sonnenscheibe, wellig mit Goldbändern'], 13: ['Federkrone', 'Kalif, Goldturban, langer Bart'] }, colors: ['skin-d', 'hair-d', 'eye-d'] },
+    C: { id: '5.52', world: 'Klassische Königsfamilie · Schwarz, Gold, Weiß, braunes Haar', chars: { 11: ['Hermelinprinz', 'Falkner mit Falke'], 12: ['Hofdame, Diadem, Perlen', 'Zopfkrone'], 13: ['Goldkrone, Schnurrbart', 'Glatze, runder Bart, Goldspange'] }, colors: ['skin-c', 'hair-c', 'eye-c'] },
+    S: { id: '5.53', world: 'Die Bösen · weiße Haare, Brille, Monokel, Zylinder, blasse Haut, Schwarz', chars: { 11: ['weißer Topfschnitt, runde Brille', ''], 12: ['Beret, Schönheitspunkt', 'weißer Bob, Brille, Melone mit rotem Band'], 13: ['Zylinder, Monokel, weißes langes Haar', 'breiter Zylinder, Glatze, Schnurrbart'] }, colors: ['skin-s', 'eye-s'] },
+  };
+  const fold = (title: string, ...children: Child[]): HTMLElement => h('details', { class: 'fold' }, h('summary', { class: 'hint' }, title), ...children);
+  const colorRows = (names: string[]): HTMLElement =>
+    table(
+      ['Nr.', 'Farbe', 'Wert'],
+      names.map((n) => {
+        const col = PALETTE_COLORS.find((x) => x.css === `--c-${n}`)!;
+        return [idChip(col.id), h('span', null, h('span', { class: 'swatch', style: { background: col.value } }), ` ${col.name}`), col.value];
+      }),
+    );
+  /** Person ohne Karte: der Ausschnitt mit Kopf und Schultern (Spalten 10–23, Zeilen 8–32 der Karte). */
+  const portrait = (su: string, rank: number, deck: 0 | 1): HTMLElement => {
+    const rows = FACE_ART[`${su}${rank}`][deck].slice(8, 33).map((r) => r.slice(10, 24));
+    return h('div', { class: 'portrait' }, art(rows, faceColors(), 2));
+  };
+  const familyBand = (su: 'H' | 'D' | 'C' | 'S'): HTMLElement => {
+    const f = FAMILIES[su];
+    const chars = ([11, 12, 13] as const).map((r) =>
+      h('div', { class: 'fam-char' }, h('div', { class: 'fam-pair' }, portrait(su, r, 0), portrait(su, r, 1)), h('div', { class: 'fam-name' }, `${suitName[su]} ${rankName(r)}`), ...f.chars[r].map((txt, d) => h('div', { class: 'hint' }, `${d + 1} · ${txt || '–'}`))),
+    );
+    return h(
+      'div',
+      { class: 'panel fam', id: `${NS}-${f.id}` },
+      h('div', { class: 'spec-head fam-head' }, h('span', { class: 'fam-suit', style: { color: su === 'H' || su === 'D' ? PALETTE.red : PALETTE.ink } }, art(SUIT_SHAPES[su], undefined, 2)), h('h3', null, suitName[su]), idChip(f.id)),
+      h('div', { class: 'hint fam-world' }, f.world),
+      h('div', { class: 'fam-chars' }, ...chars),
+      fold(`Farben dieser Familie (${f.colors.length}, nur für die Figuren)`, colorRows(f.colors)),
+    );
+  };
+  const familiesNode = (): HTMLElement =>
+    h(
+      'div',
+      { class: 'fam-list' },
+      ...(['H', 'D', 'C', 'S'] as const).map(familyBand),
+      h(
+        'div',
+        { class: 'panel fam-more' },
+        fold('Für alle Familien: Weiß und Palettenfarben', colorRows(['white']), hint('Weiß kommt in den Figuren aller Familien vor (Turbane, Schleier, Hermelin, Perlen, alle Pik-Haare) und sonst nirgends in der App. Außerdem verwenden die Figuren Tinte, Creme, Rot, Orange, Gold und Sand dunkel aus der Palette. Abgeleitete Töne stehen als feste Werte in face-art.ts.')),
+        fold(
+          'So sind die Figuren gebaut',
+          hint('Licht links/oben: Helligkeit +0,12, Sättigung ×0,92. Schatten rechts/unten: Helligkeit −0,13, Sättigung ×1,10 (bei Weiß nur −0,06). Nase: Haut −0,18. Lippen: Rot 1.14 mit 50 % (Männer) und 90 % (Damen) Deckkraft auf der Haut. Falten eine Stufe dunkler.'),
+          hint('Figuren und Formeln: design/bildkarten/code (Python, Pillow). Nach jeder Änderung an Palette 1.20–1.33 dort export_ts.py ausführen. Die Datei face-art.ts nie von Hand ändern. Jede Person ist 32 × 44 Pixel groß (face-art.ts, Karten 0–51 Deck 1, 52–103 Deck 2).'),
+        ),
+      ),
+    );
+  const fullDeck = (): HTMLElement =>
+    h(
+      'div',
+      { class: 'panel' },
+      ...(['H', 'D', 'C', 'S'] as const).map((su, si) => h('div', { class: 'card-grid blatt-row' }, ...Array.from({ length: 13 }, (_, k) => c(card(su, k + 1, -700 - si * 13 - k), { mini: true, title: `${suitName[su]} ${rankName(k + 1)}` })))),
     );
   const brand: Spec[] = [
     {
@@ -626,7 +658,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'Hintergrundmuster',
       where: 'Hinter allen Seiten: Schachbrett aus Sandstufe 6 (1.07) und Sandstufe 3 (1.06), Kachel 8 u',
       code: 'body · --tile',
-      stage: () => h('div', { style: { width: 'calc(8 * var(--tile))', height: 'calc(3 * var(--tile))', background: 'var(--surface-page)', backgroundImage: 'repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%)', backgroundSize: 'var(--tile) var(--tile)', border: 'var(--bw) solid var(--line)' } }),
+      stage: () => h('div', { style: { width: 'calc(8 * var(--tile))', height: 'calc(3 * var(--tile))', background: 'var(--surface-page)', backgroundImage: 'repeating-conic-gradient(var(--surface-page) 0 25%, var(--surface-page-alt) 0 50%)', backgroundSize: 'var(--tile) var(--tile)', border: 'var(--border)' } }),
       stageCls: 'flat',
     },
     {
@@ -639,14 +671,11 @@ export function chapters(env: GuideEnv): Chapter[] {
       facts: [['Spanne', 'Drehung −22° bis +22°, Versatz −5…+9 u waagerecht, −7…+7 u senkrecht']],
     },
   ];
-  const iconSpecs: Spec[] = ICONS.map((i) => ({
-    id: i.id,
-    name: `Piktogramm ${i.name} (10 × 10 Pixel)`,
-    where: i.use,
-    code: `icons.ts › ICON_${i.key.toUpperCase()}`,
-    stage: () => [art(i.rows, undefined, 3), iconBtn(pixelIcon(i.rows), i.name)],
-    stageCls: 'flat' as const,
-  }));
+  const iconSheet = (): HTMLElement =>
+    table(
+      ['Nr.', 'Piktogramm', 'Als Button', 'Wo'],
+      ICONS.map((i) => [idChip(i.id), art(i.rows, undefined, 3), iconBtn(pixelIcon(i.rows), i.name), sub(`${i.name} (10 × 10 Pixel)`, `${i.use} · icons.ts › ICON_${i.key.toUpperCase()}`)]),
+    );
 
   // ----- 6 Spielfeld
   const tableLayout = (): HTMLElement => {
@@ -698,17 +727,28 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '6.23', name: 'Offene Startkarte', where: 'Vor dem Start einer Runde im Bereich des Startspielers: Karte in der Stufe der Auslagen, ohne Rahmen, mit Titel (der bleibt auch, wenn die Beschriftungen der Mitte entfallen)', code: '.open-card', sel: '.open-card', stage: () => h('div', { class: 'open-card' }, c(card('C', 9, -510), { small: true }), h('span', null, t('wait.openCard', { name: 'Emil' }))) },
     { id: '6.30', name: 'Kombination Folge', where: 'Auslage jedes Sitzes, auch der eigenen: gleiche Stufe (--so, 6.18)', code: 'meldEl(cards) · cardEl(card, { small: true })', sel: '.meld', stage: () => melds('run', true), live: 'box' },
     { id: '6.31', name: 'Kombination Satz mit Joker', where: 'Auslage', code: 'meldEl(cards)', stage: () => melds('set', true) },
-    { id: '6.32', name: 'Cheft-Paar', where: 'Auslage: zwei gleiche Karten, enger überlappt', code: "meldEl(cards, { pair: true }) · .meld.pair", sel: '.meld.pair', stage: () => melds('pair', true) },
-    { id: '6.36', name: 'Eigene Auslage als Ablagezone', where: 'Beim Ziehen markierter Karten: orange gestrichelt, hinterlegt', code: '.own.drop', sel: '.own.drop', stage: () => h('div', { class: 'own drop', style: { width: '100%' } }, melds('run', true)), stageCls: 'flat', live: 'box' },
-    { id: '6.40', name: 'Stapel', where: 'Tischmitte: Rücken mit Dicke (eine Kante je angefangene 8 Karten, höchstens 7)', code: 'App.stockEl()', sel: '.stock-wrap > .card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0, marginRight: 'calc(7 * var(--s))', marginBottom: 'calc(7 * var(--s))' } }, (() => { const e = c('back', { glow: true }); const sh: string[] = []; for (let i = 7; i >= 1; i--) sh.push(`calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 0 var(--c-cream)`, `calc(${i}px * var(--s)) calc(${i}px * var(--s)) 0 1px var(--c-sand-dark)`); e.style.boxShadow = sh.join(', '); return e; })()) },
-    { id: '6.41', name: 'Teppichkarte', where: 'Quer unter dem Stapel, offen', code: '.carpet', sel: '.carpet', stage: () => h('div', { style: { position: 'relative', width: 'calc(1.4 * var(--card-h))', height: 'calc(1.2 * var(--card-w))' } }, h('div', { class: 'carpet', style: { left: 'calc(0.2 * var(--card-h))' } }, c(card('S', 11, -520), { glow: true }))) },
-    { id: '6.42', name: 'Ablage', where: 'Tischmitte: Karten liegen verstreut; die oberste ist ziehbar', code: '.discard', sel: '.discard', stage: () => h('div', { class: 'discard' }, ...[[0, 0, -10], [3, -2, 14], [-2, 4, -20]].map(([dx, dy, rot], i) => { const e = c(card('C', 4 + i, -530 - i), i === 2 ? { glow: true } : {}); e.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`; e.style.zIndex = String(i); return e; })), stageCls: 'flat' },
-    { id: '6.43', name: 'Ablage leer', where: 'Zu Rundenbeginn: gestrichelter Platzhalter', code: "cardEl('slot', { cls: 'slot-hint' })", stage: () => h('div', { class: 'discard' }, c('slot', { cls: 'slot-hint' })), stageCls: 'flat' },
-    { id: '6.44', name: 'Ablage als Ablageziel', where: 'Beim Ziehen einer Karte über die Ablage: oberste Karte orange gestrichelt', code: '.discard.drop', sel: '.discard.drop', stage: () => h('div', { class: 'discard drop' }, c(card('C', 4, -540))), stageCls: 'flat' },
+    { id: '6.32', name: 'Cheft-Paar', where: 'Auslage: zwei gleiche Karten, gleich überlappt wie jede Kombination', code: "meldEl(cards, { pair: true }) · .meld.pair", sel: '.meld.pair', stage: () => melds('pair', true) },
+    { id: '6.40', name: 'Stapel', where: 'Tischmitte: Rücken mit Dicke (eine Kante je angefangene 8 Karten, höchstens 7); die Kanten folgen der Kartenform samt abgerundeten Ecken (drop-shadow)', code: 'App.stockEl()', sel: '.stock-wrap > .card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0, marginRight: 'calc(7 * var(--s))', marginBottom: 'calc(7 * var(--s))' } }, (() => { const e = c('back'); const sh: string[] = []; for (let i = 0; i < 7; i++) sh.push('drop-shadow(calc(var(--s) - 1px) calc(var(--s) - 1px) 0 var(--c-cream))', 'drop-shadow(1px 1px 0 var(--c-sand-dark))'); e.style.filter = sh.join(' '); return e; })()) },
+    { id: '6.41', name: 'Teppichkarte', where: 'Quer unter dem Stapel, offen', code: '.carpet', sel: '.carpet', stage: () => h('div', { style: { position: 'relative', width: 'calc(1.4 * var(--card-h))', height: 'calc(1.2 * var(--card-w))' } }, h('div', { class: 'carpet', style: { left: 'calc(0.2 * var(--card-h))' } }, c(card('S', 11, -520)))) },
+    { id: '6.42', name: 'Ablage', where: 'Tischmitte: Karten liegen verstreut; die oberste ist ziehbar', code: '.discard', sel: '.discard', stage: () => h('div', { class: 'discard' }, ...[[0, 0, -10], [3, -2, 14], [-2, 4, -20]].map(([dx, dy, rot], i) => { const e = c(card('C', 4 + i, -530 - i)); e.style.transform = `translate(calc(${dx}px * var(--s)), calc(${dy}px * var(--s))) rotate(${rot}deg)`; e.style.zIndex = String(i); return e; })), stageCls: 'flat' },
+    {
+      id: '6.44',
+      name: 'Ablageziel',
+      where: 'Beim Ziehen von Karten: wohin man sie legen kann. Gestrichelt in Orange (2 u); fährt man darüber, kommt die Hervorhebung (1.57) dazu. Drei Formen: Halbkreis hinter der eigenen Auslage (Auslegen), Kombination (Anlegen, auch Joker klauen) und Ablage (Abwerfen): eine Kontur im Abstand 3.116 um alle Ablagekarten, deren Fläche zum Loslassen zählt',
+      code: '.drop-halo · .meld.can · .discard-zone',
+      sel: '.drop-halo, .meld.can, .discard-zone',
+      stage: () => {
+        const box = (extra: Record<string, string>, over: boolean) => h('div', { style: { border: 'var(--border-drop)', boxSizing: 'border-box', background: over ? 'color-mix(in srgb, var(--surface-highlight) 50%, transparent)' : 'transparent', ...extra } });
+        const form = (label: string, extra: Record<string, string>) => h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--gap-hair)' } }, h('div', { style: { display: 'flex', gap: 'var(--gap-row)' } }, box(extra, false), box(extra, true)), hint(label));
+        const w = { width: 'calc(3 * var(--card-w))', height: 'var(--card-h)' };
+        return [form('Eigene Auslage: möglich | darüber', { ...w, borderRadius: '50%' }), form('Kombination: möglich | darüber', w), form('Ablage (Kontur um alle Karten): möglich | darüber', { width: 'calc(var(--card-w) + 2 * var(--discard-gap))', height: 'calc(var(--card-h) + 2 * var(--discard-gap))', borderRadius: 'var(--discard-gap)' })];
+      },
+      stageCls: 'flat',
+    },
     { id: '6.45', name: 'Stapel-Beschriftung', where: 'Eine kleine Schrift ganz nah an der Karte: „Stapel“ und „Ablage“ über der Karte (die Ablage später von Karten verdeckt), „Teppich“ gedreht links neben der Teppichkarte. Entfallen, sobald am Tisch etwas kleiner ist als zum Start (6.18); die Titel der Startkarten (6.22, 6.23) bleiben', code: '.pile-label', sel: '.pile-label', stage: () => h('div', { class: 'piles', style: { position: 'relative', height: 'calc(2 * var(--size-btn-icon))' } }, h('span', { class: 'pile-label', style: { position: 'static' } }, `${t('stock')} · ${t('discard')} · ${t('carpet.label')}`)), stageCls: 'flat', live: 'text', liveSel: '.pile-label' },
     { id: '6.47', name: 'Tippfläche Teppichkarte', where: 'Unsichtbar: genau so groß wie eine Karte im Hochformat, direkt links neben dem Stapel, nur beim Ziehen aktiv. Damit sind alle drei „Karte nehmen“-Felder (Stapel, Ablage, Teppich) gleich groß. Rommé-Spieler bekommen beim Antippen die Rückfrage „Cheft ansagen?“', code: '.carpet-hit', sel: '.carpet-hit', stage: () => h('div', { class: 'hint' }, 'Unsichtbar, ohne Rahmen und ohne Leuchten'), stageCls: 'flat' },
-    { id: '6.48', name: 'Offene Karten am Fächer', where: 'Ab 900 px Breite: Die vorübergehenden Karten des Spielers am Zug liegen offen und rot umrandet am Ende des Fächers, mehrere untereinander', code: '.fan-wrap > .temp-col', sel: '.temp-col', stage: () => h('div', { class: 'fan-wrap', style: { paddingRight: 'calc(var(--px-card-w) * var(--so) + var(--sp-4))', marginTop: 'calc(var(--px-card-h) * var(--so))' } }, h('div', { class: 'fan' }, ...Array.from({ length: 6 }, (_, i) => c(i % 2 ? 'back2' : 'back', { small: true }))), h('div', { class: 'temp-col' }, c(card('C', 10, -611), { small: true, temp: true }), c(jack, { small: true, temp: true }))), stageCls: 'flat' },
-    { id: '6.49', name: 'Halbe Karte am Handy', where: 'Ohne Fächer (Handy): Von jeder vorübergehenden Karte bleibt die obere Hälfte, am äußeren Rand des Sitzes bis zum Bildschirmrand verlängert, der Rahmen fehlt an der Außenseite (die Karte wirkt abgeschnitten). Sie liegt über dem Sitz und belegt keinen Platz. Beim eigenen Sitz gibt es sie nicht (die Karte ist rot in der Hand)', code: '.temp-half > .half', sel: '.temp-half', stage: () => h('div', { class: 'temp-half', style: { margin: 'var(--sp-4)' } }, h('div', { class: 'half' }, c(card('C', 10, -612), { small: true })), h('div', { class: 'half' }, c(jack, { small: true }))), stageCls: 'flat' },
+    { id: '6.48', name: 'Offene Karten im Fächer', where: 'Ab 900 px Breite: Die vorübergehenden Karten des Spielers am Zug liegen offen und rot umrandet am Ende des Fächers, in derselben Reihe und wie die verdeckten nur als obere Hälfte. Der Rahmen (3.50) ist von der Überlappung (3.75) abgezogen, so bleibt von jeder Karte so viel zu sehen wie ohne Rahmen; oben hat der Fächer Platz für den Rahmen', code: '.fan.has-temp > .card.temp', sel: '.fan .card.temp', stage: () => h('div', { class: 'fan has-temp' }, ...Array.from({ length: 6 }, (_, i) => c(i % 2 ? 'back2' : 'back', { small: true })), c(card('C', 10, -611), { small: true, temp: true }), c(jack, { small: true, temp: true })), stageCls: 'flat' },
+    { id: '6.49', name: 'Halbe Karte am Handy', where: 'Ohne Fächer (Handy): Von jeder vorübergehenden Karte bleibt die obere Hälfte (Überlappung wie bei offenen Karten, Rahmen abgezogen), am äußeren Rand des Sitzes bis zum Bildschirmrand verlängert, der Rahmen fehlt an der Außenseite (die Karte wirkt abgeschnitten). Sie liegt über dem Sitz und belegt keinen Platz. Beim eigenen Sitz gibt es sie nicht (die Karte ist rot in der Hand)', code: '.temp-half > .half', sel: '.temp-half', stage: () => h('div', { class: 'temp-half', style: { margin: 'var(--gap-row)' } }, h('div', { class: 'half' }, c(card('C', 10, -612), { small: true, temp: true })), h('div', { class: 'half' }, c(jack, { small: true, temp: true }))), stageCls: 'flat' },
     { id: '6.46', name: 'Fächer der Mitspieler', where: 'Verdeckte Handkarten bei Mitspielern (nur ab 900 px Breite)', code: '.fan', sel: '.fan', stage: () => h('div', { class: 'fan' }, ...Array.from({ length: 8 }, (_, i) => c(i % 2 ? 'back2' : 'back', { small: true }))), stageCls: 'flat' },
     {
       id: '6.18',
@@ -726,7 +766,7 @@ export function chapters(env: GuideEnv): Chapter[] {
       ],
     },
     { id: '6.50', name: 'Status-Zeile', where: 'Zwischen Tisch und Hand: Meldung links, Info rechts', code: '.status', sel: '.status', stage: () => h('div', { class: 'status', style: { width: '100%' } }, h('span', { class: 'msg' }, t('turn.you.play')), h('span', { class: 'info' }, t('threshold', { n: 51 }))), stageCls: 'flat', live: 'box', liveSel: '.status' },
-    { id: '6.60', name: 'Hand', where: 'Eigene Karten auf der Leiste in Sand: markiert, frisch, vorübergehend (rot)', code: '.hand-wrap > .hand', sel: '.hand-wrap', stage: () => h('div', { class: 'hand-wrap', style: { width: '100%' } }, h('div', { class: 'hand', style: { display: 'flex', gap: 'var(--sp-2)', height: 'auto', paddingTop: 'var(--lift-selected)' } }, ...[card('H', 5, -601), card('S', 13, -602), card('D', 1, -603), card('C', 7, -604)].map((k, i) => { const e = c(k, i === 1 ? { selected: true } : i === 2 ? { fresh: true } : {}); e.style.position = 'static'; if (i === 1) e.style.transform = 'translateY(calc(-1 * var(--lift-selected)))'; return e; }))), stageCls: 'flat', live: 'box', liveSel: '.hand-wrap', facts: [['Raster', `Abstand ${HAND.minStep}–(Kartenbreite + ${HAND.maxOver}) u; darunter zwei Zeilen im Abstand ${HAND.rowGap} u (3.151–3.154)`]] },
+    { id: '6.60', name: 'Hand', where: 'Eigene Karten auf der Leiste in Sand dunkel: markiert, frisch, vorübergehend (rot)', code: '.hand-wrap > .hand', sel: '.hand-wrap', stage: () => h('div', { class: 'hand-wrap', style: { width: '100%' } }, h('div', { class: 'hand', style: { display: 'flex', gap: 'var(--gap-tight)', height: 'auto', paddingTop: 'var(--lift-selected)' } }, ...[card('H', 5, -601), card('S', 13, -602), card('D', 1, -603), card('C', 7, -604)].map((k, i) => { const e = c(k, i === 1 ? { selected: true } : i === 2 ? { fresh: true } : {}); e.style.position = 'static'; if (i === 1) e.style.transform = 'translateY(calc(-1 * var(--lift-selected)))'; return e; }))), stageCls: 'flat', live: 'box', liveSel: '.hand-wrap', facts: [['Raster', `Abstand ${HAND.minStep}–(Kartenbreite + ${HAND.maxOver}) u; darunter zwei Zeilen im Abstand ${HAND.rowGap} u (3.151–3.154)`]] },
     { id: '6.62', name: 'Aktionsleiste', where: 'Unten, immer alle vier: Cheft! (dunkel, ganz links, weit weg vom oft gedrückten Abwerfen), Auslegen (primär), Anlegen, Abwerfen. Nicht Mögliches ist abgeblendet, aber nie vom Handinhalt abhängig. Vor Rundenbeginn steht stattdessen ein einziger Knopf „Bereit“ über die ganze Breite', code: '.actions', sel: '.actions', stage: () => [h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.cheft'), undefined, { variant: 'dark' }), btn(t('btn.lay'), undefined, { variant: 'primary' }), btn(t('btn.layOff')), btn(t('btn.discard'))), h('div', { class: 'actions', style: { width: '100%' } }, btn(t('btn.ready'), undefined, { variant: 'primary' }))], stageCls: 'flat', live: 'box', liveSel: '.actions' },
     { id: '6.64', name: 'Zug zurücksetzen', where: 'Kleines Symbol links unten auf dem Spielfeld (5.45), bewusst kein Hauptknopf; immer da, abgeblendet, solange es nichts zurückzusetzen gibt. Setzt den Zug auf den Anfang zurück (Stapelkarte bleibt auf der Hand, Ablage- oder Teppichkarte gehen zurück); wurde schon ausgelegt, angelegt oder geklaut, fragt die App erst. Spielt einen enttäuschten Ton (9.12). Cheft-Ansage bleibt bestehen', code: '.undo-btn', sel: '.undo-btn', stage: () => iconBtn(pixelIcon(ICONS[4].rows), t('btn.undoDraw')), stageCls: 'flat', live: 'box' },
     { id: '6.25', name: 'Kreis des aktiven Spielers', where: 'Wer dran ist: großer goldener Kreis mit Pixelkante ganz hinten im Spielfeld, Mitte auf der Spielfeldkante bei diesem Spieler (unten, links, oben, rechts), am Rand abgeschnitten. Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ (3.145), aufs Pixelraster gerundet. Schon vor dem Start der Runde: So ist sofort klar, wer anfängt. Das goldene Namensschild verschwindet darin, die dunkle Schrift bleibt lesbar', code: 'App.layoutDisc · .turn-disc', sel: '.turn-disc', stage: () => h('div', { class: 'hint' }, `Durchmesser = (B + H) ÷ 2 ÷ ${TURN_DISC.phi} ÷ ${TURN_DISC.phi}`), stageCls: 'flat' },
@@ -737,18 +777,18 @@ export function chapters(env: GuideEnv): Chapter[] {
       code: '.peek-layer · .peek-line · .peek-item · .peek-tag · .peek-taken',
       sel: '.peek-item',
       stage: () => h('div', { class: 'peek-layer', style: { position: 'relative', width: '100%', height: 'calc(3.5 * var(--card-h))', zIndex: 'auto' } },
-        h('div', { class: 'peek-banner', style: { top: 'var(--sp-3)' } }, t('peek.title')),
+        h('div', { class: 'peek-banner', style: { top: 'var(--gap-row)' } }, t('peek.title')),
         h('div', { class: 'peek-line', style: { left: 'calc(2.5 * var(--card-w))', top: 'calc(0.5 * var(--card-h))', width: 'var(--card-w)', transform: 'rotate(0.6rad)' } }),
-        h('div', { class: 'peek-item', style: { left: 'var(--sp-8)', top: 'calc(1.2 * var(--card-h))' } }, c(card('H', 9, -701)), h('div', { class: 'peek-tag' }, 'Emil')),
+        h('div', { class: 'peek-item', style: { left: 'var(--gap-group)', top: 'calc(1.2 * var(--card-h))' } }, c(card('H', 9, -701)), h('div', { class: 'peek-tag' }, 'Emil')),
         h('div', { class: 'peek-item taken', style: { left: 'calc(2 * var(--card-w))', top: 'calc(1.2 * var(--card-h))' } }, c(card('D', 3, -702)), h('div', { class: 'peek-tag' }, 'Zhao', h('div', { class: 'peek-taken' }, t('peek.taken', { name: 'Neo' })))),
       ),
       stageCls: 'flat',
     },
-    { id: '6.80', name: 'Fliegende Karte', where: 'Alle Kartenbewegungen: Ziehen, Abwerfen, Auslegen, Austeilen', code: '.card.fly · anim.ts', stage: () => h('div', { class: 'hint' }, `Kopie der Karte, die in ${MOTION.fly} ms (Austeilen ${MOTION.dealFly} ms) vom alten zum neuen Platz fliegt, Kurve ${EASE_FLY}. Ebene 3.122.`), stageCls: 'flat' },
+    { id: '6.80', name: 'Fliegende Karte', where: 'Alle Kartenbewegungen: Ziehen, Abwerfen, Auslegen, Austeilen', code: '.card.fly · anim.ts', stage: () => h('div', { class: 'hint' }, `Kopie der Karte, die in ${MOTION.fly} ms (auch beim Austeilen) vom alten zum neuen Platz fliegt, Kurve ${EASE_FLY}. Ebene 3.122.`), stageCls: 'flat' },
   ];
 
   // ----- 7 Fenster
-  const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { margin: '0 auto' } }, ...children);
+  const dlg = (...children: Child[]): HTMLElement => h('div', { class: 'panel dialog', style: { width: 'var(--w-dialog)', maxWidth: '100%' } }, ...children);
   // Standard sind vier Spieler: Spalten in Spielreihenfolge ab dem Startspieler der ersten Runde (App.renderRoundsTable)
   const players4 = ['Emil', 'Tobi', 'Zhao', 'Neo'];
   const roundPoints = [
@@ -775,9 +815,9 @@ export function chapters(env: GuideEnv): Chapter[] {
       h('td', { class: 'num' }, total),
       h('td', { class: 'num' }, sum),
     );
-  const windows: Spec[] = [
+  const windowsRaw: Spec[] = [
     { id: '7.01', name: 'Fenster (Grundform)', where: 'Alle Fenster: Titel, Inhalt, Knöpfe auf Abdunkelung; max. 230 u breit', code: 'windowEl(children, onBackdrop?)', sel: '.overlay > .dialog', stage: () => dlg(h('h2', null, t('pause.title')), h('p', null, t('pause.text')), btn(t('pause.resume'), undefined, { variant: 'primary' })), stageCls: 'flat', live: 'box', liveSel: '.dialog' },
-    { id: '7.02', name: 'Entscheidung', where: 'Cheft ansagen: Abbrechen | Aktion (primär)', code: 'askDialog({ buttons: [Abbrechen, Aktion] })', stage: () => dlg(h('h2', null, t('confirm.cheft.title')), h('p', null, t('confirm.cheft')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
+    { id: '7.02', name: 'Dialog: Entscheidung, Gefahr, Eingabe, Information', where: 'Cheft ansagen: Abbrechen | Aktion (primär)', code: 'askDialog({ buttons: [Abbrechen, Aktion] })', stage: () => dlg(h('h2', null, t('confirm.cheft.title')), h('p', null, t('confirm.cheft')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.cheftConfirm'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.03', name: 'Entscheidung mit Gefahr', where: 'Spiel abbrechen, Raum verlassen: Aktion rot', code: "askDialog({ buttons: [… { danger: true }] })", stage: () => dlg(h('h2', null, t('confirm.quit.title')), h('p', null, t('confirm.quit')), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.quit'), undefined, { variant: 'danger' }))), stageCls: 'flat' },
     { id: '7.04', name: 'Eingabe', where: 'Spielstand-Code einfügen', code: 'askDialog({ input })', stage: () => dlg(h('h2', null, t('btn.importSave')), h('p', null, t('save.prompt')), h('textarea', { class: 'text', rows: '3', placeholder: '…' }), h('div', { class: 'btn-row' }, btn(t('btn.cancel')), btn(t('btn.load'), undefined, { variant: 'primary' }))), stageCls: 'flat' },
     { id: '7.05', name: 'Information', where: 'Code zum Kopieren, wenn die Zwischenablage nicht geht', code: 'askDialog({ back: true })', stage: () => dlg(h('h2', null, t('lobby.copy')), h('textarea', { class: 'text', rows: '2', readonly: 'readonly' }, 'https://cheft.beigi.eu/232'), backBtn(() => undefined)), stageCls: 'flat' },
@@ -839,13 +879,13 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '7.21', name: 'Toast Fehler', where: 'Unerlaubte Aktion, Verbindungsfehler: rot', code: 'toastEl(msg, true)', stage: () => staticToast(t('err.cannotAdd'), true), stageCls: 'flat', live: 'both', liveSel: '.toast' },
     { id: '7.30', name: 'Abdunkelung', where: 'Hinter jedem Fenster; ein Tipp daneben = „Zurück“, aber nur bei Fenstern, die nur anzeigen', code: '.overlay', stage: () => h('div', { class: 'overlay', style: { position: 'relative', width: '100%', height: 'calc(2 * var(--size-btn-icon))', inset: 'auto', padding: 0, zIndex: 'auto' } }, hint('Abdunkelung 1.18')), stageCls: 'flat', live: 'box', liveSel: '.overlay' },
   ];
+  const windows = mergeSpecs(windowsRaw, ['7.01', '7.09'], ['7.02', '7.03', '7.04', '7.05'], ['7.10', '7.12'], ['7.20', '7.21']);
 
   // ----- 8 Seiten
-  const anatomy = (rows: [string, string][]): (() => HTMLElement) => () => table(['Nr.', 'Element'], rows.map(([id, text]) => [idChip(id), text]));
   const viewDemo: Spec = {
     id: '8.10',
     name: 'Ganzseitige Ansicht',
-    where: 'Regeln und Design Guide: Titelleiste (oben), scrollender Inhalt, Fußleiste mit „Zurück“ (unten)',
+    where: 'Regeln und Familienalbum: Titelleiste (oben), scrollender Inhalt, Fußleiste mit „Zurück“ (unten)',
     code: 'viewEl(title, body, onBack)',
     sel: '.viewbar, .footbar:not(.endbar)',
     stage: () => h('div', { style: { height: 'calc(5 * var(--size-btn-icon))', width: '100%', display: 'flex', flexDirection: 'column' } }, viewEl(t('btn.rules'), [h('p', null, 'Inhalt …')], () => undefined, 'reading')),
@@ -872,41 +912,24 @@ export function chapters(env: GuideEnv): Chapter[] {
     live: 'box',
     liveSel: '.lobby-seat',
   };
-  const pages: Group[] = [
-    { title: '8.01 Menü', node: anatomy([['5.30', 'Logo'], ['4.02', 'Weiterspielen (nur mit Spielstand, primär)'], ['4.01/4.02', 'Neues Spiel (primär, wenn nichts zum Weiterspielen)'], ['4.01', 'Spielstand-Code einfügen'], ['4.01', 'Mit Freunden spielen'], ['4.02', 'Zurück in den Raum (nur wenn ein Raum gespeichert ist)'], ['4.01', 'Regeln'], ['4.01', 'Design Guide'], ['4.01', 'Einstellungen (Fenster 7.06)']]) },
-    { title: '8.02 Neues Spiel', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.11', 'Bots (2 | 3)'], ['4.12', 'Je Bot: Stufe | Spielweise'], ['4.01', 'Alle zufällig'], ['4.11', 'Sitzplätze, Rauskommen im ersten Zug, Karten beim Austeilen, Rückblick, Runden'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.06', 'Zurück']]) },
-    { title: '8.03 Mit Freunden spielen', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.02', 'Raum eröffnen'], ['4.15', 'Raumcode + Beitreten (4.01)'], ['4.17', 'Server-Adresse (aufklappbar)'], ['4.06', 'Zurück']]) },
-    { title: '8.04 Beitreten (Spiel läuft)', node: anatomy([['2.31', 'Titel'], ['2.37', 'Hinweis'], ['4.01', 'Ein Knopf je übernehmbarem Platz'], ['4.06', 'Zurück']]) },
-    { title: '8.05 Lobby', node: anatomy([['2.31', 'Titel (Raumcode)'], ['4.01', 'Link / Raumcode kopieren'], ['4.19', 'Sitzreihen mit Griff, Name (4.14), Chips (4.20), Entfernen (4.07), Bot-Auswahl (4.12)'], ['4.01', 'Bot hinzufügen'], ['4.11', 'Einstellungen (Gastgeber) oder 4.18 (Mitspieler)'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.04', 'Raum verlassen']]) },
-    { title: '8.06 Regeln', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['2.32', 'Zwischenüberschriften'], ['2.35', 'Listen'], ['4.06', 'Zurück (zum Menü oder ins Spiel)']]) },
-    { title: '8.07 Design Guide', node: anatomy([['8.10', 'Ganzseitige Ansicht'], ['2.32', 'Kapitel (2.31) und Gruppen (2.32)'], ['4.11', 'Nummern im Spiel'], ['4.06', 'Zurück zum Menü']]) },
-    { title: '8.08 Spielfeld', node: anatomy([['6.01', 'Kopfzeile'], ['6.11–6.15', 'Sitze, Mitte, eigene Auslage'], ['6.50', 'Status'], ['6.60', 'Hand'], ['6.62', 'Aktionen']]) },
-  ];
 
   // ----- 9 Sound
   const vibFor = (use: string) => VIBRATION_CATALOG.find((v) => v.use === use);
   const pattern = (v: (typeof VIBRATION_CATALOG)[number]) => (Array.isArray(v.pattern) ? v.pattern.join(' · ') : String(v.pattern));
-  const soundSpecs: Spec[] = SOUND_CATALOG.map((s) => {
-    const v = vibFor(s.use);
-    return {
-      id: s.id,
-      name: `Ton ${s.label}`,
-      where: s.use,
-      code: `sound.ts › play('${s.name}')`,
-      stage: () => (v ? [btn('Anhören', () => preview(s.name)), btn('Fühlen', () => vibrate(v.pattern, true))] : btn('Anhören', () => preview(s.name))),
-      stageCls: 'flat' as const,
-      facts: [['Rezept', s.recipe], ...(v ? [['Vibration (ms)', pattern(v)] as [string, string]] : [])],
-    };
-  });
-  // Vibrationen mit eigenem Anlass; die zum Anlass eines Tons stehen schon dort
-  const vibSpecs: Spec[] = VIBRATION_CATALOG.filter((v) => !SOUND_CATALOG.some((s) => s.use === v.use)).map((v) => ({
-    id: v.id,
-    name: `Vibration ${v.label}`,
-    where: v.use,
-    stage: () => btn('Fühlen', () => vibrate(v.pattern, true)),
-    stageCls: 'flat' as const,
-    facts: [['Muster (ms)', pattern(v)]],
-  }));
+  const vibOnly = VIBRATION_CATALOG.filter((v) => !SOUND_CATALOG.some((s) => s.use === v.use));
+  const soundTable = (): HTMLElement =>
+    table(
+      ['Nr.', 'Ton', 'Probe', 'Rezept'],
+      [
+        ...SOUND_CATALOG.map((s) => {
+          const v = vibFor(s.use);
+          return [idChip(s.id), sub(s.label, s.use), h('div', { class: 'row' }, btn('Anhören', () => preview(s.name)), v ? btn('Fühlen', () => vibrate(v.pattern, true)) : null), sub(s.recipe, v ? `Vibration (ms): ${pattern(v)}` : '')];
+        }),
+        ...vibOnly.map((v) => [idChip(v.id), sub(`Vibration ${v.label}`, v.use), btn('Fühlen', () => vibrate(v.pattern, true)), `Muster (ms): ${pattern(v)}`]),
+        [idChip('9.30'), 'Gesamtlautstärke', '', '4,5 mit Kompressor (Schwelle −16 dB) gegen Übersteuern (sound.ts › MASTER_GAIN)'],
+      ],
+    );
+  const soundIds = [...SOUND_CATALOG.map((x) => x.id), ...vibOnly.map((x) => x.id), '9.30'];
 
   // ----- 10 Navigation
   const navTable: Group = {
@@ -922,7 +945,7 @@ export function chapters(env: GuideEnv): Chapter[] {
           ['Entscheidung (Fenster)', 'Abbrechen · Esc (nie daneben tippen)', 'Ebene darunter, ohne Aktion'],
           ['Auswahl „Wie auslegen?“', 'Abbrechen · Esc', 'Spiel'],
           ['Regeln', 'Zurück · Esc', 'Menü oder Spiel (woher man kam)'],
-          ['Design Guide', 'Zurück · Esc', 'Menü'],
+          ['Familienalbum', 'Zurück · Esc', 'Menü'],
           ['Neues Spiel', 'Zurück · Esc', 'Menü'],
           ['Mit Freunden spielen', 'Zurück · Esc', 'Menü'],
           ['Beitreten (Spiel läuft)', 'Zurück · Esc', 'Mit Freunden spielen'],
@@ -945,12 +968,12 @@ export function chapters(env: GuideEnv): Chapter[] {
           ['Spielstand-Code einfügen · Laden', '4.01 · 4.02', 'Menü, Eingabe-Dialog'],
           ['Mit Freunden spielen · Raum eröffnen · Beitreten', '4.01 · 4.02 · 4.01', 'Menü, Online'],
           ['Zurück in den Raum', '4.02', 'Menü, Spielende online'],
-          ['Regeln · Design Guide · Einstellungen', '4.01', 'Menü'],
+          ['Regeln · Familienalbum · Einstellungen', '4.01', 'Menü'],
           ['Alle zufällig · Bot hinzufügen · Link kopieren', '4.01', 'Neues Spiel, Lobby'],
           ['Auslegen · Anlegen · Abwerfen', '4.02 · 4.01 · 4.01', 'Aktionsleiste'],
-          ['Cheft! · Zurücklegen', '4.03', 'Aktionsleiste'],
+          ['Cheft!', '4.03', 'Aktionsleiste'],
           ['Cheft ansagen', '4.02', 'Entscheidung 7.02'],
-          ['Bereit', '4.02', 'Aktionsleiste 6.63'],
+          ['Bereit', '4.02', 'Aktionsleiste 6.62'],
           ['Tisch ansehen · Auswertung · Nächste Runde · Spiel beenden', '4.01 · 4.01 · 4.02 · 4.02', 'Rundenende 7.10, Fußleiste 7.11'],
           ['Pause · Weiter · Trotzdem weiter', '4.01 · 4.02 · 4.02', 'Einstellungen, Pause-Fenster 7.09'],
           ['Spielstand-Code kopieren · Speichern & zum Menü', '4.01', 'Einstellungen im Spiel'],
@@ -961,31 +984,38 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
 
   // ----- Aufbau
-  return [
-    {
-      n: 1,
-      title: 'Farben',
-      intro: 'Zwei Ebenen: Die Palette (1.01–1.36) sind die echten Farbwerte. Die Rollen (1.41–1.79) sagen, wofür eine Farbe steht. Das Layout benutzt nur Rollen: eine Rolle auf eine andere Palettenfarbe zeigen lassen ändert alle Stellen im Spiel. Die Sandtöne bilden eine Leiter aus zehn gleich großen Schritten von Creme (Stufe 0) bis Sand (Stufe 9): Nur diese beiden Enden sind festgelegt, alle Stufen dazwischen (1.06, 1.07) werden per Formel berechnet (sandStep in tokens.ts). Quelle: tokens.ts.',
-      groups: [...paletteGroups, ...roleGroups],
+  const atlasSpec: Spec = {
+    id: '5.27',
+    name: 'Atlas (alle Zellen)',
+    where: 'Alle Karten stecken in einem Bild, das beim Start gezeichnet wird (Canvas, keine Bilddatei)',
+    code: 'sprites.ts › buildAtlas()',
+    stage: () => {
+      const img = h('img', { src: env.atlasUrl, alt: 'Atlas' }) as HTMLImageElement;
+      img.style.cssText = 'image-rendering:pixelated;width:calc(var(--px-atlas-w) * var(--s) * 0.75);height:auto;display:block';
+      return img;
     },
-    {
-      n: 2,
-      title: 'Typografie',
-      intro: 'Zwei Schriften: VT323 für Text, Tiny5 Duo Bold (700) für Überschriften. Sieben Größen. Die Spezifikation unter jedem Muster ist live aus dem Element gelesen, nicht abgeschrieben.',
-      groups: [
-        { title: 'Schriftarten', specs: fontSpecs },
-        { title: 'Schriftschnitte', specs: weightSpecs },
-        { title: 'Schriftgrößen', specs: sizeSpecs },
-        { title: 'Zeilenhöhe und Laufweite (2.21–2.24)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => TYPE_MISC_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), x.value]), [2]) },
-        { title: 'Textstile: Überschriften, Texte, Hinweise (2.30–2.54)', specs: typeRoles },
-      ],
-    },
-    {
-      n: 3,
-      title: 'Abstände, Rahmen, Maße',
-      intro: '1 u = 1 Pixel × Maßstab. Abstände sind Stufen der Skala (3.11–3.18), Rollen (3.21–3.37) geben ihnen Bedeutung; am Ende steht, wo im Spiel welcher Abstand wirkt.',
-      groups: [
-        {
+    stageCls: 'flat',
+    facts: [['Zellen', `H: 0–12 · D: 13–25 · C: 26–38 · S: 39–51 · Joker: 52 · Rücken A: 53 · Platzhalter: 54 · Rücken B: 55 · Bildkarten Deck 2: ${FACE2_CELL}–${ATLAS_CELLS - 1} (H, D, C, S je Bube, Dame, König)`]],
+  };
+  const masterGroup: Group = {
+    title: 'Master-Stile',
+    note: 'Elemente, die im Spiel denselben Stil teilen, stehen in styles.css in einer gemeinsamen Regel und lesen ihre Werte aus denselben Variablen. Ein Wert ändert alle Stellen; die Varianten setzen nur, was sie anders machen.',
+    node: () =>
+      table(
+        ['Master', 'Parameter', 'Wirkt auf'],
+        [
+          ['Rahmen', h('span', null, idChip('3.51'), ' ', idChip('3.53'), ' ', idChip('3.59'), ' ', idChip('3.60')), 'Panels, Buttons, Felder, Leisten, Chips, Tabellenlinien, Ablageziele'],
+          ['Bedienelement', h('span', null, idChip('3.24'), ' ', idChip('3.23'), ' ', idChip('3.54')), 'Buttons und Eingabefelder: Schrift, Rahmen, Ecken und Innenrand gemeinsam (oben/unten 3.24, links/rechts 3.23)'],
+          ['Chip', h('span', null, idChip('3.24'), ' ', idChip('2.22'), ' --chip-bg · --chip-fg · --chip-line'), 'Rommé/Cheft (4.20), Nummern im Album, Namensschild im Rückblick, Zahl beim Ziehen (5.18), Nummern-Anzeige. Standard Gold, Varianten setzen nur Farben und Größe'],
+          ['Knopfgruppe', h('span', null, idChip('3.23'), ' ', idChip('3.24'), ' --bgap'), 'Button-Reihe (4.09), Fußleiste, Aktionsleiste (3.24)'],
+          ['Stapel', idChip('3.23'), 'Menü-Panel und -Gruppen, Fenster, Einleitung des Albums, Werkstatt'],
+          ['Panel', h('span', null, idChip('3.23'), ' ', idChip('3.56'), ' ', idChip('1.53')), 'Panels, Dialoge, Toast (nur oben/unten enger)'],
+          ['Tabelle', h('span', null, idChip('3.59'), ' ', idChip('1.44')), 'Auswertung und Familienalbum teilen Linien, Innenrand, Kopf und Zahlenspalte; die Schriftgröße setzt die Tabelle selbst'],
+          ['Kleiner Text', h('span', null, idChip('2.15'), ' ', idChip('2.16'), ' ', idChip('1.43')), 'Hinweis (Beschriftungen, Sitz, Familienalbum) und Mikro (Pile-Beschriftung, Faktoren, Titel der Startkarten)'],
+        ],
+      ),
+  };
+  const scaleGroup: Group = {
           title: 'Maßstab (3.01) und Umschaltpunkte (3.05–3.06)',
           node: tokenTable(
             ['Nr.', 'Maßstab', '--s / --so'],
@@ -996,72 +1026,140 @@ export function chapters(env: GuideEnv): Chapter[] {
             ],
             [2],
           ),
-        },
-        spacingScaleGroup,
-        spacingRoleGroup,
-        borderGroup,
-        effectGroup,
-        sizeTable,
-        { title: 'Ebenen, z-index (3.121–3.127)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => Z_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), x.value]), [2]) },
-        { title: 'Zeiten in Millisekunden (3.131–3.145)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => [...MOTION_TOKENS.map((m) => [idChip(m.id), sub(m.name, m.use), `${MOTION[m.key]} ms`]), [idChip('3.143'), sub('Kurve', 'Alle Kartenflüge und der Rückblick'), EASE_FLY], [idChip('3.144'), sub('Rückblick: Startgröße', 'Karten wachsen beim Einblenden'), String(PEEK_FROM_SCALE)], [idChip('3.145'), sub('Kreis des aktiven Spielers', 'Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ'), `φ = ${TURN_DISC.phi}`]], [2]) },
-        { title: 'Hand-Raster (3.151–3.154)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => HAND_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), `${HAND[x.key]} u`]), [2]) },
-        ...usageGroup,
+        };
+  const werkGroups: Group[] = [
+    masterGroup,
+    scaleGroup,
+    spacingGroup,
+    borderGroup,
+    effectGroup,
+    sizeTable,
+    { title: 'Ebenen, z-index (3.121–3.127)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => Z_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), x.value]), [2]) },
+    { title: 'Zeiten in Millisekunden (3.131–3.145)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => [...MOTION_TOKENS.map((m) => [idChip(m.id), sub(m.name, m.use), `${MOTION[m.key]} ms`]), [idChip('3.143'), sub('Kurve', 'Alle Kartenflüge und der Rückblick'), EASE_FLY], [idChip('3.144'), sub('Rückblick: Startgröße', 'Karten wachsen beim Einblenden'), String(PEEK_FROM_SCALE)], [idChip('3.145'), sub('Kreis des aktiven Spielers', 'Durchmesser = (Breite + Höhe des Spielfelds) ÷ 2 ÷ φ ÷ φ'), `φ = ${TURN_DISC.phi}`]], [2]) },
+    { title: 'Hand-Raster (3.151–3.154)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => HAND_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), `${HAND[x.key]} u`]), [2]) },
+    ...usageGroup,
+    { title: 'Kartenatlas (5.27)', specs: [atlasSpec] },
+  ];
+  return [
+    // ---------------- Marke
+    {
+      key: 'familien',
+      tier: 'marke',
+      title: 'Familien',
+      ids: '5.50–5.53',
+      intro: 'Jede Figur gibt es in zwei Personen: Deck 1 links, Deck 2 rechts (die Zahlen vor den Beschreibungen).',
+      groups: [{ title: '', node: familiesNode, ids: ['5.50', '5.51', '5.52', '5.53'], bare: true }],
+    },
+    {
+      key: 'rueckseiten',
+      tier: 'marke',
+      title: 'Rückseiten',
+      ids: '5.61–5.83, 4.22',
+      intro: 'Alle 23 Designs, jeweils Deck 1 (orange) und Deck 2 (dunkel). Jeder Spieler wählt seine Rückseite in den Einstellungen; sie wirkt nur auf dem eigenen Bildschirm.',
+      groups: [
+        { title: '', node: backGallery, ids: backIds, bare: true },
+        { title: 'In den Einstellungen', specs: inputSpecs.filter((x) => x.id === '4.22') },
+        { title: 'Technik', node: () => h('div', { class: 'hint' }, 'Das Feld liegt im Rahmen, 26 × 38 Pixel. Rahmen, weiße Kontur und abgerundete Ecken sind für alle Designs gleich. Deck 1 hat Orange als Hauptfarbe, Deck 2 Dunkelgrau (1.25). Neues Design: Eintrag in backs.ts › BACK_DESIGNS ergänzen, die Reihenfolge ergibt sich aus BACK_ORDER.') },
       ],
     },
     {
-      n: 4,
-      title: 'Bedienelemente',
-      intro: 'Jeder Button kommt aus btn() in components.ts; die Variante bestimmt die Farbe, der Zustand (deaktiviert, gedrückt) ist für alle gleich.',
+      key: 'blatt',
+      tier: 'marke',
+      title: 'Das Blatt',
+      ids: '5.02, 5.10–5.19, 5.24',
+      intro: 'Alle Karten gibt es zweimal (zwei Blätter, 104 Karten), dazu 2 Joker. Die Bildkarten stehen bei den Familien.',
       groups: [
-        { title: 'Buttons', specs: btnSpecs },
-        { title: 'Auswahl, Eingabe, Chips', specs: inputSpecs },
-      ],
-    },
-    {
-      n: 5,
-      title: 'Karten und Grafiken',
-      intro: 'Alle Karten werden beim Start als Pixelbild gezeichnet (sprites.ts) und per Atlas ausgeschnitten. Alle Farben stammen aus der Palette (Kapitel 1).',
-      groups: [
-        { title: 'Kartensatz', note: 'Alle Karten gibt es zweimal (zwei Blätter, 104 Karten).', specs: [sizes, ...suitRows] },
-        { title: 'Sonderkarten, Figuren, Glyphen', specs: cardArt },
-        { title: 'Kartenrückseiten zur Auswahl (5.61 ff.)', note: 'Zur Auswahl in den Einstellungen (4.22), links Deck 1 (Orange), rechts Deck 2 (Dunkel). Das Feld liegt im Rahmen 26 × 38 Pixel; Rahmen, weiße Kontur und abgerundete Ecken sind für alle Designs gleich. Neues Design: Eintrag in backs.ts › BACK_DESIGNS ergänzen.', node: backGrid },
+        { title: 'Zahlenkarten und Joker', specs: [numberCards, ...cardArt.filter((x) => x.id === '5.24')] },
+        { title: 'Das ganze Blatt', node: fullDeck, bare: true },
+        { title: 'Größen', specs: [sizes] },
         { title: 'Kartenzustände', specs: cardStates },
-        { title: 'Logo, App-Icon, Hintergrund', specs: brand },
-        { title: 'Piktogramme', specs: iconSpecs },
       ],
     },
     {
-      n: 6,
+      key: 'farben',
+      tier: 'marke',
+      title: 'Farben',
+      ids: '1.01–1.19, 1.25, 1.42–1.75',
+      intro: 'Die Palette sind die echten Farbwerte. Unter jeder Farbe stehen die Rollen, die sie im Layout übernimmt. Das Layout benutzt nur Rollen: eine Rolle auf eine andere Farbe zeigen zu lassen ändert alle Stellen im Spiel. Die Farben der Figuren (1.20–1.33) stehen bei den Familien. Quelle: tokens.ts.',
+      groups: paletteGroups,
+    },
+    {
+      key: 'schrift',
+      tier: 'marke',
+      title: 'Schrift und Pixel',
+      ids: '2.xx, 5.21–5.22, 5.30–5.33, 5.41–5.47',
+      intro: 'Zwei Schriften: VT323 für Text, Tiny5 Duo Bold (700) für Überschriften. Die Spezifikation unter jedem Muster ist live aus dem Element gelesen, nicht abgeschrieben.',
+      groups: [
+        { title: 'Schriftarten', specs: fontSpecs },
+        { title: 'Schriftschnitte', specs: weightSpecs },
+        { title: 'Schriftgrößen', specs: sizeSpecs },
+            { title: 'Zeilenhöhe und Laufweite (2.21–2.24)', node: tokenTable(['Nr.', 'Name', 'Wert'], () => TYPE_MISC_TOKENS.map((x) => [idChip(x.id), sub(x.name, `${x.css} · ${x.use}`), x.value]), [2]) },
+        { title: 'Textstile: Überschriften, Texte, Hinweise (2.30–2.54)', specs: typeRoles },
+        { title: 'Ziffern und Symbole der Karten', specs: cardArt.filter((x) => x.id === '5.21' || x.id === '5.22') },
+        { title: 'Piktogramme', node: iconSheet, ids: ICONS.map((x) => x.id) },
+        { title: 'Logo, App-Icon, Hintergrund', specs: brand },
+      ],
+    },
+    {
+      key: 'klang',
+      tier: 'marke',
+      title: 'Klang und Haptik',
+      ids: '9.xx',
+      intro: 'Alle Töne entstehen live per WebAudio (keine Dateien). Anhören geht auch bei ausgeschalteten Sounds. Vibration geht nur auf Geräten, die sie können. Alle Muster stehen in sound.ts › VIB.',
+      groups: [{ title: 'Töne und Vibration', node: soundTable, ids: soundIds }],
+    },
+    // ---------------- Tisch
+    {
+      key: 'spielfeld',
+      tier: 'tisch',
       title: 'Spielfeld',
+      ids: '6.xx',
       intro: 'Jeder Sitz hat eine Achse, auf der sein Paket aus Beschriftung und Auslage mittig liegt (6.10). Die Kartengrößen am Tisch richten sich nach dem Platz (6.18).',
       groups: [{ title: 'Spielfeld-Elemente', specs: field }],
     },
     {
-      n: 7,
+      key: 'bausteine',
+      tier: 'tisch',
+      title: 'Bausteine',
+      ids: '4.xx',
+      intro: 'Jeder Button kommt aus btn() in components.ts; die Variante bestimmt die Farbe, der Zustand (deaktiviert, gedrückt) ist für alle gleich.',
+      groups: [
+        { title: 'Buttons', specs: btnSpecs },
+        { title: 'Auswahl, Eingabe, Chips', specs: inputSpecs.filter((x) => x.id !== '4.22') },
+      ],
+    },
+    {
+      key: 'fenster',
+      tier: 'tisch',
       title: 'Fenster und Meldungen',
+      ids: '7.xx',
       intro: 'Alle Fenster stehen auf einer Abdunkelung (1.18). Anzeige-Fenster schließen mit „Zurück“ oder einem Tipp daneben, Entscheidungen nur über ihre Knöpfe.',
       groups: [{ title: 'Fenster, Leisten, Toast', specs: windows }],
     },
     {
-      n: 8,
+      key: 'seiten',
+      tier: 'tisch',
       title: 'Seiten',
-      intro: 'Jede Seite als Liste ihrer Elemente von oben nach unten, mit den Nummern der Bausteine.',
-      groups: [{ title: 'Ganzseitige Ansicht und Lobby', specs: [viewDemo, lobbyRow] }, ...pages],
+      ids: '8.xx',
+      intro: 'Aus welchen Elementen eine Seite besteht, zeigt „Nummern im Spiel“ (Werkstatt): Die echte Seite bekommt an jedem Element einen Punkt mit seiner Nummer. Hier stehen nur die Bausteine, die es ausschließlich auf Seiten gibt.',
+      groups: [{ title: 'Ganzseitige Ansicht und Lobby', specs: [viewDemo, lobbyRow] }],
     },
     {
-      n: 9,
-      title: 'Sound und Haptik',
-      intro: 'Alle Töne entstehen live per WebAudio (keine Dateien). Anhören geht auch bei ausgeschalteten Sounds. Vibration geht nur auf Geräten, die sie können.',
-      groups: [
-        { title: 'Töne', specs: soundSpecs },
-        { title: 'Vibration', note: 'Alle Muster stehen in sound.ts › VIB. Muster zu einem Anlass mit Ton (Fehler, Sieg) stehen beim Ton.', specs: vibSpecs },
-        { title: 'Lautstärke', node: () => table(['Nr.', 'Name', 'Wert'], [[idChip('9.30'), 'Gesamtlautstärke', '4,5 mit Kompressor (Schwelle −16 dB) gegen Übersteuern (sound.ts › MASTER_GAIN)']]) },
-      ],
-    },
-    {
-      n: 10,
-      title: 'Navigation und Beschriftungen',
+      key: 'verhalten',
+      tier: 'tisch',
+      title: 'Verhalten',
+      ids: '10.xx',
+      intro: 'Navigation und Beschriftungen.',
       groups: [navTable, labelTable],
+    },
+    // ---------------- Werkstatt
+    {
+      key: 'werkstatt',
+      tier: 'werkstatt',
+      title: 'Werkstatt',
+      ids: '3.xx, 5.27',
+      intro: '1 u = 1 Pixel × Maßstab. Abstände sind vier Werte (3.22–3.25); am Ende steht, wo im Spiel welcher Abstand wirkt.',
+      groups: werkGroups,
     },
   ];
 }
@@ -1070,7 +1168,10 @@ export function chapters(env: GuideEnv): Chapter[] {
 export function labelTargets(): { id: string; sel: string; name: string }[] {
   const stub = {} as GuideEnv;
   const out: { id: string; sel: string; name: string }[] = [];
-  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) if (sp.sel) out.push({ id: sp.id, sel: sp.sel, name: sp.name });
+  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) {
+    if (sp.sel) out.push({ id: sp.id, sel: sp.sel, name: sp.name });
+    for (const a of sp.also ?? []) if (a.sel) out.push({ id: a.id, sel: a.sel, name: a.name });
+  }
   return out;
 }
 
@@ -1078,44 +1179,158 @@ export function labelTargets(): { id: string; sel: string; name: string }[] {
 export function allSpecIds(): string[] {
   const stub = {} as GuideEnv;
   const out: string[] = [];
-  for (const ch of chapters(stub)) for (const g of ch.groups) for (const sp of g.specs ?? []) out.push(sp.id);
+  for (const ch of chapters(stub)) for (const g of ch.groups) out.push(...(g.specs ?? []).flatMap((sp) => [sp.id, ...(sp.also ?? []).map((a) => a.id)]), ...(g.ids ?? []));
   return out;
 }
 
+// ---------------------------------------------------------------- Versteckt: Cheatcodes
+/** Wirkung je Cheat in einem Satz (Namen kommen aus cheatnames.ts und können sich ändern). */
+const CHEAT_INFO: [CheatId, string][] = [
+  ['jokers', 'mindestens so viele Joker auf der Hand, in jeder Runde (Zahl dahinter, sonst 1)'],
+  ['hand', 'eigene Wunschhand, Runden durch / getrennt'],
+  ['rounds', 'eigene Rundenzahl (1 bis 999)'],
+  ['laidOut', 'du startest mit einer ausgelegten Folge samt Joker (Joker klauen üben)'],
+  ['carpet', 'die Teppichkarte passt zu einer deiner Karten'],
+  ['autoplay', 'ein Bot spielt für dich, mit Knöpfen rechts unten (Rolle dahinter)'],
+  ['timeTravel', 'Knopf links unten: einen Zug zurück'],
+  ['firstMeld', 'niedrigere Erstmeldung (Zahl dahinter)'],
+  ['deck2', 'jede Karte doppelt so oft'],
+  ['deck3', 'jede Karte dreimal so oft'],
+  ['deck4', 'jede Karte viermal so oft'],
+  ['jokerParty', 'genau so viele Joker im Deck (Zahl dahinter, 0 = ohne Joker)'],
+  ['mini', 'Skatblatt: nur 7 bis Ass'],
+  ['superFast', 'Bots spielen ohne Pausen und Animationen'],
+];
+
+function cheatsBody(): HTMLElement {
+  const n = (id: CheatId): string => CHEAT_NAMES[id][0];
+  const code = (text: string): HTMLElement => h('div', { class: 'cheat-code' }, text);
+  const examples: [string, string][] = [
+    [`${n('jokers')} 2`, 'mindestens zwei Joker in jeder Runde'],
+    [`${n('rounds')} 3 ${n('firstMeld')} 21`, 'drei Runden, Erstmeldung schon ab 21 Augen'],
+    [`${n('autoplay')} ${n('superFast')} ${n('rounds')} 12`, 'ein Bot spielt zwölf Runden im Zeitraffer'],
+    [`${n('hand')}( HeD KrB PiA J )`, 'Wunschhand in der ersten Runde: Herz Dame, Kreuz Bube, Pik Ass, Joker, der Rest wird aufgefüllt'],
+    [`${n('deck4')} ${n('mini')} ${n('jokerParty')} 12`, 'Deck-Cheats lassen sich mischen'],
+  ];
+  return h(
+    'div',
+    { class: 'cheat-info' },
+    h('p', null, 'Nur gegen Bots, nur für ein Spiel. Im Menü „Spielstand-Code einfügen“ wählen, statt eines Spielstands den Cheat-Text eintragen und „Laden“ tippen. Danach öffnet sich „Neues Spiel“, und der Cheat gilt für dieses Spiel.'),
+    h('p', { class: 'hint' }, 'Groß und klein sowie Leerzeichen im Namen sind egal. Mehrere Cheats einfach hintereinander schreiben, eine Zahl direkt hinter das Wort. Ein unbekanntes Wort lehnt den ganzen Text ab.'),
+    h('h3', null, 'Beispiele'),
+    ...examples.flatMap(([c, what]) => [code(c), h('div', { class: 'hint' }, what)]),
+    h('h3', null, 'Alle Cheats'),
+    ...CHEAT_INFO.flatMap(([id, what]) => [h('div', { class: 'cheat-name' }, n(id)), h('div', { class: 'hint' }, what)]),
+  );
+}
+
 // ---------------------------------------------------------------- Seite
+const TIER_TITLES: Record<Tier, string> = { marke: 'Marke', tisch: 'Tisch', werkstatt: 'Werkstatt' };
+
+/** Baut die Elemente einer Gruppe (Überschrift, Hinweis, Einträge). Die Messungen laufen nach dem Einfügen ins Dokument. */
+function groupEls(g: Group): HTMLElement[] {
+  const out: HTMLElement[] = [g.title ? h('h3', { class: 'guide-group' }, g.title) : h('span', { class: 'guide-group-none' })];
+  if (g.note) out.push(hint(g.note));
+  for (const sp of g.specs ?? []) out.push(specEl(sp));
+  if (g.node) out.push(g.bare ? g.node() : h('div', { class: 'panel spec' }, g.node()));
+  return out;
+}
+
+/** Aufklappbarer Bereich, dessen Inhalt erst beim ersten Öffnen gebaut wird (die Werkstatt hat sehr viele Einträge). */
+function lazyDetails(cls: string, head: Child, build: () => HTMLElement[]): HTMLElement {
+  const body = h('div', { class: 'guide-lazy' });
+  const el = h('details', { class: cls }, h('summary', null, head), body);
+  let built = false;
+  el.addEventListener('toggle', () => {
+    if ((el as HTMLDetailsElement).open && !built) {
+      built = true;
+      measurers = [];
+      body.append(...build());
+      const run = measurers;
+      queueMicrotask(() => run.forEach((f) => f()));
+    }
+  });
+  return el;
+}
+
 export function renderGuide(env: GuideEnv): HTMLElement {
   measurers = [];
   const chs = chapters(env);
+  const werk = chs.find((ch) => ch.tier === 'werkstatt')!;
   const toc = h(
     'div',
     { class: 'guide-toc' },
     ...chs.map((ch) =>
-      btn(`${ch.n} ${ch.title}`, () => {
-        document.getElementById(`${NS}-ch${ch.n}`)?.scrollIntoView({ block: 'start' });
+      btn(ch.title, () => {
+        const target = document.getElementById(`${NS}-${ch.key}`);
+        if (ch.tier === 'werkstatt') (target as HTMLDetailsElement | null)?.setAttribute('open', '');
+        target?.scrollIntoView({ block: 'start' });
       }),
     ),
   );
   const intro = h(
     'div',
     { class: 'panel guide-intro' },
-    h('p', null, 'Alle Elemente der App mit fester Nummer aus Kapitel und Zähler (z. B. 4.02 = Button Primär).'),
-    h('p', null, 'Maße stehen in u: 1 u = 1 Pixel × Maßstab (Handy: 1 u = 2 px). Farben, Größen und Abstände sind in tokens.ts als Parameter angelegt; styles.css verwendet nur diese Variablen.'),
-    h('div', { class: 'option' }, fieldLabel('Nummern im Spiel'), h('div', { class: 'choices' }, btn('an', () => env.setLabels(true), { variant: env.labelsOn ? 'primary' : 'default' }), btn('aus', () => env.setLabels(false), { variant: env.labelsOn ? 'default' : 'primary' }))),
-    hint('Zeigt an jedem Element einen kleinen gelben Punkt unten links (nicht in diesem Guide). Antippen zeigt die Nummer und kopiert sie.'),
+    h('p', null, 'Cheft basiert auf den türkischen Rommé-Spielen Elli Bir und Yüzbir Okey. Der Name kommt von türkisch „Çifte“ (Paar).'),
+    h('p', null, '3 bis 4 Spieler, 106 Karten (zwei Blätter plus 2 Joker).'),
+    h('p', { class: 'muted' }, 'Pixel-Look angelehnt an Windows-3.1-Solitaire, Farbwelt im Cheft-Orange.'),
+    h('p', { class: 'muted' }, 'Jedes Element trägt eine feste Nummer aus Kapitel und Zähler (z. B. 4.02 = Button Primär). Maße stehen in u: 1 u = 1 Pixel × Maßstab (Handy: 1 u = 2 px).'),
     toc,
   );
   const body: HTMLElement[] = [intro];
+  let tier: Tier | null = null;
   for (const ch of chs) {
-    body.push(h('h2', { class: 'guide-chapter', id: `${NS}-ch${ch.n}` }, `${ch.n} ${ch.title}`));
-    if (ch.intro) body.push(h('p', { class: 'guide-chapter-intro muted' }, ch.intro));
-    for (const g of ch.groups) {
-      body.push(h('h3', { class: 'guide-group' }, g.title));
-      if (g.note) body.push(hint(g.note));
-      if (g.specs) for (const sp of g.specs) body.push(specEl(sp));
-      if (g.node) body.push(h('div', { class: 'panel spec' }, g.node()));
+    if (ch.tier === 'werkstatt') continue;
+    if (ch.tier !== tier) {
+      tier = ch.tier;
+      body.push(h('h2', { class: 'guide-tier' }, TIER_TITLES[tier]));
     }
+    body.push(h('h2', { class: 'guide-chapter', id: `${NS}-${ch.key}` }, ch.title, ch.ids ? h('span', { class: 'guide-ids' }, ch.ids) : null));
+    if (ch.intro) body.push(h('p', { class: 'guide-chapter-intro muted' }, ch.intro));
+    for (const g of ch.groups) body.push(...groupEls(g));
   }
+  // Werkstatt: eingeklappt am Ende derselben Seite, jeder Unterpunkt noch einmal
+  // Schalter wechselt an Ort und Stelle: kein Neuaufbau, die Werkstatt bleibt offen und die Seite springt nicht
+  let labelsState = env.labelsOn;
+  const labelsBox = h('div', null);
+  const drawLabels = (): void => {
+    labelsBox.replaceChildren(checkRow('Nummern im Spiel', labelsState, (next) => {
+      labelsState = next;
+      env.setLabels(next);
+      drawLabels();
+    }));
+  };
+  drawLabels();
+  const labelsRow = h(
+    'div',
+    { class: 'panel guide-labels' },
+    labelsBox,
+    hint('Zeigt an jedem Element im Spiel einen kleinen gelben Punkt unten links (nicht in diesem Album). Antippen zeigt die Nummer und kopiert sie.'),
+  );
+  const werkInner = h('div', { class: 'guide-wk-body' }, labelsRow, h('p', { class: 'guide-chapter-intro muted' }, werk.intro ?? ''));
+  for (const g of werk.groups) werkInner.append(lazyDetails('guide-sub', h('span', { class: 'guide-sub-title' }, g.title), () => groupEls(g).slice(1)));
+  body.push(h('details', { class: 'panel guide-wk', id: `${NS}-werkstatt` }, h('summary', null, h('h2', { class: 'guide-chapter' }, 'Werkstatt', h('span', { class: 'guide-ids' }, werk.ids ?? ''))), werkInner));
   const view = viewEl(t('btn.guide'), body, env.onBack, 'reading guide');
+  // Ein Tipp auf den Titel scrollt wieder nach oben
+  const bar = view.querySelector('.viewbar');
+  bar?.classList.add('to-top');
+  bar?.addEventListener('click', () => view.querySelector('.view-body')?.scrollTo({ top: 0 }));
+  // Verstecktes: sieben Tipps hintereinander auf die Joker-Grafiken (5.24)
+  const jokerBox = view.querySelector('[id="guide-5.24"] .spec-stage');
+  let taps = 0;
+  let tapTimer = 0;
+  jokerBox?.addEventListener('click', () => {
+    window.clearTimeout(tapTimer);
+    tapTimer = window.setTimeout(() => (taps = 0), 2000);
+    taps += 1;
+    if (taps >= 7) {
+      taps = 0;
+      env.showInfo('Cheatcodes', cheatsBody());
+    }
+  });
+  view.addEventListener('pointerdown', (e) => {
+    if (jokerBox && !jokerBox.contains(e.target as Node)) taps = 0;
+  }, true);
   const run = measurers;
   queueMicrotask(() => run.forEach((f) => f()));
   return view;

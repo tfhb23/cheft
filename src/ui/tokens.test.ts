@@ -3,9 +3,6 @@ import { readFileSync } from 'node:fs';
 import {
   PALETTE_COLORS,
   ROLE_COLORS,
-  SPACING_ROLES,
-  SAND_STEPS,
-  SPACING_SCALE,
   allTokenIds,
   sandStep,
   color,
@@ -31,11 +28,9 @@ describe('Design-Tokens', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('Rollen zeigen auf vorhandene Palettenfarben, Abstandsrollen auf vorhandene Stufen', () => {
+  it('Rollen zeigen auf vorhandene Palettenfarben', () => {
     const palette = new Set(PALETTE_COLORS.map((c) => c.css));
     for (const r of ROLE_COLORS) expect(palette.has(r.ref), `${r.css} → ${r.ref}`).toBe(true);
-    const scale = new Set(SPACING_SCALE.map((s) => s.css));
-    for (const r of SPACING_ROLES) expect(scale.has(r.ref), `${r.css} → ${r.ref}`).toBe(true);
   });
 
   it('Farben sind gültige Hex- oder rgba-Werte', () => {
@@ -86,13 +81,15 @@ describe('styles.css nutzt nur Tokens', () => {
     const defined = new Set(tokenVars().map(([k]) => k));
     // zur Laufzeit gesetzt: Maßstäbe und Atlas-Bild
     for (const k of ['--s', '--so', '--atlas']) defined.add(k);
+    // in styles.css selbst gesetzte Hilfsvariablen (z. B. Farbe und Stärke des Markierungsrahmens)
+    for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:/g)) defined.add(m[1]);
     const used = new Set([...body.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]));
     const missing = [...used].filter((k) => !defined.has(k));
     expect(missing).toEqual([]);
   });
 
   it('keine Variable aus tokens.ts bleibt unbenutzt (außer Dokumentation)', () => {
-    const docOnly = new Set(['--bp-compact', '--bp-fan', '--hand-step-min', '--hand-step-over', '--hand-top', '--c-icon-line', '--c-icon-orange', '--c-icon-paper', '--c-shell']);
+    const docOnly = new Set(['--bp-compact', '--bp-fan', '--hand-step-min', '--hand-step-over', '--hand-top', '--c-shell']);
     const guideSrc = readFileSync(new URL('./guide.ts', import.meta.url), 'utf8');
     const spritesSrc = readFileSync(new URL('./sprites.ts', import.meta.url), 'utf8') + readFileSync(new URL('./face-art.ts', import.meta.url), 'utf8');
     const tokensSrc = readFileSync(new URL('./tokens.ts', import.meta.url), 'utf8');
@@ -129,7 +126,7 @@ describe('Einheitliche Bausteine', () => {
   });
 });
 
-describe('Design Guide', () => {
+describe('Familienalbum', () => {
   const ids = allSpecIds();
 
   it('Nummern der Elemente sind eindeutig und gültig', () => {

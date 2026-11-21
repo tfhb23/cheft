@@ -15,13 +15,23 @@ OUT=os.path.join(lib._ROOT if os.path.exists(os.path.join(lib._ROOT,'src')) else
 CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-/:;<=>?@[]^_{|}~"
 tok=open(lib._TOK).read()
 by_hex={}
-for i,css,n,v in lib.palette_rows(tok): by_hex.setdefault(v.lower(),css)
+for i,css,n,v in re.findall(r"\{ id: '(1\.\d\d)', css: '--c-([^']+)', name: '([^']+)', value: '(#[0-9a-fA-F]{6})'",tok): by_hex.setdefault(v.lower(),css)
+# Karten, bei denen Person 1 und Person 2 vertauscht sind (Deck 1 zeigt die zweite Person der Entwurfsliste, Deck 2 die erste)
+SWAP={'H12','H13','D13','S12','C11'}
+def goldband(im):
+    """Falkner (kreuz_bube_a): unterste Kappenreihe (Zeile 17, Spalten 12 bis 20) in Gold 1.13, damit sich die Kappe vom Haar absetzt (freigegeben)."""
+    im=im.convert('RGBA'); px=im.load()
+    for x in range(12,21): px[x,17]=(0xf2,0xb5,0x3a,255)
+    return im
 def sprites():
     out={}
     for s,r,keys in KARTEN:
         if r<11: continue
         a=keys[0]; b=keys[1] or keys[0]
-        out['%s%d'%(s,r)]=[render_final(a),render_final(b)]
+        key='%s%d'%(s,r)
+        ra,rb=render_final(a),render_final(b)
+        if a=='kreuz_bube_a': ra=goldband(ra)
+        out[key]=[rb,ra] if key in SWAP else [ra,rb]
     return out
 def main():
     sp=sprites(); order=[]

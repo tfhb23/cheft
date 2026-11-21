@@ -146,12 +146,12 @@ export function dealAnimation(stock: DOMRect | null, targets: DOMRect[], perTarg
         new Promise((resolve) => {
           setTimeout(() => {
             document.body.appendChild(ghost);
-            flyClone(ghost, stock, to, MOTION.dealFly, true, 0, 0).then(resolve);
+            flyClone(ghost, stock, to, MOTION.fly, true, 0, 0).then(resolve);
             ghost.remove();
           }, d);
         }),
       );
-      delay += MOTION.dealStep;
+      delay += MOTION.step;
     }
   }
   return Promise.all(promises).then(() => undefined);

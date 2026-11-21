@@ -40,11 +40,12 @@ import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
 import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_LAMP, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
-import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
+import { backBtn, backChoiceRow, btn, checkRow, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
 import { ScaleStep, crispScale, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
+import { discardContour, Pt } from './dropzone';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
 import { NetClient, LobbyInfo, ServerUpdate, ClaimableSeat, defaultServerUrl, SNAPSHOT_TTL_MS } from '../net/client';
 import { RoundView } from '../engine/view';
@@ -95,7 +96,7 @@ interface Prefs {
   /** Rückblick auf die letzten Abwürfe (langes Drücken auf die Ablage) im Solospiel. */
   peekDiscards: boolean;
   /** Ziehen mit Bestätigung: Gibt es mehrere Möglichkeiten, wählt das erste Tippen nur aus. */
-  /** Design Guide: Nummern der Elemente über dem Spiel einblenden. */
+  /** Familienalbum: Nummern der Elemente über dem Spiel einblenden. */
   dsLabels: boolean;
   /** Gewählte Kartenrückseite (backs.ts), nur für die eigene Anzeige. */
   cardDesign: string;
@@ -267,7 +268,7 @@ export class App {
   private peekTable = false;
   private chooser: { title: string; hint: string; options: { shapes: MeldShape[]; label: string; onPick: () => void }[] } | null = null;
   private toastTimer: number | null = null;
-  /** Nummern-Etiketten des Design Guides über dem Spiel. */
+  /** Nummern-Etiketten des Familienalbums über dem Spiel. */
   private labels = new DsLabels();
   private rulesFrom: Screen = 'menu';
   /** Zurück-Geste/-Taste des Geräts: eine Ebene zurück, im Spiel und in der Lobby erst warnen, im Hauptmenü die App verlassen. */
@@ -296,6 +297,8 @@ export class App {
       const a = document.activeElement;
       if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
       this.applyCrispScale();
+      // Das Familienalbum baut sich nicht neu auf (Scrollposition, aufgeklappte Bereiche): Es richtet sich per CSS nach der Größe
+      if (this.screen === 'guide') return;
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
@@ -551,7 +554,7 @@ export class App {
     if (this.drag) return; // während des Ziehens nicht neu aufbauen
     const tableEl = this.root.querySelector('.table');
     const scroll = tableEl ? tableEl.scrollTop : 0;
-    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Design Guide (.view-body)
+    // Scrollende Flächen merken: Menüs und Formulare (.menu), ganzseitige Ansichten wie Regeln und Familienalbum (.view-body)
     const scrollers = ['.menu', '.view-body'].map((sel) => [sel, this.root.querySelector(sel)?.scrollTop ?? 0] as const);
     // Auch ein Fenster, das selbst scrollt (Einstellungen mit vielen Rückseiten), behält seine Scrollposition beim Neuaufbau
     const oldDialog = this.root.querySelector('.overlay > .dialog');
@@ -613,12 +616,23 @@ export class App {
     document.querySelector('.toast')?.remove();
     this.dialog = spec;
     this.dialogInput = spec.input?.value ?? '';
-    this.render();
+    this.mountDialog();
   }
 
   private closeDialog(): void {
     this.dialog = null;
-    this.render();
+    this.mountDialog();
+  }
+
+  /** Im Familienalbum nur das Fenster auf- oder abbauen, damit die Seite dahinter stehen bleibt; sonst alles neu aufbauen. */
+  private mountDialog(): void {
+    if (this.screen !== 'guide') {
+      this.render();
+      return;
+    }
+    this.root.querySelector(':scope > .overlay')?.remove();
+    if (this.dialog) this.root.appendChild(this.renderDialog(this.dialog));
+    this.nav.sync();
   }
 
   private renderDialog(d: DialogSpec): HTMLElement {
@@ -741,30 +755,34 @@ export class App {
     );
   }
 
+  /** Schalter für Ja/Nein-Einstellungen (4.23): der Text sagt, was „an“ bedeutet. */
+  private toggle(label: string, get: () => boolean, set: (v: boolean) => void): HTMLElement {
+    return checkRow(label, get(), (next) => {
+      set(next);
+      this.savePrefs();
+      this.render();
+    });
+  }
+
   /** Die Spieleinstellungen in fester Reihenfolge, im Solo-Setup und in der Lobby gleich. */
   private settingChoices(v: SettingValues, set: (patch: Partial<SettingValues>) => void): HTMLElement[] {
-    const yesNo = [
-      { v: true, label: t('setup.yes') },
-      { v: false, label: t('setup.no') },
-    ];
     return [
-      this.choice(t('setup.seating'), [{ v: 'manual', label: t('setup.seating.manual') }, { v: 'random', label: t('setup.seating.random') }], () => v.seating, (x) => set({ seating: x as SettingValues['seating'] })),
-      this.choice(t('setup.firstTurn'), yesNo, () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x as boolean })),
-      this.choice(t('setup.sortedDeal'), [{ v: true, label: t('setup.sortedDeal.yes') }, { v: false, label: t('setup.sortedDeal.no') }], () => v.sortedDeal, (x) => set({ sortedDeal: x as boolean })),
-      this.choice(t('setup.peek'), yesNo, () => v.peekDiscards, (x) => set({ peekDiscards: x as boolean })),
+      this.toggle(t('setup.seating'), () => v.seating === 'random', (x) => set({ seating: x ? 'random' : 'manual' })),
+      this.toggle(t('setup.firstTurn'), () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x })),
+      this.toggle(t('setup.sortedDeal'), () => v.sortedDeal, (x) => set({ sortedDeal: x })),
+      this.toggle(t('setup.peek'), () => v.peekDiscards, (x) => set({ peekDiscards: x })),
       this.choice(t('setup.rounds'), ROUND_CHOICES.map((n) => ({ v: n, label: String(n) })), () => v.rounds, (x) => set({ rounds: x as number })),
     ];
   }
 
-  /** Dieselben Einstellungen für Mitspieler ohne Rechte: eine Zeile je Einstellung, gleiche Reihenfolge. */
+  /** Dieselben Einstellungen für Mitspieler ohne Rechte: gleiche Reihenfolge, Schalter nur zum Lesen, Runden als Zeile. */
   private settingSummary(v: SettingValues): HTMLElement[] {
-    const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, label), h('span', null, value));
     return [
-      row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
-      row(t('setup.firstTurn'), t(v.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')),
-      row(t('setup.sortedDeal'), t(v.sortedDeal ? 'setup.sortedDeal.yes' : 'setup.sortedDeal.no')),
-      row(t('setup.peek'), t(v.peekDiscards ? 'setup.yes' : 'setup.no')),
-      row(t('setup.rounds'), String(v.rounds)),
+      checkRow(t('setup.seating'), v.seating === 'random'),
+      checkRow(t('setup.firstTurn'), v.firstTurnOpenAllowed),
+      checkRow(t('setup.sortedDeal'), v.sortedDeal),
+      checkRow(t('setup.peek'), v.peekDiscards),
+      h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, t('setup.rounds')), h('span', null, String(v.rounds))),
     ];
   }
 
@@ -902,8 +920,9 @@ export class App {
       setLabels: (on) => {
         this.prefs.dsLabels = on;
         this.savePrefs();
-        this.render();
+        this.labels.refresh(on);
       },
+      showInfo: (title, body) => this.askDialog({ title, body, back: true }),
       onBack: () => this.back(),
     });
   }
@@ -1121,7 +1140,7 @@ export class App {
       this.peekTimer = window.setTimeout(() => {
         this.peekTimer = null;
         this.showPeek();
-      }, MOTION.peekHold);
+      }, MOTION.hold);
     });
     const cancel = () => {
       if (this.peekTimer) clearTimeout(this.peekTimer);
@@ -1136,8 +1155,8 @@ export class App {
     if (!this.peekLayer) return;
     const layer = this.peekLayer;
     this.peekLayer = null;
-    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.peekOut, fill: 'forwards' }).onfinish = () => layer.remove();
-    window.setTimeout(() => (this.peekSuppress = false), MOTION.peekGuard);
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOTION.quick, fill: 'forwards' }).onfinish = () => layer.remove();
+    window.setTimeout(() => (this.peekSuppress = false), MOTION.hold);
   }
 
   /**
@@ -1225,7 +1244,7 @@ export class App {
       item.style.width = `${pile.width}px`;
       layer.appendChild(line);
       layer.appendChild(item);
-      if (!keep.has(e.card.id)) item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.peekIn, delay: keep.size ? 0 : i * MOTION.peekStagger, easing: EASE_FLY, fill: 'backwards' });
+      if (!keep.has(e.card.id)) item.animate([{ transform: `translate(${pc.x - tx}px, ${pc.y - ty}px) scale(${PEEK_FROM_SCALE})`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: MOTION.fly, delay: keep.size ? 0 : i * MOTION.step, easing: EASE_FLY, fill: 'backwards' });
     });
     return true;
   }
@@ -1695,14 +1714,11 @@ export class App {
       const backId = this.seatBack(seat.pid);
       const temps = seat.pid === current(s) && !r.ended ? pr.hand.filter((c) => tempIds.has(c.id) && c.id >= 0) : [];
       const fanHand = (r.waiting && seat.pid === r.starter ? pr.hand.slice(carpetJk.length, -1) : pr.hand).filter((c) => !temps.includes(c));
-      const fanEl = showFan && fanHand.length ? h('div', { class: 'fan' }, ...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId }))) : null;
-      // Vorübergehende Karten liegen offen am Ende des Fächers (untereinander); ohne Fächer (Handy) ragt von jeder nur die obere
-      // Hälfte am äußeren Rand der Auslage herein.
-      let fan: HTMLElement | null = fanEl;
-      if (temps.length && showFan) {
-        fan = h('div', { class: 'fan-wrap' }, fanEl, h('div', { class: 'temp-col' }, ...temps.map((c) => this.cardEl(c, { small: true, temp: true }))));
-      }
-      const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true })))) : null;
+      // Vorübergehende Karten stehen offen am Ende des Fächers (wie die verdeckten nur als obere Hälfte); ohne Fächer (Handy) ragt von
+      // jeder nur die obere Hälfte am äußeren Rand der Auslage herein.
+      const fanCards = [...fanHand.map((c) => this.cardEl(backOf(c), { small: true, backId })), ...(showFan ? temps.map((c) => this.cardEl(c, { small: true, temp: true })) : [])];
+      const fan: HTMLElement | null = showFan && fanCards.length ? h('div', { class: `fan${temps.length ? ' has-temp' : ''}` }, ...fanCards) : null;
+      const halves = temps.length && !showFan ? h('div', { class: 'temp-half' }, ...temps.map((c) => h('div', { class: 'half' }, this.cardEl(c, { small: true, temp: true })))) : null;
       const inner =
         seat.pos === 'top'
           ? h('div', { class: 'seat-inner' }, fan ? h('div', { class: 'flip180' }, fan) : null, label, h('div', { class: 'flip180' }, meldsEl), halves ? h('div', { class: 'flip180 temp-edge' }, halves) : null)
@@ -1884,9 +1900,11 @@ export class App {
     const el = this.cardEl(n ? backOf(r.stock[n - 1]) : 'slot', { onClick: clickable ? () => this.pileTap('stock') : undefined });
     if (n > 0) {
       const layers = Math.min(7, Math.ceil(n / 8));
-      const shadows: string[] = [];
-      for (let i = 1; i <= layers; i++) shadows.push(`calc(${i} * var(--s)) calc(${i} * var(--s)) 0 0 var(--surface-field)`, `calc(${i} * var(--s)) calc(${i} * var(--s)) 0 1px var(--line-soft)`);
-      el.style.boxShadow = shadows.reverse().join(', ');
+      // Je Lage ein Streifen Feldfarbe (1 u minus 1 Pixel) und eine feine weiche Linie (1 Pixel). Jeder drop-shadow wirft den Schatten des bisherigen
+      // Ergebnisses, die Lagen stapeln sich also von selbst und folgen der Kartenform samt abgerundeten Ecken (anders als box-shadow).
+      const parts: string[] = [];
+      for (let i = 0; i < layers; i++) parts.push('drop-shadow(calc(var(--s) - 1px) calc(var(--s) - 1px) 0 var(--surface-field))', 'drop-shadow(1px 1px 0 var(--line-soft))');
+      el.style.filter = parts.join(' ');
       el.style.marginBottom = `calc(${layers} * var(--s))`;
       el.style.marginRight = `calc(${layers} * var(--s))`;
     }
@@ -2270,6 +2288,12 @@ export class App {
       });
     }
     table?.querySelector('.drop-halo')?.remove();
+    table?.querySelector('.discard-zone')?.remove();
+    const disc = table?.querySelector('.discard') as HTMLElement | null;
+    if (on && disc) {
+      const zone = this.discardZoneEl(disc);
+      if (zone) disc.appendChild(zone);
+    }
     const c = on ? this.discZoneCircle() : null;
     const clip = table?.querySelector('.turn-clip') as HTMLElement | null;
     if (c && clip && table) {
@@ -2281,6 +2305,40 @@ export class App {
       halo.style.top = `${c.cy - c.r - tr.top}px`;
       clip.appendChild(halo);
     }
+  }
+
+  /** Gestrichelte Kontur um alle Ablagekarten (6.44): Eckpunkte der gedrehten Karten, Abstand --discard-gap. */
+  private discardZoneEl(disc: HTMLElement): SVGSVGElement | null {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--discard-gap)';
+    disc.appendChild(probe);
+    const gap = probe.offsetWidth;
+    probe.remove();
+    const cards = Array.from(disc.children).filter((e): e is HTMLElement => e instanceof HTMLElement && e.classList.contains('card'));
+    const polys: Pt[][] = cards.map((c) => {
+      const m = new DOMMatrix(getComputedStyle(c).transform);
+      const cx = c.offsetLeft + c.offsetWidth / 2;
+      const cy = c.offsetTop + c.offsetHeight / 2;
+      return ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as Pt[]).map(([sx, sy]) => {
+        const dx = (sx * c.offsetWidth) / 2;
+        const dy = (sy * c.offsetHeight) / 2;
+        return [cx + m.a * dx + m.c * dy + m.e, cy + m.b * dx + m.d * dy + m.f] as Pt;
+      });
+    });
+    const ct = discardContour(polys, gap);
+    if (!ct) return null;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'discard-zone');
+    svg.setAttribute('width', String(ct.w));
+    svg.setAttribute('height', String(ct.h));
+    svg.style.left = `${ct.x}px`;
+    svg.style.top = `${ct.y}px`;
+    svg.style.zIndex = String(cards.length + 2);
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', ct.d);
+    svg.appendChild(path);
+    return svg;
   }
 
   private setOver(zone: HTMLElement | null): void {
@@ -2722,10 +2780,6 @@ export class App {
 
   private renderSettings(): HTMLElement {
     const inGame = this.screen === 'game';
-    const onOff = [
-      { v: true, label: t('settings.on') },
-      { v: false, label: t('settings.off') },
-    ];
     // Im Spiel zuerst, was das laufende Spiel betrifft (Pause, Spielstand, Speichern, Abbrechen), danach die allgemeinen Einstellungen
     const gameActions = inGame
       ? h(
@@ -2759,39 +2813,24 @@ export class App {
       'div',
       { class: 'menu-group' },
       inGame && this.state ? h('div', { class: 'option' }, fieldLabel(t('setup.name')), this.nameField(this.state.players[this.me]?.name ?? '')) : null,
-      this.choice(
-        t('settings.vibration'),
-        onOff,
-        () => this.prefs.vibration,
-        (v) => {
-          this.prefs.vibration = v as boolean;
-          // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
-          if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
-        },
-      ),
-      this.choice(
-        t('settings.sound'),
-        onOff,
-        () => this.prefs.sound,
-        (v) => {
-          this.prefs.sound = v as boolean;
-          // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
-          setSoundEnabled(this.prefs.sound);
-          if (this.prefs.sound) {
-            unlockAudio();
-            play('lay');
-          }
-        },
-      ),
-      this.choice(
-        t('settings.keepAwake'),
-        onOff,
-        () => this.prefs.keepAwake,
-        (v) => {
-          this.prefs.keepAwake = v as boolean;
-          void this.syncWakeLock();
-        },
-      ),
+      this.toggle(t('settings.vibration'), () => this.prefs.vibration, (v) => {
+        this.prefs.vibration = v;
+        // Probe direkt beim Einschalten; meldet, wenn der Browser die Vibration ablehnt
+        if (this.prefs.vibration && !vibrate(VIB.probe, true)) this.toast(t('settings.vibration.fail'), true);
+      }),
+      this.toggle(t('settings.sound'), () => this.prefs.sound, (v) => {
+        this.prefs.sound = v;
+        // Testton direkt beim Einschalten (die Berührung schaltet auch den Audiokanal frei)
+        setSoundEnabled(this.prefs.sound);
+        if (this.prefs.sound) {
+          unlockAudio();
+          play('lay');
+        }
+      }),
+      this.toggle(t('settings.keepAwake'), () => this.prefs.keepAwake, (v) => {
+        this.prefs.keepAwake = v;
+        void this.syncWakeLock();
+      }),
       this.cardBackChoice(),
     );
     // Spieler im Raum: für alle sichtbar; der Spielleiter kann entfernen, der Gastgeber die Leitung übergeben

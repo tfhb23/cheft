@@ -32,12 +32,12 @@ Die App läuft unter https://cheft.beigi.eu (HTTPS). Dort im Handy-Browser öffn
 - Lassen sich gewählte Karten auf mehrere Arten kombinieren (z. B. drei Folgen oder drei Sätze), fragt die App nach.
 - Am Rundenende zeigt „Tisch ansehen“ die Auslagen und die aufgedeckten Restkarten aller Spieler.
 - **Keine Tipps:** Weder Stapel, Ablage und Teppichkarte noch passende Kombinationen werden hervorgehoben; die Ablage als Rommé-Spieler darf man immer nehmen und muss sie dann verwenden. Ob eine Karte nutzbar ist, sieht jeder selbst. Ziehen geht sofort (keine Vorwahl mehr). Alle drei „Karte nehmen“-Felder sind gleich groß (eine Karte im Hochformat); das der Teppichkarte ist unsichtbar und liegt links neben dem Stapel.
-- **Vorübergehende Karten** (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) sind rot umrandet und müssen im selben Zug verwendet werden. Ausnahme: Als letzte Handkarte dürfen geklauter Joker (Joker verbrannt ×2) und genommene Ablagekarte abgeworfen werden, nur die Teppichkarte nicht. Die Mitspieler sehen sie offen: am Desktop am Ende des Fächers (untereinander), am Handy als halbe Karte am äußeren Rand der Auslage.
+- **Vorübergehende Karten** (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) sind rot umrandet und müssen im selben Zug verwendet werden. Ausnahme: Als letzte Handkarte dürfen geklauter Joker (Joker verbrannt ×2) und genommene Ablagekarte abgeworfen werden, nur die Teppichkarte nicht. Die Mitspieler sehen sie offen: am Desktop in einer Reihe mit dem Fächer (als halbe Karten), am Handy als halbe Karte am äußeren Rand der Auslage.
 - **Zug zurücksetzen** (Symbol links unten, dazu ein enttäuschter Ton): setzt den Zug auf den Anfang zurück. Eine Stapelkarte bleibt auf der Hand (verdeckte Karten gehen nie zurück), Ablage- oder Teppichkarte gehen auf ihren Platz zurück. Ist schon ausgelegt, angelegt oder geklaut worden, fragt die App erst. Eine Cheft-Ansage bleibt bestehen. Beim Laden eines Spielstands, beim Einspringen des Autopiloten und nach dem Wiederherstellen eines Raums beginnt ein angefangener Zug wieder am Rücksetzpunkt.
 - Beim Anlegen mit mehreren möglichen Stellen (auch Joker klauen) zeigt die App die Kombinations-Auswahl mit dem Namen des Spielers statt der Augen.
 - Der aktive Spieler steht in einem großen goldenen Pixel-Kreis (schon vor dem Start der Runde beim Startspieler) hinter dem Spielfeld (Durchmesser = (Breite + Höhe) ÷ 2 ÷ φ ÷ φ, Mitte auf der Spielfeldkante). Aktionsleiste: Cheft! | Auslegen | Anlegen | Abwerfen.
 - Bots haben ein Gedächtnis (Vergesslich, Normal, Scharfsinnig, Mastermind) und eine Rolle: fünf Spielweisen (Ausgewogen, Frühvogel, Gerissener, Pärchenkönig, Glücksritter) oder die Wildcard, die jede Runde eine andere Spielweise spielt (Standard für Bots, die einen Mitspieler ersetzen). Je Kombination mindestens fünf Namen (`src/bot/rolenames.ts`). Pro Bot wählbar oder „Zufall“ (verdeckt für das ganze Spiel; gewichtet: Vergesslich 40 %, Normal 40 %, Scharfsinnig 20 %, der Mastermind nie). Jeder Bot hat dazu zufällige Vorlieben (z. B. Herzkarten, ungerade Zahlen, Glückszahl 7), die nur beim Abwerfen und nie gegen fertige Kombinationen wirken, und merkt sich im laufenden Spiel, wie die anderen spielen (je nach Gedächtnis). In der Auswertung stehen die Bot-Details hinter dem (i): Gedächtnis, Spielweise (bei der Wildcard die Rollen der Runden), leere Zeile, Vorlieben. Zwischen den Runden erscheint das (i) nur, wenn etwas fest gewählt war und die Sitzordnung nicht zufällig ist (bei nur einem Bot immer) oder wenn ein Bot für einen Menschen eingesprungen ist, und zeigt dann nur Gedächtnis und/oder Spielweise; die Vorlieben gibt es erst am Spielende. Die Auswertung nummeriert die Plätze und hebt die eigene Zeile hervor. Das Gedächtnis (`src/bot/memory.ts`) bestimmt allein, wie gut ein Bot Karten behält und wahrnimmt, siehe „Bot-Gedächtnis“; die Rollen stehen in [docs/ROLLEN_V3.md](docs/ROLLEN_V3.md).
-- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Design Guide/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
+- Zurück-Geste und Zurück-Taste des Geräts (und Esc) gehen überall eine Ebene zurück: Fenster schließen, Regeln/Familienalbum/Setup zum Menü bzw. zur vorherigen Seite. Im laufenden Spiel und in der Lobby erscheint vorher eine Warnung (solo bleibt der Stand gespeichert, online verlässt man den Raum). Nur im Hauptmenü verlässt „Zurück“ die App. Umgesetzt in `src/ui/nav.ts`.
 - Einstellungen: Vibration, Sounds. Die Bots spielen immer im selben Tempo (schneller geht es nur mit dem Cheat SUPERFAST).
 - Cheats (nur Solo, nur für ein Spiel) über „Spielstand-Code einfügen“: siehe [docs/CHEATS.md](docs/CHEATS.md).
 
@@ -155,23 +155,27 @@ src/ui/       Oberfläche
   icons.ts      Pixel-Piktogramme
   sprites.ts    Sprite-Atlas (Pixelkarten per Canvas)
   sound.ts      Töne und Vibration samt Katalog
-  guide.ts      Design Guide (Menü → „Design Guide“)
+  guide.ts      Familienalbum (Menü → „Familienalbum“)
   app.ts        Menü, Spielfeld, Dialoge, Einstellungen
 scripts/      Icon-Generator (liest die Farben aus tokens.ts)
 ```
 
-## Design Guide und Design-Tokens
+## Familienalbum und Design-Tokens
 
-Im Menü zwischen „Regeln“ und „Einstellungen“ liegt der **Design Guide**. Er zeigt alle Elemente der App mit fester
-Nummer (Kapitel.Zähler, z. B. `4.02` = Button Primär): Farben, Schriften, Abstände, Buttons, alle Karten und Grafiken,
-Spielfeld-Elemente, Fenster, Seiten, Töne und Vibrationen, dazu die Navigationslogik und eine Liste, welcher Abstand wo
-wirkt. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ erscheinen die
+Im Menü zwischen „Regeln“ und „Einstellungen“ liegt das **Familienalbum** (früher „Design Guide“). Es beginnt mit der Marke: die vier
+Familien mit ihren Figuren (beide Decks als Paar), alle 23 Kartenrückseiten, das Blatt mit den Kartenzuständen, Farben, Schrift
+und Pixel, Klang und Haptik. Danach kommt der Tisch (Spielfeld, Bausteine, Fenster, Seiten, Verhalten). Am Ende steht die
+Werkstatt mit Maßen, Abständen und dem Kartenatlas, eingeklappt. Jedes Element trägt eine feste Nummer (Kapitel.Zähler, z. B. `4.02`
+= Button Primär). Die Nummer ist ein Name, keine Seitenposition: Ein Element behält sie, auch wenn sein Kapitel wandert, Lücken
+bleiben. Die Werte unter jedem Muster sind live aus dem echten Element gelesen. Mit „Nummern im Spiel“ (in der Werkstatt) erscheinen die
 Nummern als kleine gelbe Punkte an den Elementen (Antippen zeigt und kopiert die Nummer), damit man bei Änderungen sofort sagen kann, welches Element gemeint ist.
 
 - **Ändern:** Alles Gestalterische steht in `src/ui/tokens.ts`. Eine Palettenfarbe ändern (`1.xx`) färbt alle Rollen, die
-  auf sie zeigen; eine Rolle (`1.4x`–`1.7x`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind Stufen
-  der Skala `3.11`–`3.18` (1 u = 1 Pixel × Maßstab), Rollen `3.21`–`3.37` geben ihnen Bedeutung. `styles.css` enthält
-  keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht.
+  auf sie zeigen; eine Rolle (`1.42`–`1.75`) umhängen ändert alle Stellen, an denen sie benutzt wird. Abstände sind vier
+  Werte `3.22`–`3.25` (1, 2, 4, 8 u; 1 u = 1 Pixel × Maßstab). `styles.css` enthält
+  keine festen Werte; `npm test` schlägt fehl, wenn dort wieder eine Farbe oder ein Pixelmaß auftaucht. Was im Spiel gleich aussieht, steht
+  in `styles.css` in einer gemeinsamen Regel (Master-Stile: Rahmen, Bedienelement, Chip, Knopfgruppe, Stapel, Panel, Tabelle, Leiste,
+  kleiner Text); die Werkstatt im Familienalbum listet sie mit ihren Parametern.
 - **Neues Element:** Baustein in `components.ts` (oder Klasse in `styles.css`) anlegen und in `guide.ts` unter `chapters()`
   mit neuer Nummer eintragen; mit `sel` findet es auch die Nummern-Punkte.
 - **Zurück:** Es gibt genau einen Weg, ein Fenster oder eine Seite zu verlassen: `App.back()`. Der Knopf „Zurück“

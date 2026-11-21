@@ -3,10 +3,10 @@
  *
  * - Beim Start wird daraus ein <style>-Block mit CSS-Variablen erzeugt (installTokens). styles.css, die Sprites,
  *   die Sounds und die Animationen lesen nur diese Werte, es stehen dort keine festen Farben oder Maße.
- * - Jeder Token hat eine feste Nummer (Kapitel.Zähler). Dieselbe Nummer steht im Design Guide (Startseite) und,
+ * - Jeder Token hat eine feste Nummer (Kapitel.Zähler). Dieselbe Nummer steht im Familienalbum (Startseite) und,
  *   wenn man dort „Nummern im Spiel“ einschaltet, auf den Elementen im Spiel.
  * - Maße sind in „u“ angegeben: 1 u = 1 Bildschirm-Pixel × Skalierung (--s, siehe 3.01). Auf dem Handy ist 1 u = 2 px.
- * - Zwei Ebenen: Palette (1.xx: echte Farbwerte) und Rollen (1.4x–1.7x: wofür eine Farbe steht). Das Layout
+ * - Zwei Ebenen: Palette (1.01–1.33: echte Farbwerte) und Rollen (1.42–1.75: wofür eine Farbe steht). Das Layout
  *   verwendet nur Rollen. Eine Rolle umhängen = alle Stellen im Spiel ändern.
  *
  * Diese Datei darf keine Browser-APIs beim Laden anfassen (wird auch von vite.config.ts und Skripten gelesen).
@@ -28,61 +28,39 @@ export interface ColorToken {
   use: string;
 }
 
-/** Mischt zwei Farben (#rrggbb): t = 0 ergibt a, t = 1 ergibt b, dazwischen je Farbkanal linear, auf ganze Zahlen gerundet. */
-export function mixHex(a: string, b: string, t: number): string {
-  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
-  const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t));
-  return `#${out.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
-}
-
-/**
- * Sandleiter: zehn gleich große Schritte von Creme (Stufe 0) bis Sand (Stufe 9). Nur diese beiden Enden sind festgelegt,
- * alle Stufen dazwischen ergeben sich per Formel (sandStep). Stufe 3 und 6 sind der Seitenhintergrund, der Teppich-Hintergrund
- * nutzt später vier Stufen aus der Mitte und lässt die Stufen neben Creme und Sand frei (Abstand zu Karten und Leiste).
- */
-const CREAM_HEX = '#fbf6ea';
-const SAND_HEX = '#cdbb94';
-export const SAND_STEPS = 9;
-export const sandStep = (n: number): string => mixHex(CREAM_HEX, SAND_HEX, n / SAND_STEPS);
-
-/** 1.01–1.39: Palette. Echte Farbwerte, jeder nur einmal. */
+/** 1.01–1.36: Palette. Echte Farbwerte, jeder nur einmal. */
 export const PALETTE_COLORS: ColorToken[] = [
-  { id: '1.01', css: '--c-ink', name: 'Tinte', value: '#23201f', group: 'Tinte und Text', use: 'Rahmen, harte Schatten, Button-Text, Namen, Kartenkontur und schwarze Farben' },
-  { id: '1.02', css: '--c-ink-soft', name: 'Tinte weich', value: '#5a4d44', group: 'Tinte und Text', use: 'Gedämpfter Text, Hinweise, deaktivierte Rahmen' },
-  { id: '1.03', css: '--c-brown', name: 'Textbraun', value: '#3a2d25', group: 'Tinte und Text', use: 'Standard-Fließtext, Regeln, Status-Zeile' },
-  { id: '1.04', css: '--c-panel', name: 'Panel', value: '#fffaf0', group: 'Flächen', use: 'Panels, Dialoge, Buttons, Leisten, Toast' },
-  { id: '1.05', css: '--c-cream', name: 'Creme', value: CREAM_HEX, group: 'Flächen', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel, Kartenvorderseite, Text auf Orange; Stufe 0 der Sandleiter' },
-  { id: '1.06', css: '--c-sand-3', name: 'Sandstufe 3', value: sandStep(3), group: 'Flächen', use: 'Seitenhintergrund (Schachbrett hell); Stufe 3 von 9 der Sandleiter, per Formel aus Creme und Sand' },
-  { id: '1.07', css: '--c-sand-6', name: 'Sandstufe 6', value: sandStep(6), group: 'Flächen', use: 'Seitenhintergrund (Schachbrett dunkel), Badge; Stufe 6 von 9 der Sandleiter, per Formel aus Creme und Sand' },
-  { id: '1.08', css: '--c-sand', name: 'Sand', value: SAND_HEX, group: 'Flächen', use: 'Weiche Schatten, Tabellenlinien, Hand- und Aktionsleiste, Badge-Rahmen, Überschrift-Schatten; Stufe 9 (Ende) der Sandleiter' },
-  { id: '1.09', css: '--c-gray', name: 'Grau', value: '#c9c0b2', group: 'Flächen', use: 'Deaktivierte Buttons' },
-  { id: '1.10', css: '--c-orange', name: 'Cheft-Orange', value: '#f06a2d', group: 'Marke', use: 'Primär-Button, Logo, Markierungen, Cheft-Badge, Kartenrücken A' },
-  { id: '1.11', css: '--c-orange-dark', name: 'Orange dunkel', value: '#b94718', group: 'Marke', use: 'Überschriften, Akzenttext, Vorwahl-Rahmen, Cheft-Badge-Rahmen' },
-  { id: '1.12', css: '--c-orange-pale', name: 'Orange blass', value: '#ffe3d2', group: 'Marke', use: 'Hover und Ablagezone, Leuchten um Karten, Balken im Punkteverlauf' },
-  { id: '1.13', css: '--c-gold', name: 'Gold', value: '#f2b53a', group: 'Marke', use: 'Kreis und Namensschild des aktiven Spielers, Rückblick (Linie, Namensschild), Joker-Stern, Kronen, Nummern-Punkte' },
-  { id: '1.14', css: '--c-red', name: 'Rot', value: '#d2362a', group: 'Signal', use: 'Gefahr-Button, Fehlermeldung, Herz und Karo' },
-  { id: '1.15', css: '--c-green', name: 'Grün', value: '#4f9a6a', group: 'Signal', use: 'Frisch gezogene Karte, klaubarer Joker' },
-  { id: '1.16', css: '--c-green-pale', name: 'Grün blass', value: '#d9ecd2', group: 'Signal', use: 'Balken des Rundensiegers im Punkteverlauf' },
-  { id: '1.17', css: '--c-shell', name: 'App-Hülle', value: '#2e1d16', group: 'System und Überlagerung', use: 'Browser-Leiste (theme-color), Ladebild und Hintergrund der installierten App, Icon-Hintergrund' },
+  { id: '1.01', css: '--c-ink', name: 'Tinte', value: '#23201f', group: 'Tinte und Text', use: 'Kartenkontur und alle schwarzen Farben der Karten' },
+  { id: '1.02', css: '--c-ink-soft', name: 'Tinte weich', value: '#5a4d44', group: 'Tinte und Text', use: '' },
+  { id: '1.05', css: '--c-cream', name: 'Creme', value: '#fbf6ea', group: 'Flächen', use: 'Kartenvorderseite' },
+  { id: '1.06', css: '--c-sand', name: 'Sand', value: '#efe2c6', group: 'Flächen', use: '' },
+  { id: '1.07', css: '--c-sand-light', name: 'Sand hell', value: '#f4eadb', group: 'Flächen', use: '' },
+  { id: '1.08', css: '--c-sand-dark', name: 'Sand dunkel', value: '#cdbb94', group: 'Flächen', use: '' },
+  { id: '1.09', css: '--c-gray', name: 'Grau', value: '#c9c0b2', group: 'Flächen', use: '' },
+  { id: '1.10', css: '--c-orange', name: 'Cheft-Orange', value: '#f06a2d', group: 'Marke', use: 'Kartenrücken Deck 1' },
+  { id: '1.11', css: '--c-orange-dark', name: 'Orange dunkel', value: '#b94718', group: 'Marke', use: 'Muster der Rückseiten in Deck 1' },
+  { id: '1.12', css: '--c-orange-pale', name: 'Orange blass', value: '#ffe3d2', group: 'Marke', use: '' },
+  { id: '1.13', css: '--c-gold', name: 'Gold', value: '#f2b53a', group: 'Marke', use: 'Joker-Stern, Kronen der Figuren, Muster der Rückseiten' },
+  { id: '1.14', css: '--c-red', name: 'Rot', value: '#d2362a', group: 'Signal', use: 'Herz und Karo auf den Karten' },
+  { id: '1.15', css: '--c-green', name: 'Grün', value: '#4f9a6a', group: 'Signal', use: '' },
+  { id: '1.16', css: '--c-green-pale', name: 'Grün blass', value: '#d9ecd2', group: 'Signal', use: '' },
+  { id: '1.17', css: '--c-shell', name: 'App-Hülle', value: '#2e1d16', group: 'System und Überlagerung', use: 'Browser-Leiste (theme-color), Ladebild und Hintergrund der installierten App' },
   { id: '1.18', css: '--c-scrim', name: 'Abdunkelung', value: 'rgba(60, 40, 20, 0.55)', group: 'System und Überlagerung', use: 'Hintergrund hinter Fenstern (Overlay)' },
   { id: '1.19', css: '--c-scrim-dark', name: 'Abdunkelung stark', value: 'rgba(30, 18, 12, 0.8)', group: 'System und Überlagerung', use: 'Tisch beim Rückblick auf Abwürfe' },
-  { id: '1.20', css: '--c-skin-h', name: 'Haut Herz', value: '#e6be9a', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Herz (Nase und Lippen werden daraus per Formel berechnet)' },
-  { id: '1.21', css: '--c-skin-d', name: 'Haut Karo', value: '#f5d5bb', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Karo' },
-  { id: '1.22', css: '--c-skin-c', name: 'Haut Kreuz', value: '#edc4a3', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Kreuz' },
-  { id: '1.23', css: '--c-skin-s', name: 'Haut Pik', value: '#f6e1d1', group: 'Kartenkunst', use: 'Gesichter der Bildkarten in Pik (die hellste Haut)' },
-  { id: '1.24', css: '--c-white', name: 'Weiß', value: '#ffffff', group: 'Kartenkunst', use: 'Weiß der Bildkarten: Turbane, Schleier, Hermelin, Perlen, alle Pik-Haare (Juwelen und Falten per Formel)' },
-  { id: '1.25', css: '--c-back-b', name: 'Rückseite B', value: '#4a4440', group: 'Kartenkunst', use: 'Kartenrücken des zweiten Decks (Muster darauf in Tinte)' },
-  { id: '1.26', css: '--c-hair-h', name: 'Haar Herz', value: '#7a4526', group: 'Kartenkunst', use: 'Haar und Brauen der Bildkarten in Herz' },
-  { id: '1.27', css: '--c-hair-d', name: 'Haar Karo', value: '#d7ad54', group: 'Kartenkunst', use: 'Haar, Bart und Brauen der Bildkarten in Karo (eine Farbe für die Familie)' },
-  { id: '1.28', css: '--c-hair-c', name: 'Haar Kreuz', value: '#645144', group: 'Kartenkunst', use: 'Haar, Brauen und Schnurrbart der Bildkarten in Kreuz, davon abgeleitet der Falkenkörper' },
-  { id: '1.29', css: '--c-hair-gray', name: 'Haar grau', value: '#ddd8cf', group: 'Kartenkunst', use: 'Haar, Bart und Brauen des Herz-Königs (begründete Ausnahme: Alter)' },
-  { id: '1.30', css: '--c-eye-h', name: 'Auge Herz', value: '#6a3a14', group: 'Kartenkunst', use: 'Augen der Bildkarten in Herz (1 Pixel)' },
-  { id: '1.31', css: '--c-eye-d', name: 'Auge Karo', value: '#3f7a3a', group: 'Kartenkunst', use: 'Augen der Bildkarten in Karo' },
-  { id: '1.32', css: '--c-eye-c', name: 'Auge Kreuz', value: '#2f62a0', group: 'Kartenkunst', use: 'Augen der Bildkarten in Kreuz' },
-  { id: '1.33', css: '--c-eye-s', name: 'Auge Pik', value: '#4a5a6e', group: 'Kartenkunst', use: 'Augen der Bildkarten in Pik (etwas dezenter)' },
-  { id: '1.34', css: '--c-icon-line', name: 'Icon-Kontur', value: '#1c120d', group: 'App-Icon', use: 'Kartenkontur im App-Icon (PWA)' },
-  { id: '1.35', css: '--c-icon-orange', name: 'Icon-Orange', value: '#e8521f', group: 'App-Icon', use: 'Buchstabe C und Ecke im App-Icon' },
-  { id: '1.36', css: '--c-icon-paper', name: 'Icon-Papier', value: '#f6ecd6', group: 'App-Icon', use: 'Kartenfläche im App-Icon' },
+  { id: '1.20', css: '--c-skin-h', name: 'Haut Herz', value: '#e6be9a', group: 'Figuren', use: 'Gesichter der Bildkarten in Herz (Nase und Lippen werden daraus per Formel berechnet)' },
+  { id: '1.21', css: '--c-skin-d', name: 'Haut Karo', value: '#f5d5bb', group: 'Figuren', use: 'Gesichter der Bildkarten in Karo' },
+  { id: '1.22', css: '--c-skin-c', name: 'Haut Kreuz', value: '#edc4a3', group: 'Figuren', use: 'Gesichter der Bildkarten in Kreuz' },
+  { id: '1.23', css: '--c-skin-s', name: 'Haut Pik', value: '#f6e1d1', group: 'Figuren', use: 'Gesichter der Bildkarten in Pik (die hellste Haut)' },
+  { id: '1.24', css: '--c-white', name: 'Weiß', value: '#ffffff', group: 'Figuren', use: 'Weiß der Bildkarten: Turbane, Schleier, Hermelin, Perlen, alle Pik-Haare (Juwelen und Falten per Formel)' },
+  { id: '1.25', css: '--c-back-b', name: 'Rückseite B', value: '#4a4440', group: 'Karten', use: 'Kartenrücken des zweiten Decks (Muster darauf in Tinte)' },
+  { id: '1.26', css: '--c-hair-h', name: 'Haar Herz', value: '#7a4526', group: 'Figuren', use: 'Haar und Brauen der Bildkarten in Herz' },
+  { id: '1.27', css: '--c-hair-d', name: 'Haar Karo', value: '#d7ad54', group: 'Figuren', use: 'Haar, Bart und Brauen der Bildkarten in Karo (eine Farbe für die Familie)' },
+  { id: '1.28', css: '--c-hair-c', name: 'Haar Kreuz', value: '#645144', group: 'Figuren', use: 'Haar, Brauen und Schnurrbart der Bildkarten in Kreuz, davon abgeleitet der Falkenkörper' },
+  { id: '1.29', css: '--c-hair-gray', name: 'Haar grau', value: '#ddd8cf', group: 'Figuren', use: 'Haar, Bart und Brauen des Herz-Königs (begründete Ausnahme: Alter)' },
+  { id: '1.30', css: '--c-eye-h', name: 'Auge Herz', value: '#6a3a14', group: 'Figuren', use: 'Augen der Bildkarten in Herz (1 Pixel)' },
+  { id: '1.31', css: '--c-eye-d', name: 'Auge Karo', value: '#3f7a3a', group: 'Figuren', use: 'Augen der Bildkarten in Karo' },
+  { id: '1.32', css: '--c-eye-c', name: 'Auge Kreuz', value: '#2f62a0', group: 'Figuren', use: 'Augen der Bildkarten in Kreuz' },
+  { id: '1.33', css: '--c-eye-s', name: 'Auge Pik', value: '#4a5a6e', group: 'Figuren', use: 'Augen der Bildkarten in Pik (etwas dezenter)' },
 ];
 
 export interface RoleToken {
@@ -95,42 +73,27 @@ export interface RoleToken {
   use: string;
 }
 
-/** 1.41–1.79: Rollen. Das Layout benutzt nur diese Namen. */
+/** 1.42–1.75: Rollen. Das Layout benutzt nur diese Namen. Mehrere Verwendungen derselben Farbe teilen sich eine Rolle. */
 export const ROLE_COLORS: RoleToken[] = [
-  { id: '1.41', css: '--text', name: 'Text', ref: '--c-brown', group: 'Text', use: 'Standardtext (Body, Regeln, Status)' },
-  { id: '1.42', css: '--text-strong', name: 'Text stark', ref: '--c-ink', group: 'Text', use: 'Button-Text, Namen, Toast, Eingabefelder' },
-  { id: '1.43', css: '--text-muted', name: 'Text gedämpft', ref: '--c-ink-soft', group: 'Text', use: 'Feldbeschriftungen, Hinweise, Stapel-Beschriftung, Badge' },
-  { id: '1.44', css: '--text-accent', name: 'Text Akzent', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Gedächtnis und Spielweise im Bot-Info-Fenster' },
-  { id: '1.45', css: '--text-brand', name: 'Text Marke', ref: '--c-orange', group: 'Text', use: 'Logo-Schriftzug (h1)' },
+  { id: '1.42', css: '--text-strong', name: 'Text', ref: '--c-ink', group: 'Text', use: 'Standardtext, Regeln, Status-Zeile, Button-Text, Namen, Toast, Eingabefelder' },
+  { id: '1.43', css: '--text-muted', name: 'Text gedämpft', ref: '--c-ink-soft', group: 'Text', use: 'Feldbeschriftungen, Hinweise, Stapel-Beschriftung, Badge, Rahmen deaktivierter Buttons' },
+  { id: '1.44', css: '--accent-dark', name: 'Orange dunkel', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Gedächtnis und Spielweise im Bot-Info-Fenster, Rahmen des Cheft-Chips' },
   { id: '1.46', css: '--text-on-accent', name: 'Text auf Fläche', ref: '--c-cream', group: 'Text', use: 'Schrift auf Orange, Dunkel, Rot und auf dem abgedunkelten Tisch' },
-  { id: '1.47', css: '--text-danger', name: 'Text Fehler', ref: '--c-red', group: 'Text', use: 'Fehlermeldung (Toast)' },
-  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand-6', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel)' },
-  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-3', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
-  { id: '1.53', css: '--surface-panel', name: 'Panel', ref: '--c-panel', group: 'Fläche', use: 'Panels, Dialoge, Buttons, Kopf- und Fußleisten, Toast, Sitzreihen in der Lobby' },
+  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel), Chip Rommé' },
+  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-light', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
+  { id: '1.53', css: '--surface-panel', name: 'Panel', ref: '--c-cream', group: 'Fläche', use: 'Panels, Dialoge, Buttons, Kopf- und Fußleisten, Toast, Sitzreihen in der Lobby' },
   { id: '1.54', css: '--surface-field', name: 'Feld', ref: '--c-cream', group: 'Fläche', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel' },
-  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
-  { id: '1.56', css: '--surface-chip', name: 'Chip', ref: '--c-sand-6', group: 'Fläche', use: 'Badge Rommé' },
+  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand-dark', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
   { id: '1.57', css: '--surface-highlight', name: 'Hervorhebung', ref: '--c-orange-pale', group: 'Fläche', use: 'Ablagezone, Hover auf Kombination, angetippte Wahloption, Balken im Punkteverlauf' },
   { id: '1.58', css: '--surface-disabled', name: 'Deaktiviert', ref: '--c-gray', group: 'Fläche', use: 'Deaktivierte Buttons' },
   { id: '1.59', css: '--surface-positive', name: 'Positiv', ref: '--c-green-pale', group: 'Fläche', use: 'Balken des Rundensiegers' },
-  { id: '1.60', css: '--surface-dark', name: 'Dunkel', ref: '--c-ink', group: 'Fläche', use: 'Dunkler Button (Cheft, Zurücklegen)' },
-  { id: '1.61', css: '--surface-accent', name: 'Akzent', ref: '--c-orange', group: 'Fläche', use: 'Primär-Button, Cheft-Badge, Zählerchip beim Ziehen' },
-  { id: '1.62', css: '--surface-danger', name: 'Gefahr', ref: '--c-red', group: 'Fläche', use: 'Gefahr-Button' },
-  { id: '1.63', css: '--surface-gold', name: 'Gold', ref: '--c-gold', group: 'Fläche', use: 'Namensschild des aktiven Spielers, Namensschild im Rückblick, Nummern-Punkte' },
-  { id: '1.64', css: '--line', name: 'Linie', ref: '--c-ink', group: 'Linie', use: 'Standardrahmen, Trennlinien der Leisten' },
-  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen' },
-  { id: '1.66', css: '--line-muted', name: 'Linie gedämpft', ref: '--c-ink-soft', group: 'Linie', use: 'Rahmen deaktivierter Buttons' },
-  { id: '1.67', css: '--line-accent', name: 'Linie Akzent', ref: '--c-orange-dark', group: 'Linie', use: 'Cheft-Badge-Rahmen' },
-  { id: '1.68', css: '--line-danger', name: 'Linie Fehler', ref: '--c-red', group: 'Linie', use: 'Toast-Rahmen bei Fehlern' },
-  { id: '1.71', css: '--accent', name: 'Akzent', ref: '--c-orange', group: 'Markierung', use: 'Ausgewählte Karte, Ablagezone, Auswahl-Rahmen' },
-  { id: '1.72', css: '--mark-temp', name: 'Vorübergehende Karte', ref: '--c-red', group: 'Markierung', use: 'Roter Rand: Karte, die nur vorübergehend auf der Hand ist (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) und noch verwendet werden muss' },
-  { id: '1.73', css: '--accent-halo', name: 'Leuchten', ref: '--c-orange-pale', group: 'Markierung', use: 'Leuchten um die gewählte Kartenrückseite in den Einstellungen' },
-  { id: '1.74', css: '--accent-gold', name: 'Gold', ref: '--c-gold', group: 'Markierung', use: 'Rückblick-Linie und Karten-Rahmen' },
-  { id: '1.75', css: '--positive', name: 'Positiv', ref: '--c-green', group: 'Markierung', use: 'Frisch gezogene Karte, Joker zum Klauen' },
-  { id: '1.76', css: '--shadow-solid', name: 'Schatten hart', ref: '--c-ink', group: 'Schatten', use: 'Schatten der Buttons' },
-  { id: '1.77', css: '--shadow-soft', name: 'Schatten weich', ref: '--c-sand', group: 'Schatten', use: 'Schatten von Panels, Karten, Toast, Überschrift' },
-  { id: '1.78', css: '--scrim', name: 'Abdunkelung', ref: '--c-scrim', group: 'Überlagerung', use: 'Hintergrund hinter Fenstern' },
-  { id: '1.79', css: '--scrim-dark', name: 'Abdunkelung stark', ref: '--c-scrim-dark', group: 'Überlagerung', use: 'Tisch beim Rückblick' },
+  { id: '1.64', css: '--ink', name: 'Tinte', ref: '--c-ink', group: 'Linie', use: 'Standardrahmen, Trennlinien der Leisten, harte Schatten der Buttons, dunkler Button (Cheft)' },
+  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand-dark', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen, weiche Schatten von Panels, Karten, Toast und Überschrift' },
+  { id: '1.71', css: '--accent', name: 'Orange', ref: '--c-orange', group: 'Marke und Signal', use: 'Primär-Button, Logo-Schriftzug, Cheft-Chip, ausgewählte Karte, Ablagezone, Auswahl-Rahmen, Zählerchip beim Ziehen' },
+  { id: '1.62', css: '--danger', name: 'Gefahr', ref: '--c-red', group: 'Marke und Signal', use: 'Gefahr-Button, Fehlermeldung (Text und Rahmen)' },
+  { id: '1.63', css: '--gold', name: 'Gold', ref: '--c-gold', group: 'Marke und Signal', use: 'Namensschild des aktiven Spielers, Namensschild und Linie im Rückblick, Nummern-Punkte' },
+  { id: '1.72', css: '--mark-temp', name: 'Vorübergehende Karte', ref: '--c-red', group: 'Marke und Signal', use: 'Roter Rand: Karte, die nur vorübergehend auf der Hand ist (Ablagekarte als Rommé-Spieler, Teppichkarte, geklauter Joker) und noch verwendet werden muss' },
+  { id: '1.75', css: '--positive', name: 'Positiv', ref: '--c-green', group: 'Marke und Signal', use: 'Frisch gezogene Karte, Joker zum Klauen' },
 ];
 
 // ---------------------------------------------------------------- 2 Typografie
@@ -160,9 +123,8 @@ export const FONT_SIZES: { id: string; css: string; name: string; units: number;
   { id: '2.11', css: '--fs-display', name: 'Display', units: 22, use: 'Logo-Schriftzug (h1)' },
   { id: '2.12', css: '--fs-title', name: 'Titel', units: 12, use: 'Fenster- und Seitentitel (h2), Rückblick-Banner' },
   { id: '2.13', css: '--fs-body', name: 'Text', units: 10, use: 'Standardtext, Buttons, Eingaben, Zwischenüberschrift (h3), Zähler auf dem Stapel' },
-  { id: '2.14', css: '--fs-label', name: 'Label', units: 9, use: 'Status-Zeile, Auswertungstabelle, Toast, Spielername am Sitz' },
-  { id: '2.15', css: '--fs-caption', name: 'Hinweis', units: 8, use: 'Hinweise, Sitz-Beschriftung, Info-Zeile, Namensschild im Rückblick, Zählerchip beim Ziehen' },
-  { id: '2.16', css: '--fs-micro', name: 'Mikro', units: 7, use: 'Badge, Stapel-Beschriftung, Faktoren und Zuwachs in Tabellen, „genommen von“' },
+  { id: '2.15', css: '--fs-caption', name: 'Hinweis', units: 8, use: 'Hinweise, Sitz-Beschriftung und Spielername, Status-Zeile, Auswertungstabelle, Toast, Info-Zeile, Namensschilder, Chips mit Nummern' },
+  { id: '2.16', css: '--fs-micro', name: 'Mikro', units: 6, use: 'Badge, Stapel-Beschriftung, Faktoren und Zuwachs in Tabellen, „genommen von“' },
 ];
 
 export const TYPE_MISC_TOKENS: ValueToken[] = [
@@ -198,49 +160,29 @@ export const BREAKPOINT_TOKENS: ValueToken[] = [
   { id: '3.06', css: '--bp-fan', name: 'Fächer', value: `${BREAKPOINTS.fan}px`, use: 'Ab hier: verdeckte Handkarten der Mitspieler sichtbar' },
 ];
 
-/** 3.11–3.18: Abstandsskala. Jede Stufe heißt nach ihren u. */
-export const SPACING_SCALE: { id: string; css: string; units: number }[] = [
-  { id: '3.11', css: '--sp-1', units: 1 },
-  { id: '3.12', css: '--sp-2', units: 2 },
-  { id: '3.13', css: '--sp-3', units: 3 },
-  { id: '3.14', css: '--sp-4', units: 4 },
-  { id: '3.15', css: '--sp-5', units: 5 },
-  { id: '3.16', css: '--sp-6', units: 6 },
-  { id: '3.17', css: '--sp-8', units: 8 },
-  { id: '3.18', css: '--sp-16', units: 16 },
-];
-
-/** 3.21–3.49: Abstands-Rollen. Wer ändern will, ändert hier den Verweis auf die Skala. */
-export const SPACING_ROLES: { id: string; css: string; name: string; ref: string; use: string }[] = [
-  { id: '3.21', css: '--gap-stack', name: 'Abstand Stapel', ref: '--sp-4', use: 'Zwischen Knöpfen und Feldern untereinander in Panel, Dialog und Menü-Gruppe' },
-  { id: '3.22', css: '--gap-group', name: 'Zusatz zwischen Gruppen', ref: '--sp-6', use: 'Kommt zum Stapelabstand dazu: Menü-Gruppen und über „Zurück“ (zusammen 10 u)' },
-  { id: '3.23', css: '--gap-row', name: 'Abstand Reihe', ref: '--sp-3', use: 'Zwischen Knöpfen nebeneinander (btn-row), in Zeilen mit Feld und Knopf, Bot-Auswahl, Kopfleiste' },
-  { id: '3.24', css: '--gap-tight', name: 'Abstand eng', ref: '--sp-2', use: 'Wahlknöpfe (an/aus), Aktionsleiste, Sitzbeschriftung, Karten untereinander' },
-  { id: '3.25', css: '--gap-hair', name: 'Abstand haar', ref: '--sp-1', use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Karten in der Restkarten-Reihe' },
-  { id: '3.26', css: '--gap-screen', name: 'Abstand Seitenelemente', ref: '--sp-6', use: 'Menü: zwischen Logo und Panel' },
-  { id: '3.27', css: '--pad-screen', name: 'Rand Seite', ref: '--sp-8', use: 'Außenrand der Menü-Seiten' },
-  { id: '3.28', css: '--pad-panel', name: 'Innenrand Panel', ref: '--sp-5', use: 'Panels und Dialoge' },
-  { id: '3.29', css: '--pad-overlay', name: 'Rand Fenster', ref: '--sp-6', use: 'Außenrand um Fenster auf der Abdunkelung' },
-  { id: '3.30', css: '--pad-btn-y', name: 'Innenrand Button oben/unten', ref: '--sp-2', use: 'Alle Buttons' },
-  { id: '3.31', css: '--pad-btn-x', name: 'Innenrand Button links/rechts', ref: '--sp-5', use: 'Alle Buttons (Aktionsleiste: 2 u)' },
-  { id: '3.32', css: '--pad-input-y', name: 'Innenrand Feld oben/unten', ref: '--sp-2', use: 'Eingabefelder' },
-  { id: '3.33', css: '--pad-input-x', name: 'Innenrand Feld links/rechts', ref: '--sp-3', use: 'Eingabefelder' },
-  { id: '3.34', css: '--pad-bar-y', name: 'Innenrand Leiste oben/unten', ref: '--sp-3', use: 'Aktionsleiste, Fußleiste, Handleiste oben' },
-  { id: '3.35', css: '--pad-bar-x', name: 'Innenrand Leiste links/rechts', ref: '--sp-4', use: 'Aktionsleiste, Fußleiste, Handleiste, Kopfleiste' },
-  { id: '3.36', css: '--pad-status-x', name: 'Innenrand Status', ref: '--sp-5', use: 'Status-Zeile links/rechts' },
-  { id: '3.37', css: '--pad-toast-x', name: 'Innenrand Toast', ref: '--sp-5', use: 'Toast links/rechts (oben/unten 3 u)' },
+/**
+ * 3.22–3.25: Abstände. Vier Werte, die alle Stellen im Spiel benutzen (1, 2, 4, 8 u); ihre Bedeutung steht in der Liste „Abstände im
+ * Einsatz“ im Familienalbum. Stellen mit gleichem Wert teilen sich einen Namen, es gibt keine Rohstufen daneben.
+ */
+export const SPACING_ROLES: { id: string; css: string; name: string; units: number; use: string }[] = [
+  { id: '3.25', css: '--gap-hair', name: 'Abstand haar', units: 1, use: 'Feldbeschriftung über ihren Knöpfen, Tabellenzeilen, Innenrand einer Kombination, Karten in der Restkarten-Reihe, Linienstärke' },
+  { id: '3.24', css: '--gap-tight', name: 'Abstand eng', units: 2, use: 'Wahlknöpfe (an/aus), Aktionsleiste, Karten untereinander; Innenrand oben/unten in Buttons und Feldern, links/rechts in Chips; Tisch, Kopfzeile, Status' },
+  { id: '3.23', css: '--gap-row', name: 'Abstand normal', units: 4, use: 'Zwischen Knöpfen und Feldern untereinander und nebeneinander; Innenrand von Panels, Dialogen, Toast, Buttons links/rechts, Feldern, Leisten' },
+  { id: '3.22', css: '--gap-group', name: 'Abstand groß', units: 8, use: 'Zwischen Gruppen (zusammen mit dem normalen Abstand 12 u): Menü-Gruppen, über „Zurück“, Logo und Panel; Außenrand von Seiten und Fenstern, Lesespalte' },
 ];
 
 /** 3.51–3.59: Rahmen, Schatten und Linien. */
 export const BORDER_TOKENS: ValueToken[] = [
   { id: '3.51', css: '--bw', name: 'Rahmenstärke', value: u(1), use: 'Rahmen aller Panels, Buttons, Felder, Karten-Rückblick (1 u)' },
   { id: '3.52', css: '--bw-mark', name: 'Markierungsstärke', value: u(2), use: 'Auswahl, Leuchten, rote Markierung vorübergehender Karten, Ablagezone (2 u)' },
+  { id: '3.50', css: '--bw-temp', name: 'Rahmen vorübergehende Karte', value: 'calc(var(--bw-mark) + var(--bw))', use: 'Roter Rahmen (2 u) plus dunkler Ring (1 u) um eine vorübergehende Karte; diese Breite wird bei Mitspielern von der Überlappung abgezogen' },
+  { id: '3.53', css: '--border', name: 'Rahmen', value: 'var(--bw) solid var(--ink)', use: 'Standardrahmen aller Panels, Buttons, Felder, Leisten und Namensschilder (Master)' },
+  { id: '3.59', css: '--border-soft', name: 'Rahmen weich', value: 'var(--bw) solid var(--line-soft)', use: 'Tabellenlinien und Zeilentrenner (Master)' },
+  { id: '3.60', css: '--border-drop', name: 'Rahmen Ablageziel', value: 'var(--bw-mark) dashed var(--accent)', use: 'Gestrichelte Ablageziele: Halbkreis, Kombination, Kontur der Ablage (Master)' },
   { id: '3.54', css: '--radius', name: 'Eckenradius', value: '0', use: 'Keine abgerundeten Ecken (Pixel-Look). Die Kartenecken sind in den Sprites abgerundet' },
-  { id: '3.55', css: '--sh-btn', name: 'Schatten Button', value: `${u(1)} ${u(1)} 0 var(--shadow-solid)`, use: 'Buttons (gedrückt: kein Schatten, 1 u verschoben)' },
-  { id: '3.56', css: '--sh-panel', name: 'Schatten Panel', value: `${u(2)} ${u(2)} 0 var(--shadow-soft)`, use: 'Panels, Dialoge, Toast, gezogener Sitz in der Lobby' },
-  { id: '3.57', css: '--sh-card', name: 'Schatten Karte', value: `${u(1)} ${u(1)} 0 var(--shadow-soft)`, use: 'Stapel, Teppichkarte, Ablage' },
-  { id: '3.58', css: '--sh-heading', name: 'Schatten Schrift', value: `${u(1)} ${u(1)} 0 var(--shadow-soft)`, use: 'Logo-Schriftzug (text-shadow)' },
-  { id: '3.59', css: '--sh-halo', name: 'Leuchten', value: `0 0 0 ${u(4)} var(--accent-halo)`, use: 'Gewählte Kartenrückseite in den Einstellungen (4 u breit)' },
+  { id: '3.55', css: '--sh-btn', name: 'Schatten Button', value: `${u(1)} ${u(1)} 0 var(--ink)`, use: 'Buttons (gedrückt: kein Schatten, 1 u verschoben)' },
+  { id: '3.56', css: '--sh-panel', name: 'Schatten Panel', value: `${u(2)} ${u(2)} 0 var(--line-soft)`, use: 'Panels, Dialoge, Toast, gezogener Sitz in der Lobby' },
+  { id: '3.57', css: '--sh-card', name: 'Schatten klein', value: `${u(1)} ${u(1)} 0 var(--line-soft)`, use: 'Stapel, Teppichkarte, Ablage (als drop-shadow: folgt der Kartenform mit den abgerundeten Pixelecken), Porträts, Logo-Schriftzug' },
 ];
 
 /** 3.61–3.69: Wirkung auf Karten. */
@@ -252,6 +194,7 @@ export const EFFECT_TOKENS: ValueToken[] = [
   { id: '3.64', css: '--op-taken', name: 'Deckkraft genommen', value: '0.55', use: 'Im Rückblick: Karte, die schon jemand genommen hat' },
   { id: '3.65', css: '--op-peek-line', name: 'Deckkraft Rückblick-Linie', value: '0.8', use: 'Gestrichelte Linie von der Ablage zum Namensschild' },
   { id: '3.66', css: '--lift-selected', name: 'Anheben', value: u(6), use: 'Markierte Handkarte schiebt sich nach oben (6 u)' },
+  { id: '3.69', css: '--lift-logo', name: 'Anheben Logo-Karte', value: u(2), use: 'Mittlere Karte im Logo steht 2 u höher' },
   { id: '3.67', css: '--rot-logo', name: 'Neigung Logo-Karten', value: '6deg', use: 'Linke und rechte Karte im Logo (mittlere gerade)' },
 ];
 
@@ -278,21 +221,20 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.72', css: '--px-card-h', name: 'Karte Höhe (Basis)', px: CARD_PX.h, use: 'dito' },
   { id: '3.73', css: '--px-atlas-w', name: 'Atlas Breite (Basis)', px: CARD_PX.atlasW, use: 'Sprite-Atlas: 8 Spalten × 32 Pixel' },
   { id: '3.74', css: '--px-atlas-h', name: 'Atlas Höhe (Basis)', px: CARD_PX.atlasH, use: 'Sprite-Atlas: 9 Zeilen × 44 Pixel' },
-  { id: '3.75', css: '--px-ov-meld', name: 'Überlappung Kombination (Basis)', px: -18, use: 'Karten einer Auslage; auch Mini-Karten in „Wie auslegen?“' },
-  { id: '3.76', css: '--px-ov-pair', name: 'Überlappung Paar (Basis)', px: -20, use: 'Cheft-Paar' },
-  { id: '3.77', css: '--px-ov-fan', name: 'Überlappung Fächer (Basis)', px: -26, use: 'Verdeckte Handkarten der Mitspieler' },
-  { id: '3.78', css: '--px-ov-mini-back', name: 'Überlappung Mini-Rücken', px: -22, use: 'Verdeckte Restkarten in der Auswertung' },
+  { id: '3.75', css: '--px-ov-meld', name: 'Überlappung offene Karten (Basis)', px: -20, use: 'Karten einer Auslage, auch das Cheft-Paar; Mini-Karten in „Wie auslegen?“' },
+  { id: '3.77', css: '--px-ov-back', name: 'Überlappung verdeckte Karten (Basis)', px: -24, use: 'Fächer der Mitspieler und verdeckte Restkarten in der Auswertung' },
   { id: '3.79', css: '--card-w', name: 'Karte Breite', of: '--px-card-w', use: 'Handkarten (Basis × --s). Tischmitte (Stapel, Ablage, Teppichkarte): Basis × --sc, im Bereich .center neu berechnet. Alle Auslagen, auch die eigene: Basis × --so (Klasse .o)' },
   { id: '3.80', css: '--card-h', name: 'Karte Höhe', of: '--px-card-h', use: 'dito' },
   { id: '3.81', css: '--atlas-w', name: 'Atlas Breite', of: '--px-atlas-w', use: 'Hintergrundgröße der Karten (Basis × --s)' },
   { id: '3.82', css: '--atlas-h', name: 'Atlas Höhe', of: '--px-atlas-h', use: 'dito' },
-  { id: '3.83', css: '--ov-meld', name: 'Überlappung Kombination', of: '--px-ov-meld', use: 'Karten einer eigenen Auslage' },
-  { id: '3.84', css: '--ov-pair', name: 'Überlappung Paar', of: '--px-ov-pair', use: 'Cheft-Paar in der eigenen Auslage' },
+  { id: '3.83', css: '--ov-meld', name: 'Überlappung offene Karten', of: '--px-ov-meld', use: 'Karten einer eigenen Auslage, auch Cheft-Paar' },
   { id: '3.86', css: '--w-menu', name: 'Breite Menü-Panel', units: 170, use: 'Panels der Menü-Seiten' },
   { id: '3.87', css: '--w-dialog', name: 'Breite Dialog', units: 230, use: 'Alle Fenster (Overlay)' },
-  { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Design Guide (ca. 65 Zeichen)' },
+  { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Familienalbum (ca. 65 Zeichen)' },
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
+  { id: '3.115', css: '--center-extra', name: 'Mindesthöhe Mitte: Zusatz', units: 16, use: 'Tischmitte ist mindestens so hoch wie eine Karte plus dieser Wert' },
+  { id: '3.114', css: '--w-fam-char', name: 'Breite Figur im Familienalbum', units: 80, use: 'Eine Figur mit Paar im Familienalbum (zwei Porträts nebeneinander)' },
   { id: '3.111', css: '--size-dot', name: 'Größe Nummern-Punkt', units: 5, use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
@@ -307,6 +249,9 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.99', css: '--discard-pad-y', name: 'Ablage Zusatzhöhe', units: 18, use: 'dito' },
   { id: '3.100', css: '--discard-x', name: 'Ablage Versatz links', units: 12, use: 'Oberste Karte in der Ablage' },
   { id: '3.101', css: '--discard-y', name: 'Ablage Versatz oben', units: 9, use: 'dito' },
+  { id: '3.116', css: '--discard-gap', name: 'Ablageziel Abstand', units: 8, use: 'Abstand der gestrichelten Kontur um alle Ablagekarten (wie der Halbkreis zum Auslegen Abstand zur Scheibe hat)' },
+  { id: '3.117', css: '--size-check', name: 'Größe Schalter', units: 12, use: 'Kästchen des Schalters (12 × 12 u, Rahmen und Schatten wie ein Button)' },
+  { id: '3.118', css: '--size-check-row', name: 'Höhe Schalter-Zeile', units: 16, use: 'Mindesthöhe einer Schalter-Zeile, damit sie mit dem Daumen sicher zu treffen ist' },
   { id: '3.102', css: '--count-size', name: 'Größe Zähler auf Stapel', units: 14, use: 'Kästchen mit der Restzahl (ab 7 Karten)' },
   { id: '3.103', css: '--count-x', name: 'Zähler Position links', units: 9, use: 'Kästchen auf dem Stapel' },
   { id: '3.104', css: '--count-y', name: 'Zähler Position oben', units: 15, use: 'Kästchen auf dem Stapel' },
@@ -324,46 +269,31 @@ export const Z_TOKENS: ValueToken[] = [
   { id: '3.123', css: '--z-overlay', name: 'Fenster', value: '60', use: 'Fenster, Dialoge, Fußleiste nach der Runde' },
   { id: '3.124', css: '--z-peek', name: 'Rückblick', value: '70', use: 'Abgedunkelter Tisch mit Abwürfen' },
   { id: '3.125', css: '--z-toast', name: 'Toast', value: '80', use: 'Meldungen, immer ganz oben' },
-  { id: '3.126', css: '--z-labels', name: 'Nummern-Punkte', value: '90', use: 'Punkte und Anzeige des Design Guides („Nummern im Spiel“)' },
+  { id: '3.126', css: '--z-labels', name: 'Nummern-Punkte', value: '90', use: 'Punkte und Anzeige des Familienalbums („Nummern im Spiel“)' },
   { id: '3.127', css: '--z-drag', name: 'Gezogene Karte', value: '100', use: 'Handkarte unter dem Finger' },
 ];
 
 // ---------------------------------------------------------------- 3.131–3.142 Bewegung
-/** Zeiten in Millisekunden; auch das Skript liest sie hier. */
+/** Zeiten in Millisekunden; auch das Skript liest sie hier. Wenige Werte für alle Bewegungen. */
 export const MOTION = {
-  /** Karte rückt in der Hand an ihren Platz. */
-  handShift: 120,
-  /** Karte fliegt (Ziehen, Ablegen, Auslegen). */
+  /** Kurz: Karte rückt in der Hand an ihren Platz, Rückblick blendet aus. */
+  quick: 120,
+  /** Karte fliegt: Ziehen, Ablegen, Auslegen, Austeilen, Karten des Rückblicks gleiten ein. */
   fly: 260,
-  /** Austeil-Karte fliegt. */
-  dealFly: 280,
-  /** Abstand zwischen zwei ausgeteilten Karten. */
-  dealStep: 70,
-  /** Langes Drücken auf die Ablage bis zum Rückblick. */
-  peekHold: 380,
-  /** Rückblick-Karte gleitet ein. */
-  peekIn: 240,
-  /** Versatz zwischen zwei Rückblick-Karten. */
-  peekStagger: 70,
-  /** Rückblick blendet aus. */
-  peekOut: 120,
-  /** Sperrzeit nach dem Rückblick, damit das Loslassen nichts zieht. */
-  peekGuard: 350,
+  /** Takt zwischen zwei Karten beim Austeilen und beim Einblenden des Rückblicks. */
+  step: 70,
+  /** Halten: Langes Drücken auf die Ablage bis zum Rückblick; ebenso die Sperre danach, damit das Loslassen nichts zieht. */
+  hold: 380,
   /** Toast bleibt stehen. */
   toast: 3200,
   /** Zwei Tipps auf die Ablage gelten als Doppeltipp. */
   doubleTap: 500,
 };
 export const MOTION_TOKENS: { id: string; key: keyof typeof MOTION; name: string; use: string }[] = [
-  { id: '3.131', key: 'handShift', name: 'Hand sortiert um', use: 'Übergang left/top der Handkarten (CSS --dur-hand)' },
-  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch, auch das Gleiten der Tischmitte und der seitlichen Sitze' },
-  { id: '3.133', key: 'dealFly', name: 'Austeilen: Flug', use: 'Eine Karte beim Austeilen' },
-  { id: '3.134', key: 'dealStep', name: 'Austeilen: Takt', use: 'Abstand zwischen zwei Karten' },
-  { id: '3.135', key: 'peekHold', name: 'Rückblick: Halten', use: 'So lange drücken, bis der Rückblick erscheint' },
-  { id: '3.136', key: 'peekIn', name: 'Rückblick: Einblenden', use: 'Karten gleiten von der Ablage zum Namensschild' },
-  { id: '3.137', key: 'peekStagger', name: 'Rückblick: Staffelung', use: 'Versatz zwischen zwei Karten' },
-  { id: '3.138', key: 'peekOut', name: 'Rückblick: Ausblenden', use: 'Ausblenden des Rückblicks' },
-  { id: '3.139', key: 'peekGuard', name: 'Rückblick: Sperre', use: 'Wartezeit nach dem Rückblick, bis wieder gezogen werden kann' },
+  { id: '3.131', key: 'quick', name: 'Kurz', use: 'Hand sortiert um (CSS --dur-hand), Rückblick blendet aus' },
+  { id: '3.132', key: 'fly', name: 'Karte fliegt', use: 'Alle Kartenbewegungen am Tisch, auch Austeilen, das Gleiten der Tischmitte und der seitlichen Sitze und das Einblenden des Rückblicks' },
+  { id: '3.134', key: 'step', name: 'Takt', use: 'Abstand zwischen zwei Karten beim Austeilen und im Rückblick' },
+  { id: '3.135', key: 'hold', name: 'Halten', use: 'So lange drücken, bis der Rückblick erscheint; so lange danach nichts gezogen werden kann' },
   { id: '3.140', key: 'toast', name: 'Toast: Dauer', use: 'So lange bleibt eine Meldung stehen' },
   { id: '3.142', key: 'doubleTap', name: 'Doppeltipp', use: 'Zeitfenster für zwei Tipps auf die Ablage (Cheft ansagen)' },
 ];
@@ -412,15 +342,14 @@ export function tokenVars(): [string, string][] {
   for (const r of ROLE_COLORS) v.push([r.css, `var(${r.ref})`]);
   for (const f of [...FONT_TOKENS, ...WEIGHT_TOKENS, ...TYPE_MISC_TOKENS, ...BREAKPOINT_TOKENS, ...BORDER_TOKENS, ...EFFECT_TOKENS, ...Z_TOKENS]) v.push([f.css, f.value]);
   for (const f of FONT_SIZES) v.push([f.css, u(f.units)]);
-  for (const s of SPACING_SCALE) v.push([s.css, u(s.units)]);
-  for (const r of SPACING_ROLES) v.push([r.css, `var(${r.ref})`]);
+  for (const r of SPACING_ROLES) v.push([r.css, u(r.units)]);
   for (const s of SIZE_TOKENS) {
     if (s.px !== undefined) v.push([s.css, `${s.px}px`]);
     else if (s.of) v.push([s.css, `calc(var(${s.of}) * var(--s))`]);
     else v.push([s.css, u(s.units!)]);
   }
   for (const h of HAND_TOKENS) v.push([h.css, u(HAND[h.key])]);
-  v.push(['--dur-hand', `${MOTION.handShift}ms`]);
+  v.push(['--dur-hand', `${MOTION.quick}ms`]);
   return v;
 }
 
@@ -429,7 +358,7 @@ export function tokenVars(): [string, string][] {
  * Im Bereich `.center` gilt darum --s = --sc, und diese Maße werden dort neu berechnet (benutzerdefinierte Variablen erben ihren
  * berechneten Wert, sie rechnen nicht selbst nach).
  */
-export const CENTER_VARS = ['--card-w', '--card-h', '--atlas-w', '--atlas-h', '--pile-gap', '--stock-shift', '--carpet-shift', '--discard-pad-x', '--discard-pad-y', '--discard-x', '--discard-y', '--count-size', '--count-x', '--count-y'];
+export const CENTER_VARS = ['--card-w', '--card-h', '--atlas-w', '--atlas-h', '--pile-gap', '--stock-shift', '--carpet-shift', '--discard-pad-x', '--discard-pad-y', '--discard-x', '--discard-y', '--discard-gap', '--count-size', '--count-x', '--count-y'];
 
 /** Kompletter CSS-Text mit allen Variablen (und den Umschaltpunkten, die keine Variablen können). */
 export function tokensCss(): string {
@@ -485,7 +414,6 @@ export function allTokenIds(): string[] {
     ...TYPE_MISC_TOKENS.map((x) => x.id),
     SCALE_TOKENS.id,
     ...BREAKPOINT_TOKENS.map((x) => x.id),
-    ...SPACING_SCALE.map((x) => x.id),
     ...SPACING_ROLES.map((x) => x.id),
     ...BORDER_TOKENS.map((x) => x.id),
     ...EFFECT_TOKENS.map((x) => x.id),
