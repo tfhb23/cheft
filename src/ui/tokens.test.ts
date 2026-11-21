@@ -4,13 +4,16 @@ import {
   PALETTE_COLORS,
   ROLE_COLORS,
   SPACING_ROLES,
+  SAND_STEPS,
   SPACING_SCALE,
   allTokenIds,
+  sandStep,
   color,
   tokenVars,
   tokensCss,
 } from './tokens';
 import { allSpecIds, labelTargets } from './guide';
+import { FACE_REFS } from './face-art';
 
 const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 const appSrc = readFileSync(new URL('./app.ts', import.meta.url), 'utf8');
@@ -38,6 +41,26 @@ describe('Design-Tokens', () => {
   it('Farben sind gültige Hex- oder rgba-Werte', () => {
     for (const c of PALETTE_COLORS) expect(c.value).toMatch(/^(#[0-9a-f]{6}|rgba\([\d., ]+\))$/i);
     expect(color('shell')).toBe('#2e1d16');
+  });
+
+  it('Sandleiter: nur Creme und Sand sind festgelegt, die Stufen dazwischen kommen aus der Formel', () => {
+    expect(sandStep(0)).toBe(color('cream'));
+    expect(sandStep(SAND_STEPS)).toBe(color('sand'));
+    // Gleich große Schritte: Stufe 3 und 6 aus Creme (#fbf6ea) und Sand (#cdbb94)
+    expect(sandStep(3)).toBe('#ece2cd');
+    expect(sandStep(6)).toBe('#dccfb1');
+    expect(color('sand-3')).toBe(sandStep(3));
+    expect(color('sand-6')).toBe(sandStep(6));
+    // Es gibt keine eigenen Palettenfarben „Sand“ und „Sand hell“ mehr, nur noch die Stufen
+    expect(PALETTE_COLORS.some((c) => c.css === '--c-sand-light' || c.css === '--c-sand-dark')).toBe(false);
+    // Die Stufen werden dunkler, von Creme bis Sand
+    const lum = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
+    for (let n = 1; n <= SAND_STEPS; n++) expect(lum(sandStep(n))).toBeLessThan(lum(sandStep(n - 1)));
+  });
+
+  it('Alle Farbnamen der Bildkarten (face-art.ts) gibt es als Palettenfarbe, sonst bricht das Spiel beim Start ab', () => {
+    // Wird ein Token umbenannt oder entfernt, muss export_ts.py (design/bildkarten/code) neu laufen
+    for (const ref of FACE_REFS) if (!ref.startsWith('#')) expect(() => color(ref), ref).not.toThrow();
   });
 
   it('tokensCss enthält :root und die Maßstab-Umschaltung', () => {

@@ -15,7 +15,7 @@ OUT=os.path.join(lib._ROOT if os.path.exists(os.path.join(lib._ROOT,'src')) else
 CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,-/:;<=>?@[]^_{|}~"
 tok=open(lib._TOK).read()
 by_hex={}
-for i,css,n,v in re.findall(r"\{ id: '(1\.\d\d)', css: '--c-([^']+)', name: '([^']+)', value: '(#[0-9a-fA-F]{6})'",tok): by_hex.setdefault(v.lower(),css)
+for i,css,n,v in lib.palette_rows(tok): by_hex.setdefault(v.lower(),css)
 def sprites():
     out={}
     for s,r,keys in KARTEN:

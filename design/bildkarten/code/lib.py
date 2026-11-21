@@ -6,9 +6,28 @@ import os as _os
 # Farben kommen aus dem Design Guide der App (src/ui/tokens.ts, Palette 1.xx). Ändert sich dort ein Wert, ändern sich die Figuren mit.
 _TOK=_os.path.join(_os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),'..','..','..')),'src','ui','tokens.ts')
 if not _os.path.exists(_TOK): _TOK='/home/user/cheft/src/ui/tokens.ts'
-_PAL=dict(re.findall(r"\{ id: '(1\.\d\d)', css: '[^']+', name: '[^']+', value: '(#[0-9a-fA-F]{6})'",open(_TOK).read()))
+def palette_rows(tok_text):
+    """Palette 1.xx aus tokens.ts als Liste (Nummer, css-Name ohne --c-, Name, Hex). Der Wert darf ein Hex-Text sein, eine Konstante
+    (CREAM_HEX, SAND_HEX) oder sandStep(n): die Sandleiter wird mit derselben Formel gerechnet wie in tokens.ts (je Kanal linear, gerundet)."""
+    consts=dict(re.findall(r"const (\w+_HEX) = '(#[0-9a-fA-F]{6})'",tok_text))
+    steps=int(re.search(r"export const SAND_STEPS = (\d+)",tok_text).group(1))
+    def sand_step(n):
+        a,b=hx(consts['CREAM_HEX']),hx(consts['SAND_HEX'])
+        return '#%02x%02x%02x'%tuple(int((x+(y-x)*n/steps)+0.5) for x,y in zip(a,b))
+    rows=[]
+    for i,css,n,expr in re.findall(r"\{ id: '(1\.\d\d)', css: '--c-([^']+)', name: '([^']+)', value: (.+?), group: '",tok_text):
+        m=re.fullmatch(r"'(#[0-9a-fA-F]{6})'",expr)
+        if m: v=m.group(1)
+        elif expr in consts: v=consts[expr]
+        else:
+            m=re.fullmatch(r"sandStep\((\d+)\)",expr)
+            if not m: continue
+            v=sand_step(int(m.group(1)))
+        rows.append((i,css,n,v))
+    return rows
+_PAL={i:v for i,_,_,v in palette_rows(open(_TOK).read())}
 def T(i): return hx(_PAL[i])
-GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.06',sandD='1.08',grau='1.09',gold='1.13',red='1.14',white='1.24')
+GUIDE_IDS=dict(ink='1.01',cream='1.05',orange='1.10',orangeD='1.11',sand='1.07',sandD='1.08',grau='1.09',gold='1.13',red='1.14',white='1.24')
 C={k:T(v) for k,v in GUIDE_IDS.items()}
 C.update(inkL=hx('b9b3ad'),redL=hx('f2b9ad'),mouth=hx('d05a4a'))   # alte Hilfsfarben (nur noch für ungenutzte Altteile)
 # Hautton, Haar und Augen pro Familie: alle aus den Tokens 1.20 bis 1.33 (Nase, Lippen und Schatten leiten sich daraus per Formel ab)

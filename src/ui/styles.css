@@ -258,7 +258,11 @@ details > * + * { margin-top: var(--gap-tight); }
 .conn-lost svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
 .seat.current .seat-label, .own.current .seat-label { align-self: center; padding: 0 var(--sp-3); background: var(--surface-gold); color: var(--text-strong); }
 .seat-inner > .seat-label { align-self: center; }
-.fan { display: flex; height: calc(var(--px-card-h) * var(--so) * 0.55); overflow: hidden; }
+/* Die Fächer der Mitspieler sind am Bildrand abgeschnitten: Sie reichen bis zur Kante (Innenrand des Tisches mitgerechnet), wie die halbe
+   Karte beim Handy. Dafür sind sie um genau diesen Rand länger; ein negativer Rand gleicht das aus, damit sich sonst nichts verschiebt. */
+.fan { display: flex; height: calc(var(--px-card-h) * var(--so) * 0.55 + var(--sp-2)); overflow: hidden; }
+.seat-top .seat-inner > .flip180:first-child { margin-top: calc(-1 * var(--sp-2)); }
+.seat-left .seat-inner > .fan, .seat-left .seat-inner > .fan-wrap, .seat-right .seat-inner > .fan, .seat-right .seat-inner > .fan-wrap { margin-bottom: calc(-1 * var(--sp-2)); }
 .fan .card { margin-left: calc(var(--px-ov-fan) * var(--so)); }
 .fan .card:first-child { margin-left: 0; }
 .melds { display: flex; flex-wrap: wrap; gap: var(--gap-tight) var(--sp-4); align-content: flex-start; }

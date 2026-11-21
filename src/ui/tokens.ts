@@ -28,16 +28,33 @@ export interface ColorToken {
   use: string;
 }
 
+/** Mischt zwei Farben (#rrggbb): t = 0 ergibt a, t = 1 ergibt b, dazwischen je Farbkanal linear, auf ganze Zahlen gerundet. */
+export function mixHex(a: string, b: string, t: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+  const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t));
+  return `#${out.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Sandleiter: zehn gleich große Schritte von Creme (Stufe 0) bis Sand (Stufe 9). Nur diese beiden Enden sind festgelegt,
+ * alle Stufen dazwischen ergeben sich per Formel (sandStep). Stufe 3 und 6 sind der Seitenhintergrund, der Teppich-Hintergrund
+ * nutzt später vier Stufen aus der Mitte und lässt die Stufen neben Creme und Sand frei (Abstand zu Karten und Leiste).
+ */
+const CREAM_HEX = '#fbf6ea';
+const SAND_HEX = '#cdbb94';
+export const SAND_STEPS = 9;
+export const sandStep = (n: number): string => mixHex(CREAM_HEX, SAND_HEX, n / SAND_STEPS);
+
 /** 1.01–1.39: Palette. Echte Farbwerte, jeder nur einmal. */
 export const PALETTE_COLORS: ColorToken[] = [
   { id: '1.01', css: '--c-ink', name: 'Tinte', value: '#23201f', group: 'Tinte und Text', use: 'Rahmen, harte Schatten, Button-Text, Namen, Kartenkontur und schwarze Farben' },
   { id: '1.02', css: '--c-ink-soft', name: 'Tinte weich', value: '#5a4d44', group: 'Tinte und Text', use: 'Gedämpfter Text, Hinweise, deaktivierte Rahmen' },
   { id: '1.03', css: '--c-brown', name: 'Textbraun', value: '#3a2d25', group: 'Tinte und Text', use: 'Standard-Fließtext, Regeln, Status-Zeile' },
   { id: '1.04', css: '--c-panel', name: 'Panel', value: '#fffaf0', group: 'Flächen', use: 'Panels, Dialoge, Buttons, Leisten, Toast' },
-  { id: '1.05', css: '--c-cream', name: 'Creme', value: '#fbf6ea', group: 'Flächen', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel, Kartenvorderseite, Text auf Orange' },
-  { id: '1.06', css: '--c-sand', name: 'Sand', value: '#efe2c6', group: 'Flächen', use: 'Seitenhintergrund (Schachbrett dunkel), Badge' },
-  { id: '1.07', css: '--c-sand-light', name: 'Sand hell', value: '#f4eadb', group: 'Flächen', use: 'Seitenhintergrund (Schachbrett hell)' },
-  { id: '1.08', css: '--c-sand-dark', name: 'Sand dunkel', value: '#cdbb94', group: 'Flächen', use: 'Weiche Schatten, Tabellenlinien, Hand- und Aktionsleiste, Badge-Rahmen, Überschrift-Schatten' },
+  { id: '1.05', css: '--c-cream', name: 'Creme', value: CREAM_HEX, group: 'Flächen', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel, Kartenvorderseite, Text auf Orange; Stufe 0 der Sandleiter' },
+  { id: '1.06', css: '--c-sand-3', name: 'Sandstufe 3', value: sandStep(3), group: 'Flächen', use: 'Seitenhintergrund (Schachbrett hell); Stufe 3 von 9 der Sandleiter, per Formel aus Creme und Sand' },
+  { id: '1.07', css: '--c-sand-6', name: 'Sandstufe 6', value: sandStep(6), group: 'Flächen', use: 'Seitenhintergrund (Schachbrett dunkel), Badge; Stufe 6 von 9 der Sandleiter, per Formel aus Creme und Sand' },
+  { id: '1.08', css: '--c-sand', name: 'Sand', value: SAND_HEX, group: 'Flächen', use: 'Weiche Schatten, Tabellenlinien, Hand- und Aktionsleiste, Badge-Rahmen, Überschrift-Schatten; Stufe 9 (Ende) der Sandleiter' },
   { id: '1.09', css: '--c-gray', name: 'Grau', value: '#c9c0b2', group: 'Flächen', use: 'Deaktivierte Buttons' },
   { id: '1.10', css: '--c-orange', name: 'Cheft-Orange', value: '#f06a2d', group: 'Marke', use: 'Primär-Button, Logo, Markierungen, Cheft-Badge, Kartenrücken A' },
   { id: '1.11', css: '--c-orange-dark', name: 'Orange dunkel', value: '#b94718', group: 'Marke', use: 'Überschriften, Akzenttext, Vorwahl-Rahmen, Cheft-Badge-Rahmen' },
@@ -87,12 +104,12 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.45', css: '--text-brand', name: 'Text Marke', ref: '--c-orange', group: 'Text', use: 'Logo-Schriftzug (h1)' },
   { id: '1.46', css: '--text-on-accent', name: 'Text auf Fläche', ref: '--c-cream', group: 'Text', use: 'Schrift auf Orange, Dunkel, Rot und auf dem abgedunkelten Tisch' },
   { id: '1.47', css: '--text-danger', name: 'Text Fehler', ref: '--c-red', group: 'Text', use: 'Fehlermeldung (Toast)' },
-  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel)' },
-  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-light', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
+  { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand-6', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel)' },
+  { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-3', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
   { id: '1.53', css: '--surface-panel', name: 'Panel', ref: '--c-panel', group: 'Fläche', use: 'Panels, Dialoge, Buttons, Kopf- und Fußleisten, Toast, Sitzreihen in der Lobby' },
   { id: '1.54', css: '--surface-field', name: 'Feld', ref: '--c-cream', group: 'Fläche', use: 'Eingabefelder, Wahloptionen, Zähler auf dem Stapel' },
-  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand-dark', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
-  { id: '1.56', css: '--surface-chip', name: 'Chip', ref: '--c-sand', group: 'Fläche', use: 'Badge Rommé' },
+  { id: '1.55', css: '--surface-bar', name: 'Leiste', ref: '--c-sand', group: 'Fläche', use: 'Handleiste, Aktionsleiste' },
+  { id: '1.56', css: '--surface-chip', name: 'Chip', ref: '--c-sand-6', group: 'Fläche', use: 'Badge Rommé' },
   { id: '1.57', css: '--surface-highlight', name: 'Hervorhebung', ref: '--c-orange-pale', group: 'Fläche', use: 'Ablagezone, Hover auf Kombination, angetippte Wahloption, Balken im Punkteverlauf' },
   { id: '1.58', css: '--surface-disabled', name: 'Deaktiviert', ref: '--c-gray', group: 'Fläche', use: 'Deaktivierte Buttons' },
   { id: '1.59', css: '--surface-positive', name: 'Positiv', ref: '--c-green-pale', group: 'Fläche', use: 'Balken des Rundensiegers' },
@@ -101,7 +118,7 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.62', css: '--surface-danger', name: 'Gefahr', ref: '--c-red', group: 'Fläche', use: 'Gefahr-Button' },
   { id: '1.63', css: '--surface-gold', name: 'Gold', ref: '--c-gold', group: 'Fläche', use: 'Namensschild des aktiven Spielers, Namensschild im Rückblick, Nummern-Punkte' },
   { id: '1.64', css: '--line', name: 'Linie', ref: '--c-ink', group: 'Linie', use: 'Standardrahmen, Trennlinien der Leisten' },
-  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand-dark', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen' },
+  { id: '1.65', css: '--line-soft', name: 'Linie weich', ref: '--c-sand', group: 'Linie', use: 'Tabellenlinien, Zeilentrenner, Badge-Rahmen' },
   { id: '1.66', css: '--line-muted', name: 'Linie gedämpft', ref: '--c-ink-soft', group: 'Linie', use: 'Rahmen deaktivierter Buttons' },
   { id: '1.67', css: '--line-accent', name: 'Linie Akzent', ref: '--c-orange-dark', group: 'Linie', use: 'Cheft-Badge-Rahmen' },
   { id: '1.68', css: '--line-danger', name: 'Linie Fehler', ref: '--c-red', group: 'Linie', use: 'Toast-Rahmen bei Fehlern' },
@@ -111,7 +128,7 @@ export const ROLE_COLORS: RoleToken[] = [
   { id: '1.74', css: '--accent-gold', name: 'Gold', ref: '--c-gold', group: 'Markierung', use: 'Rückblick-Linie und Karten-Rahmen' },
   { id: '1.75', css: '--positive', name: 'Positiv', ref: '--c-green', group: 'Markierung', use: 'Frisch gezogene Karte, Joker zum Klauen' },
   { id: '1.76', css: '--shadow-solid', name: 'Schatten hart', ref: '--c-ink', group: 'Schatten', use: 'Schatten der Buttons' },
-  { id: '1.77', css: '--shadow-soft', name: 'Schatten weich', ref: '--c-sand-dark', group: 'Schatten', use: 'Schatten von Panels, Karten, Toast, Überschrift' },
+  { id: '1.77', css: '--shadow-soft', name: 'Schatten weich', ref: '--c-sand', group: 'Schatten', use: 'Schatten von Panels, Karten, Toast, Überschrift' },
   { id: '1.78', css: '--scrim', name: 'Abdunkelung', ref: '--c-scrim', group: 'Überlagerung', use: 'Hintergrund hinter Fenstern' },
   { id: '1.79', css: '--scrim-dark', name: 'Abdunkelung stark', ref: '--c-scrim-dark', group: 'Überlagerung', use: 'Tisch beim Rückblick' },
 ];
