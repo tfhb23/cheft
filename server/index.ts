@@ -6,7 +6,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { Room, Rooms, Speed, Seating, Result, RoomSnapshot, MIN_PLAYERS, isRoomCode, snapshotUsable } from './room';
+import { Room, Rooms, Seating, Result, RoomSnapshot, MIN_PLAYERS, isRoomCode, snapshotUsable } from './room';
 import { seal, open as openSnapshot } from './snapshot';
 import { Action } from '../src/engine/actions';
 import { BotChoice } from '../src/bot/names';
@@ -93,7 +93,7 @@ type ClientMsg =
   | { type: 'leave' }
   | { type: 'lobby'; op: 'addBot'; choice: BotChoice }
   | { type: 'lobby'; op: 'removeSeat'; pid: number }
-  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; speed?: Speed; seating?: Seating; peekDiscards?: boolean; sortedDeal?: boolean }
+  | { type: 'lobby'; op: 'settings'; rounds?: number; firstTurnOpenAllowed?: boolean; seating?: Seating; peekDiscards?: boolean; sortedDeal?: boolean }
   | { type: 'lobby'; op: 'reorder'; order: number[] }
   | { type: 'lobby'; op: 'botChoice'; pid: number; choice: BotChoice }
   | { type: 'lobby'; op: 'start' }
@@ -234,10 +234,9 @@ function dropStaleSeats(): void {
 }
 
 function delayFor(room: Room, action: Action | null): number {
-  const fast = room.settings.speed === 'fast';
   if (room.state?.round.waiting || room.state?.round.ended) return 900 + Math.floor(Math.random() * 1200);
-  if (action?.kind === 'discard') return fast ? 900 : 2000;
-  return fast ? 650 : 1300;
+  if (action?.kind === 'discard') return 2000;
+  return 1300;
 }
 
 /** Plant den nächsten automatischen Zug (Bots oder Autopilot) für den Raum. */
@@ -464,7 +463,7 @@ function handle(c: Conn, msg: ClientMsg): void {
           remap(room, (p) => rr.map[p]);
           r = { ok: true };
         } else r = rr;
-      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, speed: msg.speed, seating: msg.seating, peekDiscards: msg.peekDiscards, sortedDeal: msg.sortedDeal });
+      } else if (msg.op === 'settings') r = room.updateSettings({ rounds: msg.rounds, firstTurnOpenAllowed: msg.firstTurnOpenAllowed, seating: msg.seating, peekDiscards: msg.peekDiscards, sortedDeal: msg.sortedDeal });
       else if (msg.op === 'start') {
         // Zufällige Sitzordnung wird erst beim Start ausgelost.
         if (room.settings.seating === 'random' && !room.started && room.seats.length >= MIN_PLAYERS) {

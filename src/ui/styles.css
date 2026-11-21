@@ -226,6 +226,15 @@ details > * + * { margin-top: var(--gap-tight); }
 .seat-right { grid-column: 3; grid-row: 2; }
 .center { grid-column: 2; grid-row: 2; display: flex; align-items: center; justify-content: center; min-height: calc(var(--card-h) + var(--center-extra)); min-width: 0; overflow: visible; }
 .undo-btn { position: absolute; left: var(--gap-row); bottom: var(--gap-row); z-index: var(--z-lift); }
+/* Cheat-Knöpfe (nur mit aktivem Cheat): Zeitreise neben dem Zurücksetzen, Autoplay rechts unten */
+.travel-btn { position: absolute; left: calc(var(--gap-row) + var(--size-btn-icon) + var(--gap-tight)); bottom: var(--gap-row); z-index: var(--z-lift); }
+.auto-ctl { position: absolute; right: var(--gap-row); bottom: var(--gap-row); z-index: var(--z-lift); display: flex; gap: var(--gap-tight); }
+.cheat-lamp { display: inline-block; color: var(--accent-dark); margin-left: var(--gap-tight); }
+.cheat-lamp svg { display: inline-block; height: calc(var(--fs-caption) * 0.7); height: 1cap; width: auto; vertical-align: baseline; shape-rendering: crispEdges; }
+.cheat-hint { white-space: pre-line; }
+.cheat-note { color: var(--accent-dark); }
+.cheat-note .cheat-lamp { margin-left: 0; margin-right: var(--gap-tight); }
+.cheat-note .cheat-list { color: var(--text-strong); }
 .own { position: relative; grid-column: 1 / 4; grid-row: 3; padding: var(--gap-hair) 0; }
 /* Ablegezone reicht ohne sichtbaren Abstand etwas nach oben, damit man die Auslage auch ohne Karten gut trifft */
 .own::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: calc(var(--card-h) * 0.5); }
@@ -345,16 +354,17 @@ table.scores th, table.scores td, .guide-table th, .guide-table td { text-align:
 table.scores th, .guide-table th { color: var(--accent-dark); font-weight: var(--fw-regular); }
 table.scores td.num, table.scores th.num, .guide-table .num { text-align: right; }
 .guide-table .num, .guide-table .mono { white-space: nowrap; }
-table.scores tr.winner td { color: var(--accent-dark); font-weight: var(--fw-bold); }
+table.scores tr.me td { color: var(--accent-dark); font-weight: var(--fw-bold); }
+table.scores td.place, table.scores th.place { width: 1%; white-space: nowrap; padding-right: 0; }
 .factors { font-weight: var(--fw-regular); }
 .btn.name-info { background: none; border: 0; box-shadow: none; padding: 0; min-height: 0; font: inherit; color: inherit; text-align: left; white-space: normal; display: inline-flex; align-items: center; gap: var(--gap-tight); }
-.btn.name-info svg { width: var(--size-icon-glyph); height: var(--size-icon-glyph); shape-rendering: crispEdges; flex: none; }
+.btn.name-info svg { width: var(--size-icon-info); height: var(--size-icon-info); shape-rendering: crispEdges; flex: none; }
 .dialog p { white-space: pre-line; }
 .rest { display: flex; flex-wrap: wrap; gap: var(--gap-hair); margin-top: var(--gap-hair); }
 .rest.backs { flex-wrap: nowrap; }
 .rest.backs .card { margin-left: var(--px-ov-back); }
 .rest.backs .card:first-child { margin-left: 0; }
-.toast { position: fixed; left: 50%; bottom: var(--toast-bottom); transform: translateX(-50%); max-width: 90vw; z-index: var(--z-toast); font-size: var(--fs-caption); text-align: center; }
+.toast { white-space: pre-line; position: fixed; left: 50%; bottom: var(--toast-bottom); transform: translateX(-50%); max-width: 90vw; z-index: var(--z-toast); font-size: var(--fs-caption); text-align: center; }
 .toast.error { border-color: var(--danger); color: var(--danger); }
 /* Auswahl der Kombination */
 .choose-option { border: var(--border); padding: var(--gap-row); cursor: pointer; background: var(--surface-field); display: flex; justify-content: space-between; align-items: center; gap: var(--gap-row); }

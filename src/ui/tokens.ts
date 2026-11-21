@@ -77,7 +77,7 @@ export interface RoleToken {
 export const ROLE_COLORS: RoleToken[] = [
   { id: '1.42', css: '--text-strong', name: 'Text', ref: '--c-ink', group: 'Text', use: 'Standardtext, Regeln, Status-Zeile, Button-Text, Namen, Toast, Eingabefelder' },
   { id: '1.43', css: '--text-muted', name: 'Text gedämpft', ref: '--c-ink-soft', group: 'Text', use: 'Feldbeschriftungen, Hinweise, Stapel-Beschriftung, Badge, Rahmen deaktivierter Buttons' },
-  { id: '1.44', css: '--accent-dark', name: 'Orange dunkel', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Spielweise im Ergebnis, Rahmen des Cheft-Chips' },
+  { id: '1.44', css: '--accent-dark', name: 'Orange dunkel', ref: '--c-orange-dark', group: 'Text', use: 'Überschriften h2/h3, Rundenzähler, Info-Zeile, Tabellenkopf, Gedächtnis und Spielweise im Bot-Info-Fenster, Rahmen des Cheft-Chips' },
   { id: '1.46', css: '--text-on-accent', name: 'Text auf Fläche', ref: '--c-cream', group: 'Text', use: 'Schrift auf Orange, Dunkel, Rot und auf dem abgedunkelten Tisch' },
   { id: '1.51', css: '--surface-page', name: 'Seite', ref: '--c-sand', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett dunkel), Chip Rommé' },
   { id: '1.52', css: '--surface-page-alt', name: 'Seite hell', ref: '--c-sand-light', group: 'Fläche', use: 'Seitenhintergrund (Schachbrett hell)' },
@@ -115,7 +115,7 @@ export const FONT_TOKENS: ValueToken[] = [
 export const WEIGHT_TOKENS: ValueToken[] = [
   { id: '2.03', css: '--fw-regular', name: 'Normal (400)', value: '400', use: 'VT323: alle Texte' },
   { id: '2.04', css: '--fw-head', name: 'Fett (700)', value: '700', use: 'Tiny5 Duo Bold: alle Überschriften (800 ExtraBold wäre eine Zeile hier plus Schnitt in styles.css)' },
-  { id: '2.05', css: '--fw-bold', name: 'Fett (synthetisch)', value: 'bold', use: 'Vom Browser erzeugtes Fett: Sieger-Zeile in der Auswertung (VT323 hat kein eigenes Fett)' },
+  { id: '2.05', css: '--fw-bold', name: 'Fett (synthetisch)', value: 'bold', use: 'Vom Browser erzeugtes Fett: eigene Zeile in der Auswertung (VT323 hat kein eigenes Fett)' },
 ];
 
 /** 2.11–2.16: Schriftgrößen in u. */
@@ -233,13 +233,14 @@ export const SIZE_TOKENS: SizeToken[] = [
   { id: '3.88', css: '--w-rules', name: 'Breite Lesespalte', units: 360, use: 'Regeln und Familienalbum (ca. 65 Zeichen)' },
   { id: '3.89', css: '--w-input', name: 'Breite Eingabefeld', units: 120, use: 'Texteingaben (höchstens)' },
   { id: '3.90', css: '--w-input-name', name: 'Breite Namensfeld', units: 90, use: 'Eigener Name in Lobby und Einstellungen' },
-  { id: '3.113', css: '--center-extra', name: 'Mindesthöhe Mitte: Zusatz', units: 16, use: 'Tischmitte ist mindestens so hoch wie eine Karte plus dieser Wert' },
+  { id: '3.115', css: '--center-extra', name: 'Mindesthöhe Mitte: Zusatz', units: 16, use: 'Tischmitte ist mindestens so hoch wie eine Karte plus dieser Wert' },
   { id: '3.114', css: '--w-fam-char', name: 'Breite Figur im Familienalbum', units: 80, use: 'Eine Figur mit Paar im Familienalbum (zwei Porträts nebeneinander)' },
   { id: '3.111', css: '--size-dot', name: 'Größe Nummern-Punkt', units: 5, use: 'Gelber Punkt unten links am Element („Nummern im Spiel“)' },
   { id: '3.91', css: '--w-input-code', name: 'Breite Codefeld', units: 50, use: 'Raumcode' },
   { id: '3.92', css: '--size-btn-icon', name: 'Größe Icon-Button', units: 14, use: 'Quadratische Buttons (Punkte, Regeln, Zahnrad, Entfernen)' },
   { id: '3.93', css: '--size-icon-glyph', name: 'Größe Piktogramm', units: 10, use: 'Pixel-Piktogramm im Icon-Button (10 × 10 Pixel)' },
   { id: '3.112', css: '--size-icon-status', name: 'Größe Statussymbol', units: 12, use: 'Funksymbol „Verbindung verloren“ hinter Namen (12 × 12 Pixel)' },
+  { id: '3.113', css: '--size-icon-info', name: 'Größe Info-Symbol', units: 7, use: 'Info „i“ hinter dem Bot-Namen in der Auswertung: etwa so hoch wie die Schrift (10 × 10 Pixel-Raster, Kreis 9 × 9)' },
   { id: '3.94', css: '--size-handle', name: 'Größe Griff', units: 9, use: 'Sortier-Griff in der Lobby' },
   { id: '3.95', css: '--pile-gap', name: 'Abstand Stapel–Ablage', units: 16, use: 'Zwischen den beiden Spalten in der Tischmitte' },
   { id: '3.96', css: '--stock-shift', name: 'Versatz Stapel', units: 14, use: 'Stapel und Beschriftung nach rechts, damit die Teppichkarte links Platz hat' },

@@ -3,7 +3,7 @@
  * Alle Aktionen prüfen zuerst (check…) und verändern dann den Zustand (do…).
  * Fehler werden als Übersetzungsschlüssel zurückgegeben.
  */
-import { Card, isJoker, makeDeck, makeRng, penaltyValue, shuffle, sameCard } from './cards';
+import { Card, DeckConfig, isJoker, makeDeck, makeRng, penaltyValue, shuffle, sameCard } from './cards';
 import {
   Meld,
   MeldShape,
@@ -20,6 +20,7 @@ import {
   replaceJoker,
 } from './melds';
 import { RoundProfile, buildProfiles } from './profile';
+import { CheatNote, Cheats, HAND_SIZE, cheatDeal, deckConfigOf, deckTooSmall, meldValue } from './cheats';
 
 export type Mode = 'romme' | 'cheft';
 export type DrawSource = 'stock' | 'discard' | 'carpet';
@@ -150,6 +151,8 @@ export interface RoundState {
   nextReady?: boolean[];
   /** Stapel leer, nur die Teppichkarte liegt noch: Der nächste Spieler darf sie wie vom Stapel nehmen, danach endet die Runde. */
   finalTurn?: boolean;
+  /** Hinweise der Cheats beim Austeilen (nicht erfüllbare Wünsche), nur für die Oberfläche. */
+  cheatNotes?: CheatNote[];
   result: RoundResult | null;
   log: LogEntry[];
 }
@@ -162,6 +165,8 @@ export interface GameState {
   history: RoundResult[];
   finished: boolean;
   seed: number;
+  /** Cheats des Solospielers (siehe cheats.ts). Nur lokal; der Server kennt und erzeugt sie nie. */
+  cheats?: Cheats;
 }
 
 export type Result = { ok: true } | { ok: false; error: string; params?: Record<string, string | number> };
@@ -175,7 +180,7 @@ export const NOT_OPENED_PENALTY = 100;
 // ---------------------------------------------------------------- Aufbau
 
 /** `dealer` bestimmt, wer die erste Runde austeilt; der Spieler danach beginnt (Standard 0, die Oberfläche lost aus). */
-export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.now() % 2147483647, dealer = 0): GameState {
+export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.now() % 2147483647, dealer = 0, cheats?: Cheats): GameState {
   if (players.length < 2 || players.length > 4) throw new Error('2-4 Spieler');
   const state: GameState = {
     settings,
@@ -186,8 +191,17 @@ export function newGame(players: PlayerInfo[], settings: Settings, seed = Date.n
     finished: false,
     seed,
   };
+  if (cheats) {
+    state.cheats = cheats;
+    if (deckTooSmall(deckConfigOf(cheats), players.length)) throw new Error('Deck zu klein');
+  }
   state.round = dealRound(state, 1, dealer % players.length);
   return state;
+}
+
+/** Zusammensetzung des Decks dieses Spiels (Standard: 106 Karten; Cheats können es ändern). */
+export function deckConfig(state: GameState): DeckConfig {
+  return deckConfigOf(state.cheats);
 }
 
 export function nextIndex(state: GameState, i: number): number {
@@ -206,18 +220,30 @@ export function scoreOrder(state: GameState): number[] {
 
 export function dealRound(state: GameState, no: number, dealer: number): RoundState {
   const rng = makeRng(state.seed + no * 7919);
-  let deck = shuffle(makeDeck(), rng);
+  let deck = shuffle(makeDeck(deckConfig(state)), rng);
   const n = state.players.length;
   const starter = (dealer + 1) % n;
   const hands: Card[][] = state.players.map(() => []);
 
+  // Cheats (nur Solo): Wunschkarten, Teppichkarte und Auslage des Cheat-Platzes werden dem gemischten Deck entnommen.
+  const cheats = state.cheats && state.cheats.seat < n ? state.cheats : null;
+  const cd = cheats ? cheatDeal(cheats, no, state.seed, deck) : null;
+  if (cheats && cd) hands[cheats.seat] = [...cd.hand];
+
   // Abheben: die unterste Karte des abgehobenen Stapels wird Teppichkarte.
   // Ist sie ein Joker, nimmt der abhebende Spieler (= Startspieler) ihn auf
   // und die nächste Karte wird Teppichkarte.
-  let carpet = deck.pop()!;
+  let carpet = cd?.carpet ?? deck.pop()!;
   let starterExtra = 0;
   const carpetJokers: Card[] = [];
   while (isJoker(carpet)) {
+    // Hat der Cheat-Spieler als Startspieler schon alle 14 Karten festgelegt, geht der Joker zurück in den Stapel (neu gemischt)
+    if (cheats && starter === cheats.seat && hands[starter].length >= HAND_SIZE) {
+      deck.push(carpet);
+      deck = shuffle(deck, rng);
+      carpet = deck.pop()!;
+      continue;
+    }
     hands[starter].push(carpet);
     carpetJokers.push(carpet);
     starterExtra++;
@@ -241,6 +267,22 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     turns: 0,
   }));
 
+  // Vorgelegte Kombination des Cheat-Spielers
+  const melds: Meld[] = [];
+  let lastRommeOpening: number | null = null;
+  if (cheats && cd && cd.melds.length > 0) {
+    let id = 1;
+    let value = 0;
+    for (const m of cd.melds) {
+      melds.push({ ...m, id: id++, owner: cheats.seat });
+      value += meldValue(m);
+    }
+    const me = players[cheats.seat];
+    me.opened = true;
+    me.openingValue = value;
+    lastRommeOpening = value;
+  }
+
   return {
     no,
     dealer,
@@ -249,12 +291,12 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     discard: [],
     carpet,
     carpetJokers,
-    melds: [],
-    nextMeldId: 1,
+    melds,
+    nextMeldId: melds.length + 1,
     players,
     turn: newTurn(starter, 'play', 'stock', fifteenth.id),
     cheftAnnounced: false,
-    lastRommeOpening: null,
+    lastRommeOpening,
     lastDiscarder: null,
     lastDiscarderMode: null,
     taken: [],
@@ -266,6 +308,7 @@ export function dealRound(state: GameState, no: number, dealer: number): RoundSt
     ended: false,
     nextReady: state.players.map(() => false),
     result: null,
+    cheatNotes: cd && cd.notes.length > 0 ? cd.notes : undefined,
     log: [{ key: 'log.roundStart', params: { round: no } }],
   };
 }
@@ -320,10 +363,14 @@ export function handCard(state: GameState, pid: number, cardId: number): Card | 
   return playerRound(state, pid).hand.find((c) => c.id === cardId);
 }
 
-/** Aktuelle Mindestaugen am Tisch für die nächste Rommé-Erstmeldung. */
-export function tableThreshold(state: GameState): number {
+/**
+ * Aktuelle Mindestaugen am Tisch für die nächste Rommé-Erstmeldung. Mit `pid` zählt ein Cheat für Erstmeldung dieses Spielers
+ * (Grundwerte ohne und mit Cheft-Ansage); "die vorherige Erstmeldung übertreffen" gilt unverändert.
+ */
+export function tableThreshold(state: GameState, pid?: number): number {
   const r = state.round;
-  let t = r.cheftAnnounced ? CHEFT_THRESHOLD : BASE_THRESHOLD;
+  const fm = pid !== undefined && state.cheats && state.cheats.seat === pid ? state.cheats.firstMeld : undefined;
+  let t = fm ? (r.cheftAnnounced ? fm.cheft : fm.base) : r.cheftAnnounced ? CHEFT_THRESHOLD : BASE_THRESHOLD;
   if (r.lastRommeOpening !== null) t = Math.max(t, r.lastRommeOpening + 1);
   return t;
 }
@@ -331,7 +378,7 @@ export function tableThreshold(state: GameState): number {
 /** Mindestaugen für die Rommé-Erstmeldung dieses Spielers (0 beim Hand machen). */
 export function thresholdFor(state: GameState, pid: number): number {
   if (state.round.players[pid].opened) return 0;
-  return tableThreshold(state);
+  return tableThreshold(state, pid);
 }
 
 function firstTurnBlocked(state: GameState, pid: number): boolean {

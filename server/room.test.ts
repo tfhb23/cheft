@@ -339,12 +339,12 @@ describe('Räume', () => {
   it('eine Einstellung ändern lässt die anderen unberührt', () => {
     const room = new Rooms(18).create();
     room.addHuman('A');
-    expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined, speed: undefined }).ok).toBe(true);
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
-    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true, speed: undefined });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'normal', seating: 'random', peekDiscards: true, sortedDeal: true });
-    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
-    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, speed: 'fast', seating: 'random', peekDiscards: false, sortedDeal: true });
+    expect(room.updateSettings({ rounds: 9, firstTurnOpenAllowed: undefined }).ok).toBe(true);
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: false, seating: 'random', peekDiscards: true, sortedDeal: true });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, seating: 'random', peekDiscards: true, sortedDeal: true });
+    room.updateSettings({ rounds: undefined, firstTurnOpenAllowed: undefined, seating: 'random', peekDiscards: false, sortedDeal: true });
+    expect(room.settings).toEqual({ rounds: 9, firstTurnOpenAllowed: true, seating: 'random', peekDiscards: false, sortedDeal: true });
     expect(room.updateSettings({ rounds: 11 }).ok).toBe(false); // nur 3, 5, 7, 9
   });
 
@@ -617,11 +617,39 @@ describe('Raumleben: Gastgeber, Karenz, Kopie', () => {
     expect(restored.seats[2].sid).toBe(3);
   });
 
+  it('ein altes Bot-Tempo in einer gespeicherten Kopie verschwindet beim Laden', () => {
+    const room = new Rooms(62).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    (snap.settings as { speed?: string }).speed = 'fast';
+    const restored = new Rooms(63).restore(snap);
+    expect('speed' in restored.settings).toBe(false);
+  });
+
+  it('Cheats gibt es nur solo: ein Raum erzeugt keine, und eine Kopie mit Cheats verliert sie beim Laden', () => {
+    const room = new Rooms(60).create();
+    room.addHuman('A');
+    room.addHuman('B');
+    room.addBot({ level: 'random', style: 'random' });
+    room.start();
+    expect(room.state!.cheats).toBeUndefined();
+    const snap = JSON.parse(JSON.stringify(room.toSnapshot())) as RoomSnapshot;
+    (snap.state as { cheats?: unknown }).cheats = { seat: 0, jokers: 2, rounds: 999, firstMeld: { base: 1, cheft: 1 } };
+    const restored = new Rooms(61).restore(snap);
+    expect(restored.state!.cheats).toBeUndefined();
+    expect(JSON.stringify(restored.toSnapshot())).not.toContain('cheats');
+  });
+
   it('Raum mit Wunschcode eröffnen: nur gültige freie Codes, mit Obergrenze', () => {
     const rooms = new Rooms(59);
     expect(isRoomCode('232')).toBe(true);
-    expect(isRoomCode('0232')).toBe(false);
-    expect(isRoomCode('12')).toBe(false);
+    expect(isRoomCode('0')).toBe(true);
+    expect(isRoomCode('0232')).toBe(true);
+    expect(isRoomCode('12345')).toBe(true);
+    expect(isRoomCode('123456')).toBe(false);
+    expect(isRoomCode('')).toBe(false);
     expect(isRoomCode('abc')).toBe(false);
     const a = rooms.open('232');
     expect(a?.code).toBe('232');

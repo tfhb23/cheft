@@ -16,7 +16,7 @@
  * Stufe verschwommener abgespeichert. Nur der Mastermind (alles 100 %) irrt sich nie.
  */
 import { Card, SUITS, Suit, isJoker, makeRng } from '../engine/cards';
-import { BotLevel, GameState } from '../engine/game';
+import { BotLevel, GameState, deckConfig } from '../engine/game';
 import { Meld, MeldShape } from '../engine/melds';
 
 export interface MemoryParams {
@@ -360,8 +360,9 @@ export function recall(state: GameState, pid: number, per: Perception): Recall {
   const params = per.params;
   const n = state.players.length;
   const copies = new Map<string, number>();
-  for (const s of SUITS) for (let rank = 1; rank <= 13; rank++) copies.set(`${s}${rank}`, 2);
-  copies.set('J', 2);
+  const deck = deckConfig(state);
+  for (const s of SUITS) for (const rank of deck.ranks) copies.set(`${s}${rank}`, deck.copies);
+  copies.set('J', deck.jokers);
   const sub = (key: string, amount: number) => copies.set(key, Math.max(0, (copies.get(key) ?? 0) - amount));
   const keyOf = (c: Card) => (isJoker(c) ? 'J' : `${c.suit}${c.rank}`);
 

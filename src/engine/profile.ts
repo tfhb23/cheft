@@ -4,7 +4,8 @@
  * und genommen). Alles ist öffentlich sichtbar (Abwürfe, offenes Nehmen, Erstmeldungen); verdeckte Karten kommen nicht vor.
  * Das Profil lebt nur im Spielstand: Ein neues Spiel beginnt ohne Erinnerung.
  */
-import { Card, makeDeck } from './cards';
+import { Card, cardFromId } from './cards';
+import { deckConfigOf } from './cheats';
 import type { GameState } from './game';
 
 export interface RoundProfile {
@@ -27,7 +28,6 @@ export interface RoundProfile {
   steals: number;
 }
 
-const DECK = makeDeck();
 const SUIT_INDEX: Record<string, number> = { H: 0, D: 1, C: 2, S: 3, J: 4 };
 
 /** Kartencode für Profile: Farbe*16 + Wert (Joker: 64). */
@@ -49,6 +49,7 @@ export function buildProfiles(state: GameState): RoundProfile[] {
     takes: [],
     steals: 0,
   }));
+  const copies = deckConfigOf(state.cheats).copies;
   const draws = new Array(n).fill(0);
   let anyOpen = false;
   for (const e of r.log) {
@@ -59,8 +60,8 @@ export function buildProfiles(state: GameState): RoundProfile[] {
     else if (e.key === 'log.cheft') pr.cheft = true;
     else if (e.key === 'log.steal') pr.steals++;
     else if (e.key === 'log.discard') {
-      const card = DECK[Number(e.params?.card)];
-      if (card) pr.discards.push(cardCode(card));
+      const id = Number(e.params?.card);
+      if (Number.isFinite(id) && id >= 0) pr.discards.push(cardCode(cardFromId(id, copies)));
     } else if ((e.key === 'log.open' || e.key === 'log.hand') && pr.openTurn === null) {
       pr.openTurn = draws[pl];
       if (Number(e.params?.pairs ?? 0) === 0 && e.key === 'log.open') pr.openAugen = Number(e.params?.augen ?? 0);

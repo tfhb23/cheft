@@ -2,7 +2,7 @@
  * Pixel-Kartensatz: erzeugt beim Start einen Sprite-Atlas (Canvas) mit allen Karten.
  * Logische Kartengröße 32×44 Pixel, auf dem Bildschirm ganzzahlig skaliert.
  */
-import { Card, Suit, isJoker } from '../engine/cards';
+import { Card, Suit, deckParity, isJoker } from '../engine/cards';
 import { CARD_PX, color } from './tokens';
 import { BACK_FIELD, BackDesign, BackRole, backDesign } from './backs';
 import { FACE_ART, FACE_CHARS, FACE_REFS } from './face-art';
@@ -273,7 +273,7 @@ export function buildAtlas(backId?: string): Atlas {
       if (isJoker(card)) return 52;
       const base = suits.indexOf(card.suit as Suit) * 13 + (card.rank - 1);
       // Bildkarten des zweiten Decks (Ids 52–103) haben eine andere Person: eigene Zellen ab FACE2_CELL
-      if (card.rank >= 11 && card.id >= 52 && card.id < 104) return FACE2_CELL + suits.indexOf(card.suit as Suit) * 3 + (card.rank - 11);
+      if (card.rank >= 11 && deckParity(card) === 1) return FACE2_CELL + suits.indexOf(card.suit as Suit) * 3 + (card.rank - 11);
       return base;
     },
   };
@@ -287,7 +287,5 @@ export function atlasOffset(idx: number): { x: number; y: number } {
 /** Zwei gemischte Decks: Karten des zweiten Decks haben eine andere Rückseite. */
 export function backOf(card: Card): 'back' | 'back2' {
   if (card.id === -2) return 'back2'; // vom Server maskierte Karte aus dem zweiten Deck
-  if (card.id === 104) return 'back';
-  if (card.id === 105) return 'back2';
-  return card.id >= 52 ? 'back2' : 'back';
+  return deckParity(card) === 1 ? 'back2' : 'back';
 }

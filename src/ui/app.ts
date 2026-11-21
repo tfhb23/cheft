@@ -26,7 +26,11 @@ import {
   winnerOfGame,
 } from '../engine/game';
 import { ALL_TYPES, ROMME_TYPES, Meld, MeldShape, findPartition, findAllPartitions, jokerRepresents, meldAugen, interpretMeld, replaceJoker } from '../engine/melds';
-import { decideAction } from '../bot/bot';
+import { DEFAULT_PROFILE, decideAction } from '../bot/bot';
+import { decideForHuman } from '../bot/autoplay';
+import { fallbackMove } from '../bot/fallback';
+import { Cheats, ParseResult, activeCheatIds, deckConfigOf, deckTooSmall, parseCheatCode } from '../engine/cheats';
+import { CHEAT_MESSAGES } from '../engine/cheatnames';
 import { BotChoice, LEVELS, STYLES, resolveBots, sanitizeChoice } from '../bot/names';
 import { describeRole, roleOfStyle } from '../bot/roles';
 import { describeTasteSet, tastesFor } from '../bot/tastes';
@@ -35,10 +39,10 @@ import { t, cardName } from '../i18n';
 import { h, clear } from './dom';
 import { Atlas, buildAtlas, atlasOffset, backOf, backThumb } from './sprites';
 import { BACK_DESIGNS, DEFAULT_BACK, backDesign } from './backs';
-import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
+import { ICON_BOOK, ICON_GEAR, ICON_INFO, ICON_LAMP, ICON_PAUSE, ICON_PLAY, ICON_REWIND, ICON_STEP, ICON_TABLE, ICON_UNDO, ICON_X, pixelIcon } from './icons';
 import { backBtn, backChoiceRow, btn, roundsTable, fieldLabel, hint, iconBtn, lostIcon, meldEl as meldBox, seatLabel, showToast, viewEl, windowEl } from './components';
 import { BREAKPOINTS, CARD_PX, EASE_FLY, HAND, MOTION, PEEK_FROM_SCALE, TURN_DISC, colorValue } from './tokens';
-import { ScaleStep, deviceClass, tableLadder } from './tablescale';
+import { ScaleStep, crispScale, tableLadder } from './tablescale';
 import { renderGuide, DsLabels } from './guide';
 import { RULES_DE } from './rules';
 import { snapshot, flip, flyClone, dealAnimation, RectMap } from './anim';
@@ -69,6 +73,9 @@ const DROP_ZONE_GROW = 1.15;
 const HAND_BACK_GUARD_MS = 1500;
 
 const PREFS_KEY = 'cheft.prefs.v2';
+/** Zeitreise: so viele Zuganfänge werden höchstens gemerkt (bei sehr vielen Runden wächst der Spielstand sonst stark). */
+const TIMELINE_MAX = 120;
+const TIMELINE_CHARS = 30_000_000;
 /** Wählbare Rundenzahlen. */
 const ROUND_CHOICES = [3, 5, 7, 9];
 /** Obergrenze für die Auswahl „Wie auslegen?“. Es werden alle erlaubten Möglichkeiten angeboten, die Grenze schützt nur vor endlosem Rechnen. */
@@ -79,7 +86,6 @@ interface Prefs {
   bots: number;
   rounds: number;
   firstTurn: boolean;
-  speed: 'normal' | 'fast';
   vibration: boolean;
   sound: boolean;
   botChoices: BotChoice[];
@@ -102,6 +108,8 @@ interface Prefs {
 interface DialogSpec {
   title: string;
   text?: string;
+  /** Statt `text`: fertig gebauter Inhalt (z. B. hervorgehobene Zeilen). */
+  body?: HTMLElement;
   /** Eingabefeld (zum Einfügen oder, schreibgeschützt, zum Kopieren). */
   input?: { value: string; readonly?: boolean; placeholder?: string };
   /** Entscheidung: Knöpfe wie „Abbrechen“ und die Aktion. */
@@ -113,7 +121,6 @@ interface DialogSpec {
 /** Die Einstellungen eines Spiels, wie Solo-Setup und Lobby sie anzeigen. */
 interface SettingValues {
   seating: 'manual' | 'random';
-  speed: 'normal' | 'fast';
   firstTurnOpenAllowed: boolean;
   sortedDeal: boolean;
   peekDiscards: boolean;
@@ -186,7 +193,6 @@ export class App {
     bots: 3,
     rounds: 7,
     firstTurn: false,
-    speed: 'normal',
     vibration: true,
     sound: false,
     botChoices: [
@@ -245,6 +251,14 @@ export class App {
   private drag: Drag | null = null;
   private botGen = 0;
   private botsRunning = false;
+  /** Ein Aufruf von runBots kam, während die Schleife noch lief (z. B. nach Zeitreise): nach dem Ende neu starten. */
+  private botsRerun = false;
+  /** Cheats aus dem eingefügten Code, bis das Solo-Spiel startet (nur im Speicher; Zurück, Neuladen und Online verwerfen sie). */
+  private pendingCheats: Extract<ParseResult, { kind: 'ok' }> | null = null;
+  /** Autoplay-Cheat: läuft (on) oder macht gerade einen Einzelschritt (steps). Nur Oberfläche, wird nie gespeichert. */
+  private auto = { on: false, steps: 0 };
+  /** Zeitreise-Cheat: Spielstände zu Beginn meiner Züge (als JSON), neueste zuletzt. Nur Speicher. */
+  private timeline: string[] = [];
   private dealing = false;
   private showSettings = false;
   private showScores = false;
@@ -277,9 +291,11 @@ export class App {
       this.state = save.state;
       this.order = save.order;
     }
+    this.applyCrispScale();
     window.addEventListener('resize', () => {
       const a = document.activeElement;
       if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      this.applyCrispScale();
       this.render();
     });
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
@@ -300,7 +316,7 @@ export class App {
 
   /** Raumcode aus der Adresse, z. B. https://cheft.beigi.eu/232 */
   private pathRoomCode(): string | null {
-    const m = location.pathname.match(/^\/(\d{3,4})\/?$/);
+    const m = location.pathname.match(/^\/(\d{1,5})\/?$/);
     return m ? m[1] : null;
   }
 
@@ -371,27 +387,40 @@ export class App {
     }
   }
 
-  /** Aufdecken am Spielende: Stufe und Rolle des Bots in einer Zeile (bei der Wildcard die Rollen der Runden, darf umbrechen). */
-  private botReveal(s: GameState, pid: number, bot: BotProfile): HTMLElement {
-    const role = roleOfStyle(bot.style);
-    const roleText = role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`);
-    return h('div', { class: 'factors accent reveal' }, `${t(`level.${bot.level}`)} · ${roleText}`);
+  /**
+   * Was über einen Platz im (i) der Auswertung stehen darf: Gedächtnis und/oder Spielweise (je nachdem, was bekannt ist) und am
+   * Spielende zusätzlich die Vorlieben. `null`: kein (i). Menschen haben keins, außer der Autopilot spielt gerade für sie.
+   */
+  private botFacts(s: GameState, pid: number): { profile: BotProfile; level: boolean; style: boolean; tastes: boolean } | null {
+    const p = s.players[pid];
+    let profile = p.bot;
+    let known = p.bot?.reveal;
+    if (!p.bot) {
+      // Verbindung verloren: Der Autopilot spielt für den Menschen, solange ihn niemand übernommen hat.
+      const away = !p.isBot && this.online?.lobby?.seats.find((x) => x.pid === pid)?.autopilot;
+      if (!away) return null;
+      profile = DEFAULT_PROFILE;
+      known = { level: true, style: true };
+    }
+    if (!profile) return null;
+    if (s.finished) return { profile, level: true, style: true, tastes: true };
+    if (!known?.level && !known?.style) return null;
+    return { profile, level: !!known.level, style: !!known.style, tastes: false };
   }
 
-  /** Zwischen den Runden: nur die Werte, die in der Lobby fest gewählt waren (und nur bei fester Sitzordnung). */
-  private botPartialReveal(bot: BotProfile): HTMLElement | null {
-    const parts: string[] = [];
-    if (bot.reveal?.level) parts.push(t(`level.${bot.level}`));
-    if (bot.reveal?.style) parts.push(t(`style.${roleOfStyle(bot.style)}`));
-    return parts.length ? h('div', { class: 'factors accent reveal' }, parts.join(' · ')) : null;
-  }
-
-  /** Infobox zum Bot (nur nach Spielende): jede Vorliebe in einer eigenen Zeile. */
+  /** Infobox zum Bot: Gedächtnis, Spielweise (orange), leere Zeile, dann die Vorlieben, je eine Zeile (Wort „Vorlieben“ steht nicht dabei). */
   private botInfo(s: GameState, pid: number): void {
-    const tastes = describeTasteSet(tastesFor(s.seed, pid));
+    const f = this.botFacts(s, pid);
+    if (!f) return;
+    const role = roleOfStyle(f.profile.style);
+    const head: string[] = [];
+    if (f.level) head.push(t(`level.${f.profile.level}`));
+    if (f.style) head.push(role === 'wildcard' ? describeRole(s, pid, 'wildcard') : t(`style.${role}`));
+    const tastes = f.tastes ? describeTasteSet(tastesFor(s.seed, pid)) : [];
+    const rest = f.tastes ? (tastes.length ? tastes.join('\n') : t('gameEnd.noTastes')) : '';
     this.askDialog({
       title: s.players[pid].name,
-      text: tastes.length ? `${t('gameEnd.tastes')}\n${tastes.join('\n')}` : t('gameEnd.noTastes'),
+      body: h('p', null, h('span', { class: 'accent' }, head.join('\n')), rest ? `\n\n${rest}` : ''),
       back: true,
     });
   }
@@ -403,6 +432,7 @@ export class App {
       if (raw) {
         const stored = JSON.parse(raw) as Partial<Prefs> & { v?: number };
         this.prefs = { ...this.prefs, ...stored };
+        delete (this.prefs as { speed?: unknown }).speed; // Bot-Tempo gibt es nicht mehr (nur noch als Cheat)
         // Neuer Standard: Rauskommen im ersten Zug gesperrt (einmalig auch für gespeicherte Einstellungen).
         if ((stored.v ?? 0) < 3) this.prefs.firstTurn = false;
         // Neuer Standard: Sitzplätze zufällig (einmalig auch für gespeicherte Einstellungen).
@@ -478,6 +508,18 @@ export class App {
           primary: true,
           onClick: async (code) => {
             if (!code.trim()) return;
+            // Cheat-Text statt Spielstand? Dann öffnet sich "Neues Spiel"; der Cheat gilt nur für dieses eine Solo-Spiel.
+            const cheat = parseCheatCode(code);
+            if (cheat.kind === 'error') {
+              this.toast(t(cheat.key, cheat.params), true);
+              return;
+            }
+            if (cheat.kind === 'ok') {
+              this.pendingCheats = cheat;
+              this.toast(this.cheatLines(cheat.messages, cheat.warnings.map((w) => t(w.key, w.params))));
+              this.goto('setup');
+              return;
+            }
             let raw: string;
             try {
               raw = await unpackSave(code);
@@ -605,7 +647,7 @@ export class App {
       ),
     );
     return windowEl(
-      [h('h2', null, d.title), d.text ? h('p', null, d.text) : null, field, buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null, d.back ? backBtn(() => this.closeDialog()) : null],
+      [h('h2', null, d.title), d.body ?? (d.text ? h('p', null, d.text) : null), field, buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null, d.back ? backBtn(() => this.closeDialog()) : null],
       d.back ? () => this.closeDialog() : undefined,
     );
   }
@@ -707,7 +749,6 @@ export class App {
     ];
     return [
       this.choice(t('setup.seating'), [{ v: 'manual', label: t('setup.seating.manual') }, { v: 'random', label: t('setup.seating.random') }], () => v.seating, (x) => set({ seating: x as SettingValues['seating'] })),
-      this.choice(t('settings.speed'), [{ v: 'normal', label: t('settings.speed.normal') }, { v: 'fast', label: t('settings.speed.fast') }], () => v.speed, (x) => set({ speed: x as SettingValues['speed'] })),
       this.choice(t('setup.firstTurn'), yesNo, () => v.firstTurnOpenAllowed, (x) => set({ firstTurnOpenAllowed: x as boolean })),
       this.choice(t('setup.sortedDeal'), [{ v: true, label: t('setup.sortedDeal.yes') }, { v: false, label: t('setup.sortedDeal.no') }], () => v.sortedDeal, (x) => set({ sortedDeal: x as boolean })),
       this.choice(t('setup.peek'), yesNo, () => v.peekDiscards, (x) => set({ peekDiscards: x as boolean })),
@@ -720,7 +761,6 @@ export class App {
     const row = (label: string, value: string) => h('div', { class: 'row spread summary-row' }, h('span', { class: 'field-label' }, label), h('span', null, value));
     return [
       row(t('setup.seating'), t(`setup.seating.${v.seating}`)),
-      row(t('settings.speed'), t(`settings.speed.${v.speed}`)),
       row(t('setup.firstTurn'), t(v.firstTurnOpenAllowed ? 'setup.yes' : 'setup.no')),
       row(t('setup.sortedDeal'), t(v.sortedDeal ? 'setup.sortedDeal.yes' : 'setup.sortedDeal.no')),
       row(t('setup.peek'), t(v.peekDiscards ? 'setup.yes' : 'setup.no')),
@@ -747,6 +787,7 @@ export class App {
       h(
         'div',
         { class: 'panel' },
+        ...(this.pendingCheats ? [h('div', { class: 'hint cheat-hint' }, this.cheatLines(this.pendingCheats.messages))] : []),
         h('div', { class: 'option' }, fieldLabel(t('setup.name')), nameInput),
         this.choice(t('setup.bots'), [{ v: 2, label: '2' }, { v: 3, label: '3' }], () => this.prefs.bots, (v) => (this.prefs.bots = v as number)),
         ...this.prefs.botChoices.slice(0, this.prefs.bots).map((c, i) => this.botRow(c, i)),
@@ -756,10 +797,9 @@ export class App {
           this.render();
         }),
         ...this.settingChoices(
-          { seating: this.prefs.seating, speed: this.prefs.speed, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
+          { seating: this.prefs.seating, firstTurnOpenAllowed: this.prefs.firstTurn, sortedDeal: this.prefs.sortedDeal, peekDiscards: this.prefs.peekDiscards, rounds: this.prefs.rounds },
           (patch) => {
             if (patch.seating !== undefined) this.prefs.seating = patch.seating;
-            if (patch.speed !== undefined) this.prefs.speed = patch.speed;
             if (patch.firstTurnOpenAllowed !== undefined) this.prefs.firstTurn = patch.firstTurnOpenAllowed;
             if (patch.sortedDeal !== undefined) this.prefs.sortedDeal = patch.sortedDeal;
             if (patch.peekDiscards !== undefined) this.prefs.peekDiscards = patch.peekDiscards;
@@ -872,6 +912,8 @@ export class App {
     this.screen = screen;
     this.showSettings = false;
     this.showScores = false;
+    // Ein Cheat gilt nur für das Solo-Spiel, das er gleich startet: Wer woandershin geht, verwirft ihn.
+    if (screen !== 'setup' && screen !== 'game') this.pendingCheats = null;
     if (screen === 'menu') this.logoCards = null;
     this.render();
   }
@@ -953,6 +995,11 @@ export class App {
 
   // ------------------------------------------------------------ Spielsteuerung
   private startGame(): void {
+    // Ein zu kleines Deck (z. B. Mini mit wenigen Jokern bei vielen Spielern) reicht nicht zum Austeilen: im Setup bleiben
+    if (this.pendingCheats && deckTooSmall(deckConfigOf(this.pendingCheats.cheats), 1 + this.prefs.bots)) {
+      this.toast(t('cheat.err.deckSmall'), true);
+      return;
+    }
     const name = this.playerName();
     const players: PlayerInfo[] = [{ id: 0, name, isBot: false }];
     const bots = resolveBots(this.prefs.botChoices.slice(0, this.prefs.bots), makeRng(Date.now() % 2147483647));
@@ -963,11 +1010,17 @@ export class App {
         [bots[i], bots[j]] = [bots[j], bots[i]];
       }
     }
-    const seatFixed = this.prefs.seating !== 'random';
+    // Mit nur einem Bot weiß man ohnehin, wer es ist: Die Sitzordnung verbirgt dann nichts.
+    const seatFixed = this.prefs.seating !== 'random' || bots.length === 1;
     bots.forEach((b, i) => players.push({ id: i + 1, name: b.name, isBot: true, bot: { level: b.level, style: b.style, reveal: seatFixed ? b.fixed : undefined } }));
-    const settings: Settings = { rounds: this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
+    // Cheats gelten nur für dieses eine Spiel: Sie wandern in den Spielstand und nie in die gespeicherten Einstellungen.
+    const cheats: Cheats | undefined = this.pendingCheats?.cheats;
+    this.pendingCheats = null;
+    const settings: Settings = { rounds: cheats?.rounds ?? this.prefs.rounds, firstTurnOpenAllowed: this.prefs.firstTurn, direction: 'ccw', peekDiscards: this.prefs.peekDiscards, sortedDeal: this.prefs.sortedDeal };
     // Wer die erste Runde austeilt (und damit wer beginnt), wird ausgelost.
-    this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length));
+    this.state = newGame(players, settings, undefined, Math.floor(Math.random() * players.length), cheats);
+    this.auto = { on: false, steps: 0 };
+    this.timeline = [];
     this.order = [];
     this.fresh.clear();
     this.selected.clear();
@@ -980,6 +1033,8 @@ export class App {
 
   private continueGame(): void {
     if (!this.state) return;
+    this.auto = { on: false, steps: 0 };
+    this.timeline = [];
     this.selected.clear();
     this.fresh.clear();
     this.botGen++;
@@ -990,6 +1045,15 @@ export class App {
   }
 
   private async startRoundWithDeal(): Promise<void> {
+    if (this.superFast()) {
+      // SUPERFAST: ohne Austeil-Animation
+      this.dealing = false;
+      this.render();
+      const notes = this.state?.round.cheatNotes;
+      if (notes?.length) this.toast(notes.map((n) => t(n.key, n.params)).join(' '), true);
+      void this.runBots();
+      return;
+    }
     this.dealing = true;
     this.render();
     const stock = this.root.querySelector('.stock-wrap > .card');
@@ -1002,6 +1066,8 @@ export class App {
     this.dealing = false;
     play('card');
     this.render();
+    const notes = this.state?.round.cheatNotes;
+    if (notes?.length) this.toast(notes.map((n) => t(n.key, n.params)).join(' '), true);
     void this.runBots();
   }
 
@@ -1199,6 +1265,12 @@ export class App {
 
   private act(action: Action): boolean {
     const s = this.state!;
+    // Wer selbst spielt, pausiert Autoplay; vor Beginn eines Zuges merkt sich die Zeitreise den Stand
+    if (this.auto.on) {
+      this.auto.on = false;
+      this.auto.steps = 0;
+    }
+    if (action.kind === 'draw' || action.kind === 'ready' || action.kind === 'declareCheft') this.markTimeline();
     const before = snapshot(this.root);
     const appearFrom = action.kind === 'draw' ? this.pileRect(action.source) : null;
     if (this.online) {
@@ -1268,6 +1340,7 @@ export class App {
   private onRoundEnded(): void {
     this.peekTable = false; // Das Ergebnis-Popup geht immer auf, egal was in der Vorrunde gedrückt wurde
     const r = this.state!.round.result!;
+    if (this.superFast()) return;
     if (r.winner === this.me) {
       play('win');
       vibrate(VIB.win, this.prefs.vibration);
@@ -1275,30 +1348,83 @@ export class App {
   }
 
   private botDelay(): number {
-    return this.prefs.speed === 'fast' ? 650 : 1300;
+    return 1300;
+  }
+
+  /** Cheat SUPERFAST: Bots (und Autoplay) spielen ohne Pausen, Animationen und Töne. */
+  private superFast(): boolean {
+    return !this.online && !!this.state?.cheats?.superFast;
+  }
+  private fastTicks = 0;
+  /** Wartet `ms` Millisekunden; mit SUPERFAST nur kurz Luft holen (ein Aufgabenwechsel ohne die 4-ms-Bremse von setTimeout). */
+  private async pause(ms: number): Promise<void> {
+    if (!this.superFast()) {
+      await sleep(ms);
+      return;
+    }
+    if (++this.fastTicks % 25 === 0) {
+      await sleep(0);
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => resolve();
+      ch.port2.postMessage(0);
+    });
+  }
+
+  /** Autoplay-Cheat: Soll der Mastermind-Bot gerade meinen Platz spielen (läuft oder macht einen Einzelschritt)? */
+  private autoActive(): boolean {
+    return !this.online && !!this.state?.cheats?.autoplay && (this.auto.on || this.auto.steps > 0);
   }
 
   private async runBots(): Promise<void> {
-    if (this.botsRunning || this.online) return;
+    if (this.online) return;
+    if (this.botsRunning) {
+      this.botsRerun = true;
+      return;
+    }
     this.botsRunning = true;
     const gen = this.botGen;
     try {
-      while (this.state && gen === this.botGen && this.screen === 'game' && !this.state.round.ended && !this.dealing) {
+      while (this.state && gen === this.botGen && this.screen === 'game' && !this.dealing) {
+        if (this.state.round.ended) {
+          // Autoplay: Runde automatisch beenden und die nächste starten; am Spielende bleibt die Übersicht stehen
+          if (this.state.finished) {
+            if (this.auto.on) {
+              this.auto.on = false;
+              this.render();
+            }
+            break;
+          }
+          if (!this.auto.on || !this.state.cheats?.autoplay) break;
+          await this.pause(1800);
+          if (gen !== this.botGen || !this.state || !this.auto.on) break;
+          this.nextRound();
+          break;
+        }
+        const meAuto = this.autoActive();
         if (this.state.round.waiting) {
           const r = this.state.round;
-          const pending = this.state.players.filter((p) => p.isBot && !r.ready[p.id]);
+          const pending = this.state.players.filter((p) => (p.isBot || (p.id === this.me && meAuto)) && !r.ready[p.id]);
           if (pending.length === 0) break; // auf den Menschen warten
-          await sleep(900 + Math.floor(Math.random() * 1200));
+          await this.pause(pending[0].id === this.me && !this.auto.on ? 150 : 900 + Math.floor(Math.random() * 1200));
           if (gen !== this.botGen || !this.state) break;
+          if (pending[0].id === this.me) this.markTimeline();
           applyAction(this.state, pending[0].id, { kind: 'ready' });
+          if (pending[0].id === this.me && this.auto.steps > 0) {
+            this.auto.steps--;
+            this.render();
+          }
           this.save();
           if (!this.drag) this.render();
-          if (!this.state.round.waiting) play('card');
+          if (!this.state.round.waiting && !this.superFast()) play('card');
           continue;
         }
         const pid = current(this.state);
-        if (!this.state.players[pid].isBot) break;
-        await sleep(this.botDelay());
+        const human = pid === this.me;
+        if (!this.state.players[pid].isBot && !(human && meAuto)) break;
+        await this.pause(human && !this.auto.on ? 150 : this.botDelay());
         if (gen !== this.botGen || !this.state || this.drag) {
           if (this.drag) {
             // Während der Mensch sortiert, kurz warten
@@ -1307,11 +1433,14 @@ export class App {
           }
           break;
         }
-        const action = decideAction(this.state, pid);
-        const before = snapshot(this.root);
-        const seat = this.seatRect(pid);
+        if (human && !this.autoActive()) continue; // pausiert, während wir gewartet haben
+        if (human && this.state.round.turn.phase === 'draw') this.markTimeline();
+        const action = human ? decideForHuman(this.state, pid, this.state.cheats!.autoplay!.role) : decideAction(this.state, pid);
+        const fast = this.superFast();
+        const before = fast ? ({} as RectMap) : snapshot(this.root);
+        const seat = fast ? null : this.seatRect(pid);
         const drawInfo =
-          action.kind === 'draw'
+          !fast && action.kind === 'draw'
             ? {
                 pid,
                 source: action.source,
@@ -1321,29 +1450,102 @@ export class App {
               }
             : null;
         const res = applyAction(this.state, pid, action);
+        if (human && this.auto.steps > 0) this.auto.steps--;
         if (!res.ok) {
+          // Sollte nie vorkommen: Der Zug geht trotzdem weiter, sonst bliebe das Spiel stehen
           console.error('Bot-Fehler', action, res.error);
-          const hand = this.state.round.players[pid].hand;
-          applyAction(this.state, pid, { kind: 'discard', cardId: hand[hand.length - 1].id });
+          if (!fallbackMove(this.state, pid)) {
+            this.toast(t('err.botStuck'), true);
+            break;
+          }
         }
         this.noteModes();
-        this.save();
-        this.render();
-        if (action.kind === 'draw') {
-          play(drawSound(action.source));
-          if (drawInfo) this.flyDraw(drawInfo);
-          void flip(this.root, before, {});
-        } else {
-          play(action.kind === 'discard' ? 'discard' : 'lay');
-          if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+        const ended = this.state.round.ended;
+        // Mit SUPERFAST nur ab und zu speichern und zeichnen (am Rundenende und wenn der Mensch dran ist immer, siehe unten)
+        if (!fast || ended || this.fastTicks % 25 === 0) this.save();
+        if (!fast || ended || this.fastTicks % 8 === 0) this.render();
+        if (!fast) {
+          if (action.kind === 'draw') {
+            play(drawSound(action.source));
+            if (drawInfo) this.flyDraw(drawInfo);
+            void flip(this.root, before, {});
+          } else {
+            play(action.kind === 'discard' ? 'discard' : 'lay');
+            if (!this.state.round.ended) void flip(this.root, before, { appearFrom: seat, disappearTo: seat });
+          }
         }
-        if (this.state.round.ended) this.onRoundEnded();
+        if (ended) this.onRoundEnded();
         // Nach einem Abwurf etwas länger zeigen, was liegt.
-        if (action.kind === 'discard') await sleep(this.prefs.speed === 'fast' ? 250 : 700);
+        if (action.kind === 'discard') await this.pause(700);
       }
     } finally {
       this.botsRunning = false;
+      if (this.superFast() && this.state) {
+        this.save();
+        this.render();
+      }
+      if (this.botsRerun) {
+        this.botsRerun = false;
+        void this.runBots();
+      }
     }
+  }
+
+  // ------------------------------------------------------------ Cheats: Zeitreise und Autoplay
+  /** Zeitreise: merkt sich den Stand vor Beginn meines Zuges (nur mit Cheat, höchstens so viele wie TIMELINE_MAX). */
+  private markTimeline(): void {
+    if (this.online || !this.state?.cheats?.timeTravel) return;
+    const snap = JSON.stringify(this.state);
+    if (this.timeline[this.timeline.length - 1] === snap) return;
+    this.timeline.push(snap);
+    // Begrenzung nach Anzahl und nach Datenmenge (bei hunderten Runden ist ein Spielstand mehrere MB groß)
+    let size = this.timeline.reduce((n, x) => n + x.length, 0);
+    while (this.timeline.length > 1 && (this.timeline.length > TIMELINE_MAX || size > TIMELINE_CHARS)) size -= this.timeline.shift()!.length;
+  }
+
+  /** Zeitreise: mitten im Zug zurück an dessen Anfang (samt Cheft-Ansage), am Anfang zum Beginn meines vorigen Zuges, auch über Rundengrenzen. */
+  private timeTravel(): void {
+    if (this.online || !this.state?.cheats?.timeTravel) return;
+    const cur = JSON.stringify(this.state);
+    if (this.timeline.length > 0 && this.timeline[this.timeline.length - 1] === cur) this.timeline.pop();
+    const target = this.timeline[this.timeline.length - 1];
+    if (!target) {
+      this.toast(t('cheat.noRewind'), true);
+      return;
+    }
+    this.auto = { on: false, steps: 0 };
+    this.botGen++;
+    this.state = JSON.parse(target) as GameState;
+    this.selected.clear();
+    this.fresh.clear();
+    this.order = [];
+    this.chooser = null;
+    this.peekTable = false;
+    play('undo');
+    this.save();
+    this.render();
+    void this.runBots();
+  }
+
+  private toggleAuto(): void {
+    if (this.auto.on) {
+      this.auto.on = false;
+      this.auto.steps = 0;
+    } else {
+      // Ein von Hand angefangener Zug beginnt neu, damit der Bot nicht mit Pflichtkarten hängt
+      if (this.state) abortTurn(this.state);
+      this.auto.on = true;
+    }
+    this.render();
+    void this.runBots();
+  }
+
+  private autoStep(): void {
+    if (this.auto.on || !this.state) return;
+    abortTurn(this.state);
+    this.auto.steps = 1;
+    this.render();
+    void this.runBots();
   }
 
   private nextRound(): void {
@@ -1371,6 +1573,23 @@ export class App {
 
   private toast(msg: string, error = false): void {
     this.toastTimer = showToast(msg, error, this.toastTimer);
+  }
+
+  /**
+   * Hauptmaßstab (--s) auf ganze Geräte-Pixel je Kartenpixel runden. Der Wunsch kommt aus den Bildschirmbreiten-Regeln im CSS;
+   * größer als gewünscht wird es nur, wenn die Hand (14 Karten) dadurch nicht in mehr Zeilen umbricht.
+   */
+  private applyCrispScale(): void {
+    const root = document.documentElement;
+    root.style.removeProperty('--s');
+    const base = parseFloat(getComputedStyle(root).getPropertyValue('--s')) || 2;
+    const handRows = (s: number) => {
+      const W = window.innerWidth * 0.96;
+      const cw = CARD_PX.w * s;
+      return (W - cw) / 13 >= HAND.minStep * s ? 1 : 2;
+    };
+    const s = crispScale(base, window.devicePixelRatio || 1, (v) => handRows(v) <= handRows(base));
+    if (Math.abs(s - base) > 1e-6) root.style.setProperty('--s', String(s));
   }
 
   private scale(): number {
@@ -1423,7 +1642,7 @@ export class App {
         this.showScores = true;
         this.render();
       }),
-      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`),
+      h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), `${r.no}/${s.settings.rounds}`, this.lampInHeader() ? this.lamp(t('cheat.tag')) : null),
       h(
         'div',
         { class: 'icons' },
@@ -1565,7 +1784,7 @@ export class App {
     else if (held(r.turn.mustPairWithId)) msg = t('turn.you.carpet');
     else if (held(r.turn.mustUseId)) msg = t('turn.you.mustUse');
     else msg = t('turn.you.play');
-    let info = t('threshold', { n: tableThreshold(s) });
+    let info = t('threshold', { n: tableThreshold(s, this.me) });
     if (selectedCards.length >= 3 && !me.opened && me.mode === 'romme') {
       const part = findPartition(selectedCards, { types: ROMME_TYPES });
       if (part) info = `${t('selected.augen', { n: part.augen })} · ${info}`;
@@ -1611,6 +1830,23 @@ export class App {
       table.appendChild(undo);
     }
 
+    // Cheat-Knöpfe: Zeitreise links neben dem Zurücksetzen, Autoplay (Play/Pause und Einzelschritt) rechts unten
+    if (!this.online && s.cheats) {
+      if (s.cheats.timeTravel) {
+        const back = iconBtn(pixelIcon(ICON_REWIND), t('cheat.rewind'), () => this.timeTravel());
+        back.classList.add('travel-btn');
+        table.appendChild(back);
+      }
+      if (s.cheats.autoplay) {
+        const canStep = !this.auto.on && !r.ended && ((r.waiting && !r.ready[this.me]) || current(s) === this.me);
+        const stepBtn = iconBtn(pixelIcon(ICON_STEP), t('cheat.step'), () => this.autoStep());
+        (stepBtn as HTMLButtonElement).disabled = !canStep;
+        const playBtn = iconBtn(pixelIcon(this.auto.on ? ICON_PAUSE : ICON_PLAY), this.auto.on ? t('cheat.pause') : t('cheat.play'), () => this.toggleAuto());
+        (playBtn as HTMLButtonElement).disabled = s.finished;
+        table.appendChild(h('div', { class: 'auto-ctl' }, stepBtn, playBtn));
+      }
+    }
+
     const game = h('div', { class: 'game' }, header, table, status, h('div', { class: 'hand-wrap' }, handEl), actions);
     if (r.ended) game.appendChild(this.peekTable ? this.renderEndBar() : this.renderRoundEnd());
     else if (this.chooser) game.appendChild(this.renderChooser());
@@ -1620,6 +1856,22 @@ export class App {
     const request = this.online?.lobby ? this.renderRequest(this.online.lobby) : null;
     if (request) game.appendChild(request);
     return game;
+  }
+
+  /** Die Wunschlampe, inline in Schrifthöhe und im Orange der Rundenzahl. */
+  private lamp(title?: string): HTMLElement {
+    return h('span', { class: 'cheat-lamp', title }, pixelIcon(ICON_LAMP));
+  }
+
+  /** Meldungstext: "Cheats aktiv:" einmal, darunter eine Zeile je Cheat. */
+  private cheatLines(messages: string[], extra: string[] = []): string {
+    return [t('cheat.activeHead'), ...messages.map((m) => `- ${m}`), ...extra].join('\n');
+  }
+
+  /** Cheat-Lampe in der Kopfzeile: nur im Solospiel mit Cheats, und nur wenn die Rundenzahl kurz genug ist (bei 100+ Runden steht sie in der Punkteübersicht). */
+  private lampInHeader(): boolean {
+    const s = this.state;
+    return !this.online && !!s?.cheats && String(s.settings.rounds).length < 3;
   }
 
   /** Stapel mit sichtbarer Dicke (eine Kante je angefangene sechs Karten). */
@@ -1717,8 +1969,8 @@ export class App {
 
   /**
    * Kartengrößen am Tisch und Sitzgrößen. Alle Auslagen (auch die eigene) haben eine Stufe, die Mitte eine eigene (höchstens 1,75-mal so groß).
-   * Es geht von der Startgröße des Geräts schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
-   * zum Start, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
+   * Es geht von der Größe der Handkarten schrittweise nach unten, bis alles passt (siehe tablescale.ts). Sobald etwas kleiner ist als
+   * die Handkarten, entfallen die Beschriftungen der Mitte. Gedrehte Auslagen brauchen vertauschte Breite und Höhe.
    */
   private layoutTable(): void {
     const table = this.root.querySelector('.table') as HTMLElement | null;
@@ -1733,7 +1985,7 @@ export class App {
     const W = table.clientWidth - 4 * s;
     const H = table.clientHeight - 4 * s;
     const dpr = window.devicePixelRatio || 1;
-    const ladder = tableLadder(dpr, deviceClass(window.innerWidth, window.innerHeight), s);
+    const ladder = tableLadder(dpr, s);
     const key = `${this.state?.round.no ?? 0}${this.state?.round.waiting ? 'w' : 'p'}:${this.state?.players.length ?? 0}:${window.innerWidth}x${window.innerHeight}@${dpr}`;
     if (this.tableStep.key !== key) this.tableStep = { key, index: 0 };
     const apply = (st: ScaleStep) => {
@@ -2718,7 +2970,7 @@ export class App {
 
   private joinRoom(): void {
     const code = this.joinCode.trim().toUpperCase();
-    if (!/^\d{3,4}$/.test(code)) {
+    if (!/^\d{1,5}$/.test(code)) {
       this.toast(t('net.noRoom'), true);
       return;
     }
@@ -2899,7 +3151,7 @@ export class App {
     const codeInput = h('input', {
       class: 'text code',
       type: 'text',
-      maxlength: '4',
+      maxlength: '5',
       inputmode: 'numeric',
       pattern: '[0-9]*',
       value: this.joinCode,
@@ -3027,7 +3279,6 @@ export class App {
     });
     const values: SettingValues = {
       seating: lobby.settings.seating,
-      speed: lobby.settings.speed,
       firstTurnOpenAllowed: lobby.settings.firstTurnOpenAllowed,
       sortedDeal: lobby.settings.sortedDeal ?? true,
       peekDiscards: lobby.settings.peekDiscards,
@@ -3184,7 +3435,18 @@ export class App {
   private renderScores(): HTMLElement {
     const s = this.state!;
     return windowEl(
-      [s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')), backBtn(() => this.back())],
+      [
+        !this.online && s.cheats
+          ? h(
+              'div',
+              { class: 'cheat-note' },
+              h('p', { class: 'accent' }, this.lamp(), t('cheat.activeHead')),
+              h('div', { class: 'cheat-list' }, ...activeCheatIds(s.cheats).map((id) => h('div', null, `- ${CHEAT_MESSAGES[id]}`))),
+            )
+          : null,
+        s.history.length ? this.renderRoundsTable(scoreOrder(s)) : h('p', { class: 'muted' }, t('scores.none')),
+        backBtn(() => this.back()),
+      ],
       () => this.back(),
     );
   }
@@ -3199,17 +3461,19 @@ export class App {
     if (res.hand) extras.push(t('roundEnd.hand'));
     if (res.jokerBurned) extras.push(t('roundEnd.joker'));
     const ordered = [...s.players].sort((a, b) => s.totals[a.id] - s.totals[b.id] || res.scores[a.id].total - res.scores[b.id].total);
+    // Platz nach Gesamtpunkten (wenige Strafpunkte = vorn), bei Gleichstand derselbe Platz.
+    const place = (pid: number) => 1 + s.players.filter((o) => s.totals[o.id] < s.totals[pid]).length;
     const rows = ordered.map((p) => {
       const sc = res.scores[p.id];
       const pr = r.players[p.id];
       return h(
         'tr',
-        { class: res.winner === p.id ? 'winner' : '' },
+        { class: p.id === this.me ? 'me' : '' },
+        h('td', { class: 'place' }, `${place(p.id)}.`),
         h(
           'td',
           null,
-          s.finished && p.bot ? btn([name(p.id), pixelIcon(ICON_INFO)], () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
-          p.bot ? (s.finished ? this.botReveal(s, p.id, p.bot) : this.botPartialReveal(p.bot)) : null,
+          this.botFacts(s, p.id) ? btn([name(p.id), pixelIcon(ICON_INFO)], () => this.botInfo(s, p.id), { cls: 'name-info' }) : name(p.id),
           h('div', { class: 'factors' }, t(`mode.${pr.mode}`)),
           pr.opened && pr.hand.length ? h('div', { class: 'rest' }, ...pr.hand.map((c) => this.cardEl(c, { mini: true }))) : null,
           !pr.opened && pr.hand.length ? h('div', { class: 'rest backs' }, ...pr.hand.map((c) => this.cardEl(backOf(c), { mini: true, backId: this.seatBack(p.id) }))) : null,
@@ -3232,10 +3496,11 @@ export class App {
       h('h2', null, title),
       h('p', null, text),
       extras.length ? h('p', { class: 'accent' }, extras.join(' ')) : null,
+      s.finished && !this.online && s.cheats ? h('p', { class: 'muted' }, t('cheat.gameEnd')) : null,
       h(
         'table',
         { class: 'scores' },
-        h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
+        h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))),
         h('tbody', null, ...rows),
       ),
       h(

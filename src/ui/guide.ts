@@ -14,11 +14,11 @@ import { Card } from '../engine/cards';
 import { h, Child } from './dom';
 import { t } from '../i18n';
 import { backBtn, backChoiceRow, badge, btn, roundsTable, fieldLabel, hint, iconBtn, meldEl, seatLabel, toastEl, viewEl } from './components';
-import { ICONS, pixelArt, pixelIcon } from './icons';
+import { ICONS, ICON_INFO, pixelArt, pixelIcon } from './icons';
 import { ATLAS_CELLS, FACE2_CELL, GLYPHS, STAR, SUIT_SHAPES, faceColors, PALETTE, backThumb } from './sprites';
 import { FACE_ART } from './face-art';
 import { BACK_DESIGNS } from './backs';
-import { MAX_RATIO, START, deviceClass, tableLadder } from './tablescale';
+import { MAX_RATIO, tableLadder } from './tablescale';
 import { SOUND_CATALOG, VIBRATION_CATALOG, preview, vibrate } from './sound';
 import {
   BORDER_TOKENS,
@@ -285,7 +285,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.33', name: 'Zwischenüberschrift im Fenster (h3)', where: 'Punkteverlauf (Spielende)', code: '.dialog h3', sel: '.dialog h3', stage: () => h('div', { class: 'dialog' }, h('h3', null, t('gameEnd.rounds'))), stageCls: 'flat', live: 'text', liveSel: 'h3' },
     { id: '2.34', name: 'Rückblick-Banner', where: 'Rückblick auf Abwürfe: Banner oben', code: '.peek-banner', sel: '.peek-banner', stage: () => h('div', { class: 'peek-banner', style: { position: 'static' } }, t('peek.title')), stageCls: 'dark', live: 'text' },
     { id: '2.35', name: 'Fließtext', where: 'Meldungen im Fenster, Regeln, Bestätigungen', code: 'p / body', stage: () => h('div', { class: 'panel' }, h('p', null, t('confirm.quit'))), stageCls: 'flat', live: 'text', liveSel: 'p' },
-    { id: '2.36', name: 'Feldbeschriftung', where: 'Über Auswahlzeilen und Eingabefeldern', code: '.field-label', sel: '.field-label', stage: () => fieldLabel(t('settings.speed')), live: 'text' },
+    { id: '2.36', name: 'Feldbeschriftung', where: 'Über Auswahlzeilen und Eingabefeldern', code: '.field-label', sel: '.field-label', stage: () => fieldLabel(t('setup.peek')), live: 'text' },
     { id: '2.37', name: 'Hinweis', where: 'Erklärungen unter Einstellungen, Bot-Auswahl (Stufe, Spielweise), „Spielrichtung“', code: '.hint', sel: '.hint:not(.center)', stage: () => hint(t('setup.directionCcw')), live: 'text' },
     { id: '2.38', name: 'Hinweis zentriert', where: 'Warten auf Mitspieler (unter Knöpfen)', code: '.hint.center', sel: '.hint.center', stage: () => h('div', { style: { width: '100%' } }, hint(t('wait.others', { names: 'Emil, Zhao' }), true)), live: 'text', liveSel: '.hint' },
     { id: '2.39', name: 'Akzenttext', where: 'Besonderheiten in der Auswertung („Hand gemacht!“), Rollen am Spielende', code: '.accent', sel: '.accent', stage: () => h('p', { class: 'accent' }, t('roundEnd.hand')), live: 'text' },
@@ -297,7 +297,7 @@ export function chapters(env: GuideEnv): Chapter[] {
     { id: '2.46', name: 'Zähler auf dem Stapel', where: 'Stapel mit höchstens 7 Karten', code: '.count-on-card', sel: '.count-on-card', stage: () => h('div', { class: 'stock-wrap', style: { margin: 0 } }, c('back'), h('div', { class: 'count-on-card' }, '7')), live: 'text', liveSel: '.count-on-card' },
     { id: '2.47', name: 'Tabellenkopf', where: 'Auswertung, Punkteverlauf: Spaltenköpfe', code: 'table.scores th', sel: 'table.scores th', stage: () => h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('score.base'))))), live: 'text', liveSel: 'th' },
     { id: '2.48', name: 'Tabellenzeile', where: 'Auswertung, Punkteverlauf: Zellen', code: 'table.scores td', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', null, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
-    { id: '2.49', name: 'Tabellenzeile Sieger', where: 'Auswertung: Rundensieger (synthetisches Fett)', code: 'table.scores tr.winner', sel: 'table.scores tr.winner', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'winner' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
+    { id: '2.49', name: 'Tabellenzeile Du', where: 'Auswertung: die eigene Zeile (orange, synthetisches Fett), damit man den eigenen Platz sofort findet', code: 'table.scores tr.me', sel: 'table.scores tr.me', stage: () => h('table', { class: 'scores' }, h('tbody', null, h('tr', { class: 'me' }, h('td', null, 'Emil')))), live: 'text', liveSel: 'td' },
     { id: '2.50', name: 'Faktoren und Zuwachs', where: 'Auswertung: „Cheft gewonnen ×2“, Punkteverlauf: „+12“', code: '.factors / .delta', sel: '.factors, .delta', stage: () => h('div', { class: 'factors' }, t('factor.cheftWon')), live: 'text' },
     { id: '2.53', name: 'Namensschild im Rückblick', where: 'Rückblick auf Abwürfe: Schild an jeder Karte', code: '.peek-tag', sel: '.peek-tag', stage: () => h('div', { class: 'peek-tag' }, 'Emil'), live: 'both' },
     { id: '2.54', name: 'Rundenzähler', where: 'Kopfzeile im Spiel', code: '.round-no', sel: '.round-no', stage: () => h('div', { class: 'topbar', style: { position: 'static' } }, h('span', { class: 'accent round-no' }, h('span', { class: 'rl' }, `${t('round.word')} `), '1/7')), live: 'text', liveSel: '.round-no' },
@@ -488,9 +488,9 @@ export function chapters(env: GuideEnv): Chapter[] {
   ];
   const btnSpecs = mergeSpecs(btnSpecsRaw, ['4.09', '4.10']);
   const choiceDemo = (): HTMLElement =>
-    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('settings.speed')), h('div', { class: 'choices' }, btn(t('settings.speed.normal'), undefined, { variant: 'primary' }), btn(t('settings.speed.fast'))));
+    h('div', { class: 'option', style: { width: '100%' } }, fieldLabel(t('setup.peek')), h('div', { class: 'choices' }, btn(t('setup.yes'), undefined, { variant: 'primary' }), btn(t('setup.no'))));
   const inputSpecsRaw: Spec[] = [
-    { id: '4.11', name: 'Auswahlzeile', where: 'Alle Einstellungen: Bot-Tempo, Vibration, Sounds, Runden, Sitzplätze …', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
+    { id: '4.11', name: 'Auswahlzeile', where: 'Alle Einstellungen: Vibration, Sounds, Runden, Sitzplätze …', code: 'App.choice() · .option .choices', sel: '.option', stage: choiceDemo, stageCls: 'flat', live: 'box', liveSel: '.option' },
     { id: '4.12', name: 'Bot-Auswahl', where: 'Neues Spiel, Lobby: Stufe und Spielweise', code: 'App.botPicker() · .bot-pick', sel: '.bot-pick', stage: () => h('div', { class: 'bot-pick', style: { width: '100%' } }, h('div', { class: 'bot-col' }, hint(t('setup.level')), btn(t('level.hard'), undefined, { variant: 'primary' })), h('div', { class: 'bot-col' }, hint(t('setup.style')), btn(t('setup.random')))), stageCls: 'flat', live: 'box', liveSel: '.bot-pick' },
     { id: '4.13', name: 'Eingabefeld', where: 'Name (Neues Spiel, Online), Server-Adresse', code: 'input.text', sel: 'input.text:not(.name-edit):not(.code)', stage: () => h('input', { class: 'text', type: 'text', value: 'Tobi', placeholder: t('you') }), stageCls: 'flat', live: 'both' },
     { id: '4.14', name: 'Namensfeld', where: 'Lobby und Einstellungen online: eigener Name', code: 'input.text.name-edit', sel: 'input.text.name-edit', stage: () => h('input', { class: 'text name-edit', type: 'text', value: 'Tobi' }), stageCls: 'flat', live: 'box' },
@@ -750,12 +750,12 @@ export function chapters(env: GuideEnv): Chapter[] {
       name: 'Kartengrößen am Tisch',
       where: 'Auslagen aller Sitze (--so) und Tischmitte: Stapel, Ablage, Teppichkarte (--sc). Die Handkarten bleiben bei --s',
       code: 'tablescale.ts › tableLadder() · App.layoutTable',
-      stage: () => h('div', { class: 'hint' }, 'Beispiel dieses Geräts: ' + tableLadder(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, deviceClass(typeof window === 'undefined' ? 800 : window.innerWidth, typeof window === 'undefined' ? 600 : window.innerHeight), rootScale()).map((x) => `${x.a} / ${x.c}`).join(' → ')),
+      stage: () => h('div', { class: 'hint' }, 'Beispiel dieses Geräts: ' + tableLadder(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, rootScale()).map((x) => `${x.a} / ${x.c}`).join(' → ')),
       stageCls: 'flat',
       facts: [
         ['Regel', `Die Mitte ist nie kleiner als die Auslagen und höchstens ${MAX_RATIO}-mal so groß, nie größer als die Hand.`],
         ['Stufen', 'Ganze Geräte-Pixel je Kartenpixel: n ÷ Pixeldichte (Dichte 1: 1, 2, 3 · Dichte 2: auch Halbschritte · Dichte 3: Drittel). Fehlt eine kleine Stufe, ist 1 die Notstufe.'],
-        ['Start (Auslagen / Mitte)', `Handy schmal (bis 380 px) ${START.phoneNarrow.a} / ${START.phoneNarrow.c} · Handy ${START.phone.a} / ${START.phone.c} · Tablet, flacher Desktop ${START.tablet.a} / ${START.tablet.c} · großer Desktop ${START.desktop.a} / ${START.desktop.c}, jeweils auf die Stufen des Bildschirms gerundet.`],
+        ['Start', 'Keine festen Größen je Gerät: Der Tisch beginnt so groß wie die Handkarten (nie größer), auf die Stufen des Bildschirms gerundet.'],
         ['Verkleinern', 'Bei Platzmangel schrittweise nach unten (größte Summe zuerst), innerhalb einer Runde nie wieder größer. Neu bestimmt wird bei neuer Runde, nach „Bereit“ und bei anderer Fenstergröße.'],
         ['Beschriftungen', 'Sobald etwas kleiner ist als zum Start, entfallen „Stapel“, „Ablage“ und „Teppich“ (6.45).'],
       ],
@@ -800,11 +800,12 @@ export function chapters(env: GuideEnv): Chapter[] {
       7,
     );
   /** Zeile der Auswertung; `rest`: offene Restkarten (opened) oder verdeckte (closed). */
-  const h2row = (winner: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string): HTMLElement =>
+  const h2row = (me: boolean, name: string, mode: string, rest: 'opened' | 'closed' | null, base: string, factor: string, total: string, sum: string, place = '', info = false): HTMLElement =>
     h(
       'tr',
-      { class: winner ? 'winner' : '' },
-      h('td', null, name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
+      { class: me ? 'me' : '' },
+      h('td', { class: 'place' }, place),
+      h('td', null, info ? btn([name, pixelIcon(ICON_INFO)], undefined, { cls: 'name-info' }) : name, h('div', { class: 'factors' }, t(`mode.${mode}`)), rest === 'opened' ? h('div', { class: 'rest' }, c(card('D', 3, -901), { mini: true }), c(card('S', 7, -902), { mini: true })) : rest === 'closed' ? h('div', { class: 'rest backs' }, ...[1, 2, 3].map((n) => c('back', { mini: true, cls: `r${n}` }))) : null),
       h('td', { class: 'num' }, base, factor ? h('div', { class: 'factors' }, factor) : null),
       h('td', { class: 'num' }, total),
       h('td', { class: 'num' }, sum),
@@ -861,10 +862,10 @@ export function chapters(env: GuideEnv): Chapter[] {
     {
       id: '7.12',
       name: 'Spielende',
-      where: 'Nach der letzten Runde: Sieger, Auswertung mit Rollen der Bots (Stufe · Spielweise, orange), Punkteverlauf',
-      code: 'App.renderRoundEnd() · .factors.accent · table.rounds',
+      where: 'Nach der letzten Runde: Sieger, Auswertung mit Platz (1. 2. 3. 4.), eigene Zeile hervorgehoben, Bot-Details hinter dem (i), Punkteverlauf',
+      code: 'App.renderRoundEnd() · tr.me · table.rounds',
       stage: () => dlg(h('h2', null, t('gameEnd.title')), h('p', null, t('gameEnd.winner', { name: 'Emil', n: 38 })),
-        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i]); r.firstElementChild!.append(h('div', { class: 'factors accent' }, n === 'Tobi' ? '' : `${t(['level.hard', 'level.easy', 'level.master'][i % 3])} · ${t(['style.early', 'style.balanced', 'style.gambler'][i % 3])}`)); return r; }))),
+        h('table', { class: 'scores' }, h('thead', null, h('tr', null, h('th', { class: 'place' }), h('th', null, t('roundEnd.rest')), h('th', { class: 'num' }, t('score.base')), h('th', { class: 'num' }, t('score.total')), h('th', { class: 'num' }, t('score.sum')))), h('tbody', null, ...(['Emil', 'Neo', 'Zhao', 'Tobi'] as const).map((n, i) => { const r = h2row(i === 0, n, n === 'Tobi' ? 'cheft' : 'romme', null, ['0', '36', '100', '100'][i], '', ['0', '36', '100', '100'][i], ['38', '64', '228', '302'][i], `${i + 1}.`, i > 0); return r; }))),
         h('div', null, h('h3', null, t('gameEnd.rounds')), roundsDemo()),
         btn(t('btn.endGame'), undefined, { variant: 'primary' })),
       stageCls: 'flat',
@@ -909,7 +910,7 @@ export function chapters(env: GuideEnv): Chapter[] {
   };
   const pages: Group[] = [
     { title: '8.01 Menü', node: anatomy([['5.30', 'Logo'], ['4.02', 'Weiterspielen (nur mit Spielstand, primär)'], ['4.01/4.02', 'Neues Spiel (primär, wenn nichts zum Weiterspielen)'], ['4.01', 'Spielstand-Code einfügen'], ['4.01', 'Mit Freunden spielen'], ['4.02', 'Zurück in den Raum (nur wenn ein Raum gespeichert ist)'], ['4.01', 'Regeln'], ['4.01', 'Familienalbum'], ['4.01', 'Einstellungen (Fenster 7.06)']]) },
-    { title: '8.02 Neues Spiel', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.11', 'Bots (2 | 3)'], ['4.12', 'Je Bot: Stufe | Spielweise'], ['4.01', 'Alle zufällig'], ['4.11', 'Sitzplätze, Bot-Tempo, Rauskommen im ersten Zug, Karten beim Austeilen, Rückblick, Runden'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.06', 'Zurück']]) },
+    { title: '8.02 Neues Spiel', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.11', 'Bots (2 | 3)'], ['4.12', 'Je Bot: Stufe | Spielweise'], ['4.01', 'Alle zufällig'], ['4.11', 'Sitzplätze, Rauskommen im ersten Zug, Karten beim Austeilen, Rückblick, Runden'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.06', 'Zurück']]) },
     { title: '8.03 Mit Freunden spielen', node: anatomy([['2.31', 'Titel'], ['4.13', 'Name'], ['4.02', 'Raum eröffnen'], ['4.15', 'Raumcode + Beitreten (4.01)'], ['4.17', 'Server-Adresse (aufklappbar)'], ['4.06', 'Zurück']]) },
     { title: '8.04 Beitreten (Spiel läuft)', node: anatomy([['2.31', 'Titel'], ['2.37', 'Hinweis'], ['4.01', 'Ein Knopf je übernehmbarem Platz'], ['4.06', 'Zurück']]) },
     { title: '8.05 Lobby', node: anatomy([['2.31', 'Titel (Raumcode)'], ['4.01', 'Link / Raumcode kopieren'], ['4.19', 'Sitzreihen mit Griff, Name (4.14), Chips (4.20), Entfernen (4.07), Bot-Auswahl (4.12)'], ['4.01', 'Bot hinzufügen'], ['4.11', 'Einstellungen (Gastgeber) oder 4.18 (Mitspieler)'], ['2.37', 'Spielrichtung-Hinweis'], ['4.02', 'Spiel starten'], ['4.04', 'Raum verlassen']]) },

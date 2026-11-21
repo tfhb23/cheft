@@ -5,6 +5,7 @@
 import { applyAction } from '../engine/actions';
 import { BotLevel, BotStyle, GameState, newGame, startNextRound, winnerOfGame } from '../engine/game';
 import { DecideOptions, decideAction } from './bot';
+import type { Cheats } from '../engine/cheats';
 
 export interface SimSeat {
   level: BotLevel;
@@ -24,6 +25,8 @@ export interface SimOptions {
   dealer?: number;
   /** Wird vor jeder Entscheidung aufgerufen. */
   visit?: (g: GameState, pid: number) => void;
+  /** Cheats (nur Tests, z. B. andere Decks). */
+  cheats?: Cheats;
   /** Sicherung gegen Endlosschleifen. */
   maxSteps?: number;
 }
@@ -42,7 +45,7 @@ export interface SimResult {
 export function simulate(o: SimOptions): SimResult {
   const n = o.seats.length;
   const players = o.seats.map((s, i) => ({ id: i, name: `Bot${i}`, isBot: true, bot: { level: s.level, style: s.style } }));
-  const g = newGame(players, { rounds: o.rounds ?? 3, firstTurnOpenAllowed: o.firstTurnOpenAllowed ?? true, direction: 'ccw' }, o.seed, o.dealer ?? o.seed % n);
+  const g = newGame(players, { rounds: o.rounds ?? 3, firstTurnOpenAllowed: o.firstTurnOpenAllowed ?? true, direction: 'ccw' }, o.seed, o.dealer ?? o.seed % n, o.cheats);
   g.round.waiting = false;
   g.round.ready = g.round.ready.map(() => true);
   const max = o.maxSteps ?? 40000;
